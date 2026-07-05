@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base app theme -->
+    <style name="Theme.SpendSync" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Splash screen launcher theme — uses core-splashscreen -->
+    <style name="Theme.SpendSync.Launcher" parent="Theme.SplashScreen">
+        <!-- Icon shown in the centre of the splash window -->
+        <item name="windowSplashScreenBackground">#1A56DB</item>
+        <!-- Post-splash theme applied after installSplashScreen() -->
+        <item name="postSplashScreenTheme">@style/Theme.SpendSync</item>
+    </style>
+</resources>
