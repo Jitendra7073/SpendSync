@@ -68,7 +68,7 @@ app.all('/api/auth/*', async (req, res) => {
     
     const webRequest = new Request(url, {
       method: req.method,
-      headers: req.headers as HeadersInit,
+      headers: req.headers as any,
       body: body,
     });
     

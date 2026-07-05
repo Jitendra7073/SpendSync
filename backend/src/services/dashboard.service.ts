@@ -61,9 +61,10 @@ export class DashboardService {
       totalEarned: categoryBreakdown.reduce((sum, cat) => sum + cat.earned, 0),
       totalTransactions: categoryBreakdown.reduce((sum, cat) => sum + cat.transactionCount, 0),
       totalBudget: monthBudgets.reduce((sum, b) => sum + parseFloat(b.limitAmount), 0),
+      netAmount: 0,
     };
 
-    totals['netAmount'] = totals.totalEarned - totals.totalSpent;
+    totals.netAmount = totals.totalEarned - totals.totalSpent;
 
     // Get monthly trend (last 6 months)
     const monthlyTrend = await this.getMonthlyTrend(userId, 6);
