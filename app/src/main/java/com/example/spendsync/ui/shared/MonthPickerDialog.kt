@@ -57,6 +57,10 @@ fun MonthPickerDialog(
     current: LocalDate,
     onConfirm: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
+    // When set, days (and months) after this are shown but disabled — used by
+    // the add-transaction date field so a transaction can never be backdated
+    // into the future.
+    maxDate: LocalDate? = null,
 ) {
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
@@ -113,13 +117,18 @@ fun MonthPickerDialog(
                     color      = NeutralBlack,
                 )
 
-                IconButton(onClick = {
-                    if (viewMonth == 12) { viewMonth = 1; viewYear++ } else viewMonth++
-                }) {
+                val atMaxMonth = maxDate != null &&
+                    YearMonth.of(viewYear, viewMonth) >= YearMonth.from(maxDate)
+                IconButton(
+                    enabled = !atMaxMonth,
+                    onClick = {
+                        if (viewMonth == 12) { viewMonth = 1; viewYear++ } else viewMonth++
+                    },
+                ) {
                     Icon(
                         Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Next month",
-                        tint               = BrandBlue,
+                        tint               = if (atMaxMonth) NeutralLight else BrandBlue,
                     )
                 }
             }
@@ -166,6 +175,8 @@ fun MonthPickerDialog(
                         val date      = if (isValid) LocalDate.of(viewYear, viewMonth, day) else null
                         val isSelected = date == selected
                         val isToday    = date == LocalDate.now()
+                        val isDisabled = date != null && maxDate != null && date.isAfter(maxDate)
+                        val isSelectable = isValid && !isDisabled
 
                         Box(
                             modifier = Modifier
@@ -181,7 +192,7 @@ fun MonthPickerDialog(
                                     }
                                 )
                                 .then(
-                                    if (isValid) Modifier.clickable(
+                                    if (isSelectable) Modifier.clickable(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication        = ripple(bounded = true, color = BrandBlue),
                                     ) { selected = date!! }
@@ -195,6 +206,7 @@ fun MonthPickerDialog(
                                     fontSize   = 13.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color      = when {
+                                        isDisabled -> NeutralLight
                                         isSelected -> NeutralWhite
                                         isToday    -> BrandBlue
                                         else       -> NeutralBlack

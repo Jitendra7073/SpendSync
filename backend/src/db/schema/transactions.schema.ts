@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, decimal, timestamp } from 'drizzle-orm/pg-core';
-import { user } from './auth.schema.js';
+import { user } from './auth.schema';
 
 /**
  * Transaction types enum

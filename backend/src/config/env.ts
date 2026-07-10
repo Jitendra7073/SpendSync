@@ -1,9 +1,6 @@
-import dotenv from 'dotenv';
 import { z } from 'zod';
 
-// Load environment variables
-dotenv.config();
-
+// Next.js loads .env/.env.local automatically before this module runs.
 // Environment variable schema validation
 const envSchema = z.object({
   // Server

@@ -92,10 +92,11 @@ class FinanceRepository(
         merchant: String,
         category: String,
         sourceApp: String? = null,
-        note: String? = null
+        note: String? = null,
+        transactionDate: String? = null,
     ): AuthResult<TransactionDto> {
         return try {
-            val request = CreateTransactionRequest(amount, type, merchant, category, sourceApp, note)
+            val request = CreateTransactionRequest(amount, type, merchant, category, sourceApp, note, transactionDate)
             val response = api.createTransaction(getAuthHeader(), request)
             if (response.isSuccessful && response.body() != null) {
                 cacheInvalidate("transactions", "dashboard")
@@ -115,10 +116,11 @@ class FinanceRepository(
         merchant: String? = null,
         category: String? = null,
         sourceApp: String? = null,
-        note: String? = null
+        note: String? = null,
+        transactionDate: String? = null,
     ): AuthResult<TransactionDto> {
         return try {
-            val request = UpdateTransactionRequest(amount, type, merchant, category, sourceApp, note)
+            val request = UpdateTransactionRequest(amount, type, merchant, category, sourceApp, note, transactionDate)
             val response = api.updateTransaction(getAuthHeader(), id, request)
             if (response.isSuccessful && response.body() != null) {
                 cacheInvalidate("transactions", "dashboard")

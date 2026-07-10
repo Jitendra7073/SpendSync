@@ -13,6 +13,8 @@ pnpm-lock.yaml
 dist/
 build/
 *.tsbuildinfo
+.next/
+next-env.d.ts
 
 # Logs
 logs/

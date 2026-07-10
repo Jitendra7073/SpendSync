@@ -89,9 +89,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.rememberCoroutineScope
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
+import com.example.spendsync.data.repository.IconifyRepository
+import com.example.spendsync.data.local.PersistedCategory
+import com.example.spendsync.data.remote.IconifyApiClient
 import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
+import coil3.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import androidx.compose.ui.window.DialogProperties
@@ -103,16 +108,23 @@ import com.example.spendsync.ui.theme.NeutralOffWhite
 import com.example.spendsync.ui.theme.NeutralWhite
 import com.example.spendsync.ui.theme.SemanticError
 import com.example.spendsync.ui.theme.SemanticSuccess
+import com.example.spendsync.ui.shared.MonthPickerDialog
+import androidx.compose.material.icons.filled.CalendarMonth
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Data
 // ─────────────────────────────────────────────────────────────────────────────
 
-private enum class TransactionType { INCOME, EXPENSE }
+enum class TransactionType { INCOME, EXPENSE }
 
 private data class Category(
     val label: String,
-    val icon: ImageVector,
+    val icon: ImageVector? = null,
+    // Iconify "prefix:name" — set for categories picked via the icon search,
+    // rendered remotely via Coil instead of a bundled ImageVector.
+    val iconId: String? = null,
 )
 
 private val incomeCategories = listOf(
@@ -123,6 +135,10 @@ private val incomeCategories = listOf(
     Category("Investment", Icons.Default.AttachMoney),
     Category("Other",      Icons.Default.MoreHoriz),
 )
+
+private fun toCategory(persisted: PersistedCategory): Category =
+    if (persisted.iconId != null) Category(persisted.name, iconId = persisted.iconId)
+    else Category(persisted.name, icon = Icons.Default.Star)
 
 private val expenseCategories = listOf(
     Category("Food",        Icons.Default.Fastfood),
@@ -147,6 +163,7 @@ fun AddExpenseScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
     editTransaction: TransactionDto? = null,
+    initialType: TransactionType? = null,
     onBack: () -> Unit
 ) {
     val isEditing = editTransaction != null
@@ -164,49 +181,101 @@ fun AddExpenseScreen(
     }
 
     var type        by rememberSaveable {
-        mutableStateOf(if (editTransaction?.type == "credit") TransactionType.INCOME else TransactionType.EXPENSE)
+        mutableStateOf(
+            when {
+                editTransaction != null -> if (editTransaction.type == "credit") TransactionType.INCOME else TransactionType.EXPENSE
+                initialType != null     -> initialType
+                else                    -> TransactionType.EXPENSE
+            }
+        )
     }
     var amount      by rememberSaveable { mutableStateOf(editTransaction?.amount ?: "") }
     var selectedCat by rememberSaveable { mutableStateOf(editTransaction?.category) }
     var note        by rememberSaveable { mutableStateOf(editTransaction?.note ?: "") } // Unifies description/note
 
-    // Mutable states for lists of categories to allow adding custom ones
-    var customIncomeCategories by remember { mutableStateOf(incomeCategories) }
-    var customExpenseCategories by remember { mutableStateOf(expenseCategories) }
+    val today = remember { LocalDate.now() }
+    var transactionDate by rememberSaveable {
+        mutableStateOf(
+            editTransaction?.createdAt?.let {
+                try { java.time.ZonedDateTime.parse(it).toLocalDate() } catch (e: Exception) { today }
+            } ?: today
+        )
+    }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    // Mutable pools of categories (built-ins + persisted custom ones) to allow
+    // adding new ones without waiting on a DataStore round-trip.
+    var poolIncomeCategories by remember { mutableStateOf(incomeCategories) }
+    var poolExpenseCategories by remember { mutableStateOf(expenseCategories) }
 
     // If editing a transaction whose category isn't one of the built-ins,
     // inject it so the grid can show it as an existing, selected chip.
     LaunchedEffect(Unit) {
         val editCategory = editTransaction?.category ?: return@LaunchedEffect
         if (editTransaction.type == "credit") {
-            if (customIncomeCategories.none { it.label == editCategory }) {
-                customIncomeCategories = customIncomeCategories + Category(editCategory, Icons.Default.Star)
+            if (poolIncomeCategories.none { it.label == editCategory }) {
+                poolIncomeCategories = poolIncomeCategories + Category(editCategory, Icons.Default.Star)
             }
         } else {
-            if (customExpenseCategories.none { it.label == editCategory }) {
-                customExpenseCategories = customExpenseCategories + Category(editCategory, Icons.Default.Star)
+            if (poolExpenseCategories.none { it.label == editCategory }) {
+                poolExpenseCategories = poolExpenseCategories + Category(editCategory, Icons.Default.Star)
             }
         }
     }
 
-    // Restore previously-added custom categories (persisted locally — icons
-    // aren't serializable, so restored entries get a generic star icon).
-    val savedIncomeNames by sessionDataStore.customIncomeCategoryNames.collectAsState(initial = emptyList())
-    val savedExpenseNames by sessionDataStore.customExpenseCategoryNames.collectAsState(initial = emptyList())
-    LaunchedEffect(savedIncomeNames) {
-        val missing = savedIncomeNames.filter { name -> customIncomeCategories.none { it.label == name } }
+    // Restore previously-added custom categories, icon included.
+    val savedIncome by sessionDataStore.customIncomeCategories.collectAsState(initial = emptyList())
+    val savedExpense by sessionDataStore.customExpenseCategories.collectAsState(initial = emptyList())
+    LaunchedEffect(savedIncome) {
+        val missing = savedIncome.filter { p -> poolIncomeCategories.none { it.label == p.name } }
         if (missing.isNotEmpty()) {
-            customIncomeCategories = customIncomeCategories + missing.map { Category(it, Icons.Default.Star) }
+            poolIncomeCategories = poolIncomeCategories + missing.map { toCategory(it) }
         }
     }
-    LaunchedEffect(savedExpenseNames) {
-        val missing = savedExpenseNames.filter { name -> customExpenseCategories.none { it.label == name } }
+    LaunchedEffect(savedExpense) {
+        val missing = savedExpense.filter { p -> poolExpenseCategories.none { it.label == p.name } }
         if (missing.isNotEmpty()) {
-            customExpenseCategories = customExpenseCategories + missing.map { Category(it, Icons.Default.Star) }
+            poolExpenseCategories = poolExpenseCategories + missing.map { toCategory(it) }
         }
     }
 
-    val categories  = if (type == TransactionType.INCOME) customIncomeCategories else customExpenseCategories
+    val categoryPool = if (type == TransactionType.INCOME) poolIncomeCategories else poolExpenseCategories
+    val defaultsForType = if (type == TransactionType.INCOME) incomeCategories else expenseCategories
+
+    // A broad, cached fetch — reused across the session — to rank categories
+    // by how often this user actually picks them, so the 5 pinned up top are
+    // personal rather than an arbitrary fixed list.
+    var recentTransactions by remember { mutableStateOf<List<TransactionDto>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        when (val res = financeRepository.getTransactions(limit = 200)) {
+            is AuthResult.Success -> recentTransactions = res.data
+            is AuthResult.Error -> Unit
+        }
+    }
+
+    // Top 5 most-used categories for this type, falling back to the curated
+    // defaults (in order) when history is thin — never fewer than 5 pinned.
+    val categories = remember(categoryPool, recentTransactions, type) {
+        val apiType = if (type == TransactionType.INCOME) "credit" else "debit"
+        val byLabel = categoryPool.associateBy { it.label }
+        val mostUsed = recentTransactions
+            .filter { it.type == apiType }
+            .groupingBy { it.category }
+            .eachCount()
+            .toList()
+            .sortedByDescending { it.second }
+            .map { it.first }
+            .filter { it in byLabel }
+
+        val topLabels = LinkedHashSet<String>().apply {
+            addAll(mostUsed)
+            defaultsForType.forEach { if (size < 5) add(it.label) }
+        }.take(5)
+
+        val top = topLabels.mapNotNull { byLabel[it] }
+        val rest = categoryPool.filterNot { it.label in topLabels }
+        top + rest
+    }
 
     // Auto-suggest a category from what the user types, based on past picks
     // (backend learns merchant-keyword → category rules as transactions are
@@ -235,8 +304,9 @@ fun AddExpenseScreen(
         label         = "header_color",
     )
 
-    // Dialog state for adding a custom category
+    // Add-category screen state
     var showAddCategory by remember { mutableStateOf(false) }
+    val iconifyRepository = remember { IconifyRepository() }
 
     // Combine current category list with a special "+" Add button item
     val gridItems = remember(categories) {
@@ -383,6 +453,17 @@ fun AddExpenseScreen(
         ) {
             Spacer(Modifier.height(24.dp))
 
+            // ── Date ─────────────────────────────────────────────────────────
+            SectionLabel("Date")
+            Spacer(Modifier.height(12.dp))
+            DateSelectorRow(
+                date = transactionDate,
+                accentColor = accentColor,
+                onClick = { showDatePicker = true },
+            )
+
+            Spacer(Modifier.height(24.dp))
+
             // ── Category label ────────────────────────────────────────────────
             SectionLabel("Category")
             Spacer(Modifier.height(12.dp))
@@ -438,6 +519,10 @@ fun AddExpenseScreen(
                                      val apiType = if (type == TransactionType.INCOME) "credit" else "debit"
                                      val merchantName = if (note.isNotBlank()) note else selectedCat ?: "Other"
                                      val chosenCategory = selectedCat ?: "Other"
+                                     // Noon UTC — ZonedDateTime.parse(...).toLocalDate() elsewhere in
+                                     // the app reads the date straight off the UTC string, so this
+                                     // keeps the picked calendar day stable regardless of device timezone.
+                                     val dateStr = "${transactionDate}T12:00:00.000Z"
                                      val res = if (isEditing) {
                                          financeRepository.updateTransaction(
                                              id = editTransaction.id,
@@ -445,7 +530,8 @@ fun AddExpenseScreen(
                                              type = apiType,
                                              merchant = merchantName,
                                              category = chosenCategory,
-                                             note = note
+                                             note = note,
+                                             transactionDate = dateStr,
                                          )
                                      } else {
                                          financeRepository.createTransaction(
@@ -453,7 +539,8 @@ fun AddExpenseScreen(
                                              type = apiType,
                                              merchant = merchantName,
                                              category = chosenCategory,
-                                             note = note
+                                             note = note,
+                                             transactionDate = dateStr,
                                          )
                                      }
                                      // Teach the suggestion engine: next time this merchant
@@ -499,254 +586,39 @@ fun AddExpenseScreen(
         }
     }
 
-    // Custom Category Creator Dialog
+    // Add-category screen — search Iconify, pick a name + icon
     if (showAddCategory) {
-        AddCategoryDialog(
+        CategoryIconPickerScreen(
+            iconifyRepository = iconifyRepository,
+            accentColor = accentColor,
             onDismiss = { showAddCategory = false },
-            onAdd = { name, icon ->
-                val newCat = Category(name, icon)
+            onCategoryCreated = { name, iconId ->
+                val newCat = Category(name, iconId = iconId)
                 if (type == TransactionType.INCOME) {
-                    customIncomeCategories = customIncomeCategories + newCat
-                    scope.launch { sessionDataStore.addCustomIncomeCategory(name) }
+                    poolIncomeCategories = poolIncomeCategories + newCat
+                    scope.launch { sessionDataStore.addCustomIncomeCategory(name, iconId) }
                 } else {
-                    customExpenseCategories = customExpenseCategories + newCat
-                    scope.launch { sessionDataStore.addCustomExpenseCategory(name) }
+                    poolExpenseCategories = poolExpenseCategories + newCat
+                    scope.launch { sessionDataStore.addCustomExpenseCategory(name, iconId) }
                 }
                 selectedCat = name // Automatically select the newly created category
                 showAddCategory = false
             },
-            accentColor = accentColor
-        )
-    }
-    }
-}
-
-// ── Custom Category Add Dialog with Searchable Icon Picker ───────────────────
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddCategoryDialog(
-    onDismiss: () -> Unit,
-    onAdd: (String, ImageVector) -> Unit,
-    accentColor: Color,
-) {
-    var name by remember { mutableStateOf("") }
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedIcon by remember { mutableStateOf<ImageVector?>(null) }
-
-    // Curated standard icons that compile safely in core Material package
-    val availableIcons = remember {
-        listOf(
-            "Food" to Icons.Default.Fastfood,
-            "Transport" to Icons.Default.DirectionsCar,
-            "Shopping" to Icons.Default.ShoppingBag,
-            "Housing" to Icons.Default.Home,
-            "Health" to Icons.Default.LocalHospital,
-            "Education" to Icons.Default.School,
-            "Travel" to Icons.Default.Flight,
-            "Bills/Wifi" to Icons.Default.Wifi,
-            "Fitness" to Icons.Default.FitnessCenter,
-            "Movies" to Icons.Default.MovieFilter,
-            "Work" to Icons.Default.Work,
-            "Gift" to Icons.Default.CardGiftcard,
-            "Other" to Icons.Default.MoreHoriz,
-            "Cart" to Icons.Default.ShoppingCart,
-            "Star" to Icons.Default.Star,
-            "Phone" to Icons.Default.Phone,
-            "Tools" to Icons.Default.Build,
-            "Email" to Icons.Default.Email,
-            "Call" to Icons.Default.Call,
-            "Settings" to Icons.Default.Settings,
-            "Person" to Icons.Default.Person,
-            "Lock" to Icons.Default.Lock,
-            "Warning" to Icons.Default.Warning,
-            "Info" to Icons.Default.Info,
-            "Favorite" to Icons.Default.Favorite,
-            "Savings" to Icons.Default.Savings
         )
     }
 
-    val filteredIcons = remember(searchQuery) {
-        availableIcons.filter { it.first.contains(searchQuery, ignoreCase = true) }
+    // Date picker — future dates are disabled, never backdate past "today"'s max
+    if (showDatePicker) {
+        MonthPickerDialog(
+            current = transactionDate,
+            maxDate = today,
+            onConfirm = { picked ->
+                transactionDate = picked
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false },
+        )
     }
-
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties       = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(NeutralWhite)
-                .padding(20.dp),
-        ) {
-            Text(
-                text       = "Add Custom Category",
-                fontSize   = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color      = NeutralBlack,
-            )
-            Spacer(Modifier.height(16.dp))
-
-            // Category Name Field
-            OutlinedTextField(
-                value         = name,
-                onValueChange = { name = it },
-                label         = { Text("Category Name", fontSize = 14.sp) },
-                placeholder   = { Text("e.g. Subscriptions", color = NeutralMid) },
-                singleLine    = true,
-                colors        = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = accentColor,
-                    unfocusedBorderColor = NeutralLight,
-                    cursorColor          = accentColor,
-                    focusedLabelColor    = accentColor,
-                ),
-                shape         = RoundedCornerShape(12.dp),
-                modifier      = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            Text(
-                text       = "Select Icon",
-                fontSize   = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color      = NeutralMid,
-            )
-            Spacer(Modifier.height(8.dp))
-
-            // Search Icons Input
-            OutlinedTextField(
-                value         = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder   = { Text("Search icons...", color = NeutralMid, fontSize = 13.sp) },
-                leadingIcon   = { Icon(Icons.Default.Search, contentDescription = null, tint = NeutralMid, modifier = Modifier.size(18.dp)) },
-                trailingIcon  = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search", tint = NeutralMid, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                },
-                singleLine    = true,
-                colors        = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = accentColor,
-                    unfocusedBorderColor = NeutralLight,
-                    cursorColor          = accentColor,
-                ),
-                shape         = RoundedCornerShape(12.dp),
-                modifier      = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // Icons selector grid
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(160.dp),
-            ) {
-                if (filteredIcons.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text  = "No icons match search.",
-                            color = NeutralMid,
-                            fontSize = 13.sp,
-                        )
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns             = GridCells.Fixed(5),
-                        contentPadding      = PaddingValues(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement   = Arrangement.spacedBy(8.dp),
-                        modifier            = Modifier.fillMaxSize(),
-                    ) {
-                        items(filteredIcons) { (iconLabel, iconVector) ->
-                            val isIconSelected = selectedIcon == iconVector
-                            val iconBg = if (isIconSelected) accentColor else NeutralLight
-                            val iconTint = if (isIconSelected) NeutralWhite else NeutralMid
-                            
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(iconBg)
-                                    .clickable { selectedIcon = iconVector }
-                                    .padding(8.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = iconVector,
-                                    contentDescription = iconLabel,
-                                    tint               = iconTint,
-                                    modifier           = Modifier.size(24.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(NeutralLight),
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // Confirm & Cancel Actions
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable(onClick = onDismiss)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text       = "Cancel",
-                        color      = NeutralMid,
-                        fontSize   = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                val isEnabled = name.trim().isNotEmpty() && selectedIcon != null
-                val addBg = if (isEnabled) accentColor else NeutralLight
-                val addText = if (isEnabled) NeutralWhite else NeutralMid
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(addBg)
-                        .clickable(enabled = isEnabled) {
-                            onAdd(name.trim(), selectedIcon!!)
-                        }
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text       = "Add",
-                        color      = addText,
-                        fontSize   = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -839,12 +711,24 @@ private fun CategoryChip(
                 .background(bgColor),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector        = category.icon,
-                contentDescription = category.label,
-                tint               = contentColor,
-                modifier           = Modifier.size(22.dp),
-            )
+            if (category.iconId != null) {
+                AsyncImage(
+                    model = IconifyApiClient.iconUrl(
+                        category.iconId,
+                        colorHex = if (isSelected) "#FFFFFF" else "#6B7280",
+                    ),
+                    contentDescription = category.label,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(22.dp),
+                )
+            } else {
+                Icon(
+                    imageVector        = category.icon ?: Icons.Default.Star,
+                    contentDescription = category.label,
+                    tint               = contentColor,
+                    modifier           = Modifier.size(22.dp),
+                )
+            }
         }
         Spacer(Modifier.height(5.dp))
         Text(
@@ -866,4 +750,48 @@ private fun SectionLabel(text: String) {
         fontWeight = FontWeight.SemiBold,
         color      = NeutralMid,
     )
+}
+
+// ── Date selector row — opens the calendar, future dates are disabled ────────
+@Composable
+private fun DateSelectorRow(
+    date: LocalDate,
+    accentColor: Color,
+    onClick: () -> Unit,
+) {
+    val today = remember { LocalDate.now() }
+    val label = remember(date) {
+        when (date) {
+            today            -> "Today"
+            today.minusDays(1) -> "Yesterday"
+            else              -> date.format(DateTimeFormatter.ofPattern("d MMM yyyy"))
+        }
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(accentColor.copy(alpha = 0.08f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication        = ripple(bounded = true, color = accentColor),
+                onClick           = onClick,
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Icon(
+            imageVector        = Icons.Default.CalendarMonth,
+            contentDescription = null,
+            tint               = accentColor,
+            modifier           = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text       = label,
+            fontSize   = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color      = NeutralBlack,
+        )
+    }
 }

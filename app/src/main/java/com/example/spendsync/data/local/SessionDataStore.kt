@@ -14,6 +14,27 @@ import kotlinx.coroutines.flow.map
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "session_prefs")
 
 /**
+ * A user-added transaction category. [iconId] is an Iconify "prefix:name"
+ * string (e.g. "mdi:pizza") when the user picked one from the icon search;
+ * null for older entries saved before icon picking existed, which fall back
+ * to a generic local icon.
+ */
+data class PersistedCategory(val name: String, val iconId: String?)
+
+private fun parsePersistedCategories(raw: String?): List<PersistedCategory> {
+    if (raw.isNullOrBlank()) return emptyList()
+    return raw.split(",").filter { it.isNotBlank() }.map { entry ->
+        val parts = entry.split("||", limit = 2)
+        PersistedCategory(name = parts[0], iconId = parts.getOrNull(1)?.takeIf { it.isNotBlank() })
+    }
+}
+
+private fun serializePersistedCategories(categories: List<PersistedCategory>): String =
+    categories.joinToString(",") { cat ->
+        if (cat.iconId != null) "${cat.name}||${cat.iconId}" else cat.name
+    }
+
+/**
  * Persists the Better Auth session token to DataStore so the app can
  * restore the session after a cold start without forcing the user to
  * sign in again.
@@ -38,8 +59,8 @@ class SessionDataStore(private val context: Context) {
         private val KEY_DATE_FORMAT         = stringPreferencesKey("settings_date_format")
         private val KEY_SECURITY_PIN        = stringPreferencesKey("settings_security_pin")
 
-        // Custom transaction categories added via the "+ Add" chip — comma-joined
-        // names (icons aren't persisted; restored entries get a generic icon).
+        // Custom transaction categories added via the icon picker — comma-joined
+        // "name" or "name||iconId" entries (see PersistedCategory).
         private val KEY_CUSTOM_INCOME_CATEGORIES  = stringPreferencesKey("custom_income_categories")
         private val KEY_CUSTOM_EXPENSE_CATEGORIES = stringPreferencesKey("custom_expense_categories")
     }
@@ -103,12 +124,12 @@ class SessionDataStore(private val context: Context) {
         prefs[KEY_SECURITY_PIN] ?: ""
     }
 
-    val customIncomeCategoryNames: Flow<List<String>> = context.dataStore.data.map { prefs ->
-        prefs[KEY_CUSTOM_INCOME_CATEGORIES]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+    val customIncomeCategories: Flow<List<PersistedCategory>> = context.dataStore.data.map { prefs ->
+        parsePersistedCategories(prefs[KEY_CUSTOM_INCOME_CATEGORIES])
     }
 
-    val customExpenseCategoryNames: Flow<List<String>> = context.dataStore.data.map { prefs ->
-        prefs[KEY_CUSTOM_EXPENSE_CATEGORIES]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+    val customExpenseCategories: Flow<List<PersistedCategory>> = context.dataStore.data.map { prefs ->
+        parsePersistedCategories(prefs[KEY_CUSTOM_EXPENSE_CATEGORIES])
     }
 
     // ── Write ─────────────────────────────────────────────────────────────────
@@ -206,17 +227,21 @@ class SessionDataStore(private val context: Context) {
         }
     }
 
-    suspend fun addCustomIncomeCategory(name: String) {
+    suspend fun addCustomIncomeCategory(name: String, iconId: String? = null) {
         context.dataStore.edit { prefs ->
-            val current = prefs[KEY_CUSTOM_INCOME_CATEGORIES]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
-            if (name !in current) prefs[KEY_CUSTOM_INCOME_CATEGORIES] = (current + name).joinToString(",")
+            val current = parsePersistedCategories(prefs[KEY_CUSTOM_INCOME_CATEGORIES])
+            if (current.none { it.name == name }) {
+                prefs[KEY_CUSTOM_INCOME_CATEGORIES] = serializePersistedCategories(current + PersistedCategory(name, iconId))
+            }
         }
     }
 
-    suspend fun addCustomExpenseCategory(name: String) {
+    suspend fun addCustomExpenseCategory(name: String, iconId: String? = null) {
         context.dataStore.edit { prefs ->
-            val current = prefs[KEY_CUSTOM_EXPENSE_CATEGORIES]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
-            if (name !in current) prefs[KEY_CUSTOM_EXPENSE_CATEGORIES] = (current + name).joinToString(",")
+            val current = parsePersistedCategories(prefs[KEY_CUSTOM_EXPENSE_CATEGORIES])
+            if (current.none { it.name == name }) {
+                prefs[KEY_CUSTOM_EXPENSE_CATEGORIES] = serializePersistedCategories(current + PersistedCategory(name, iconId))
+            }
         }
     }
 }

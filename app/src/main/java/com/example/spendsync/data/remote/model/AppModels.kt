@@ -43,6 +43,8 @@ data class CreateTransactionRequest(
     @SerializedName("category")  val category: String,
     @SerializedName("sourceApp") val sourceApp: String? = null,
     @SerializedName("note")      val note: String? = null,
+    // ISO datetime, never in the future — lets the user backdate a transaction.
+    @SerializedName("transactionDate") val transactionDate: String? = null,
 )
 
 data class UpdateTransactionRequest(
@@ -52,6 +54,7 @@ data class UpdateTransactionRequest(
     @SerializedName("category")  val category: String? = null,
     @SerializedName("sourceApp") val sourceApp: String? = null,
     @SerializedName("note")      val note: String? = null,
+    @SerializedName("transactionDate") val transactionDate: String? = null,
 )
 
 // ── Budgets ───────────────────────────────────────────────────────────────────

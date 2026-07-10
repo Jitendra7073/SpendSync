@@ -1,8 +1,8 @@
 import { eq, and } from 'drizzle-orm';
-import { db } from '../db/index.js';
-import { categories } from '../db/schema/index.js';
-import type { CreateCategoryInput, UpdateCategoryInput } from '../types/category.types.js';
-import { NotFoundError, ConflictError } from '../utils/errors.js';
+import { db } from '../db/index';
+import { categories } from '../db/schema/index';
+import type { CreateCategoryInput, UpdateCategoryInput } from '../types/category.types';
+import { NotFoundError, ConflictError } from '../utils/errors';
 
 /**
  * Category Service

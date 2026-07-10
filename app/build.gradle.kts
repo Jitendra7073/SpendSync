@@ -74,6 +74,10 @@ dependencies {
     // Icons
     implementation(libs.material.icons.core)
     implementation(libs.material.icons.extended)
+    // Coil — renders remote SVG icons for the category icon picker (Iconify)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.svg)
+    implementation(libs.coil.network.okhttp)
     // DataStore
     implementation(libs.androidx.datastore.preferences)
     // Splash Screen

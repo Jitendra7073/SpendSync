@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { transactionTypes } from '../db/schema/transactions.schema.js';
+import { transactionTypes } from '../db/schema/transactions.schema';
 
 /**
  * Transaction creation schema
@@ -17,6 +17,16 @@ export const createTransactionSchema = z.object({
   category: z.string().min(1).max(100),
   sourceApp: z.string().max(50).optional(),
   note: z.string().max(500).optional(),
+  // Lets the client backdate a transaction (e.g. "forgot to log yesterday's
+  // lunch"). Never allowed in the future — validated server-side too, since
+  // the client-side calendar restriction alone isn't trustworthy.
+  transactionDate: z
+    .string()
+    .datetime()
+    .refine((val) => new Date(val).getTime() <= Date.now(), {
+      message: 'Transaction date cannot be in the future',
+    })
+    .optional(),
 });
 
 /**

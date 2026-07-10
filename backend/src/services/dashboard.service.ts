@@ -1,6 +1,6 @@
 import { eq, and, sql, gte, lte } from 'drizzle-orm';
-import { db } from '../db/index.js';
-import { transactions, budgets } from '../db/schema/index.js';
+import { db } from '../db/index';
+import { transactions, budgets } from '../db/schema/index';
 
 /**
  * Dashboard Service

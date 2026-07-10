@@ -1,8 +1,8 @@
 import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
-import { db } from '../db/index.js';
-import { transactions } from '../db/schema/index.js';
-import type { CreateTransactionInput, UpdateTransactionInput, TransactionQuery } from '../types/transaction.types.js';
-import { NotFoundError } from '../utils/errors.js';
+import { db } from '../db/index';
+import { transactions } from '../db/schema/index';
+import type { CreateTransactionInput, UpdateTransactionInput, TransactionQuery } from '../types/transaction.types';
+import { NotFoundError } from '../utils/errors';
 
 /**
  * Transaction Service
@@ -23,6 +23,7 @@ export class TransactionService {
         category: data.category,
         sourceApp: data.sourceApp,
         note: data.note,
+        ...(data.transactionDate ? { createdAt: new Date(data.transactionDate) } : {}),
       })
       .returning();
 
@@ -104,10 +105,14 @@ export class TransactionService {
     // Check if transaction exists and belongs to user
     await this.getById(userId, transactionId);
 
+    // `transactionDate` isn't a real column — it maps onto `createdAt`.
+    const { transactionDate, ...rest } = data;
+
     const [updated] = await db
       .update(transactions)
       .set({
-        ...data,
+        ...rest,
+        ...(transactionDate ? { createdAt: new Date(transactionDate) } : {}),
         updatedAt: new Date(),
       })
       .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId)))

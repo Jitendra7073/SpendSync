@@ -1,8 +1,8 @@
 import { betterAuth } from 'better-auth';
 import { bearer } from 'better-auth/plugins/bearer';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { db } from '../db/index.js';
-import { config } from './env.js';
+import { db } from '../db/index';
+import { config } from './env';
 
 /**
  * Better Auth Configuration

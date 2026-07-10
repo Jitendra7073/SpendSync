@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db/index.js';
-import { userSettings } from '../db/schema/index.js';
+import { db } from '../db/index';
+import { userSettings } from '../db/schema/index';
 
 /**
  * Settings Service

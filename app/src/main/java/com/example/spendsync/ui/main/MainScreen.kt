@@ -1,9 +1,11 @@
 package com.example.spendsync.ui.main
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -32,6 +34,8 @@ import com.example.spendsync.ui.profile.ProfileScreen
 import com.example.spendsync.ui.shared.DateFilterState
 import com.example.spendsync.ui.shared.MonthPickerDialog
 import com.example.spendsync.ui.transaction.AddExpenseScreen
+import com.example.spendsync.ui.transaction.AddTransactionTypeSheet
+import com.example.spendsync.ui.transaction.TransactionType
 
 /**
  * Main scaffold — owns the bottom nav, the shared [DateFilterState] (calendar
@@ -54,18 +58,20 @@ fun MainScreen(
     // ── Tab selection ─────────────────────────────────────────────────────────
     var selectedRoute by rememberSaveable { mutableStateOf(BottomNavItem.Home.route) }
 
-    // ── Add-expense overlay flag ──────────────────────────────────────────────
-    var showAddExpense by rememberSaveable { mutableStateOf(false) }
-    // Non-null while editing an existing transaction (opened from Home's row
-    // actions) — the same overlay is reused in "edit" mode.
+    // ── Add-expense flow ─────────────────────────────────────────────────────
+    // Tapping the FAB opens the half-screen "Income or Expense?" sheet first;
+    // picking one sets presetType and opens the full form. Editing an existing
+    // transaction (from Home's row actions) skips the sheet — type is already known.
+    var showTypeSheet by rememberSaveable { mutableStateOf(false) }
+    var presetType by remember { mutableStateOf<TransactionType?>(null) }
     var editingTransaction by remember { mutableStateOf<TransactionDto?>(null) }
-    val expenseOverlayVisible = showAddExpense || editingTransaction != null
+    val expenseOverlayVisible = presetType != null || editingTransaction != null
 
     // Bumped every time the add/edit overlay closes so Home reloads its list —
     // Home only reacts to date-filter changes otherwise.
     var homeRefreshKey by remember { mutableStateOf(0) }
     fun closeExpenseOverlay() {
-        showAddExpense = false
+        presetType = null
         editingTransaction = null
         homeRefreshKey++
     }
@@ -99,7 +105,7 @@ fun MainScreen(
                     currentRoute   = selectedRoute,
                     onItemSelected = { item ->
                         when {
-                            item.isFab -> showAddExpense = true
+                            item.isFab -> showTypeSheet = true
                             else       -> selectedRoute  = item.route
                         }
                     },
@@ -154,18 +160,23 @@ fun MainScreen(
                 }
             }
 
-            // ── Add/Edit Expense overlay — slides up over everything ──────────
+            // ── Add/Edit Expense overlay — slides up over everything with a ───
+            // springy, slightly-decelerating motion instead of a flat linear tween.
             AnimatedContent(
                 targetState    = expenseOverlayVisible,
                 transitionSpec = {
                     if (targetState) {
-                        // Opening: slide up from bottom
-                        slideInVertically(tween(320)) { it } togetherWith
-                            fadeOut(tween(0))
+                        // Opening: spring up from the bottom
+                        slideInVertically(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessMediumLow,
+                            )
+                        ) { it } togetherWith fadeOut(tween(0))
                     } else {
                         // Closing: slide back down
                         fadeIn(tween(0)) togetherWith
-                            slideOutVertically(tween(300)) { it }
+                            slideOutVertically(tween(280)) { it }
                     }
                 },
                 label = "add_expense_overlay",
@@ -175,15 +186,28 @@ fun MainScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
                         editTransaction = editingTransaction,
+                        initialType = presetType,
                         onBack = { closeExpenseOverlay() },
                     )
                 }
+            }
+
+            // ── Income/Expense choice sheet — shown before the form ───────────
+            if (showTypeSheet) {
+                AddTransactionTypeSheet(
+                    onDismiss = { showTypeSheet = false },
+                    onSelect = { type ->
+                        showTypeSheet = false
+                        presetType = type
+                    },
+                )
             }
 
             // ── Global Month Picker Dialog ────────────────────────────────────
             if (dateFilterState.showMonthPicker) {
                 MonthPickerDialog(
                     current   = dateFilterState.selectedDate,
+                    maxDate   = java.time.LocalDate.now(),
                     onConfirm = { picked ->
                         dateFilterState.selectDate(picked)
                         dateFilterState.showMonthPicker = false

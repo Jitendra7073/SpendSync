@@ -17,6 +17,7 @@ datastore = "1.0.0"
 splashscreen = "1.0.1"
 systemuicontroller = "0.30.1"
 desugar_jdk_libs = "2.1.5"
+coil = "3.3.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -55,6 +56,10 @@ material-icons-extended = { group = "androidx.compose.material", name = "materia
 # Accompanist - System UI Controller
 accompanist-systemuicontroller = { group = "com.google.accompanist", name = "accompanist-systemuicontroller", version.ref = "systemuicontroller" }
 desugarJdkLibs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
+# Coil (remote SVG icon rendering — category icon picker)
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+coil-svg = { group = "io.coil-kt.coil3", name = "coil-svg", version.ref = "coil" }
+coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

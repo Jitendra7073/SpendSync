@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core';
-import { user } from './auth.schema.js';
+import { user } from './auth.schema';
 
 /**
  * Categories table
