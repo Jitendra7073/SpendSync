@@ -72,6 +72,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.example.spendsync.data.local.SessionDataStore
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -88,7 +89,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.rememberCoroutineScope
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
+import com.example.spendsync.data.remote.model.TransactionDto
+import com.example.spendsync.ui.components.ToastHost
+import com.example.spendsync.ui.components.ToastMessage
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.ui.window.DialogProperties
 import com.example.spendsync.ui.theme.BrandBlue
 import com.example.spendsync.ui.theme.NeutralBlack
@@ -141,9 +146,12 @@ private val expenseCategories = listOf(
 fun AddExpenseScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
+    editTransaction: TransactionDto? = null,
     onBack: () -> Unit
 ) {
+    val isEditing = editTransaction != null
     val scope = rememberCoroutineScope()
+    var toast by remember { mutableStateOf<ToastMessage?>(null) }
     val currencyCode by sessionDataStore.currency.collectAsState(initial = "USD")
     val currencySymbol = remember(currencyCode) {
         when (currencyCode) {
@@ -155,16 +163,71 @@ fun AddExpenseScreen(
         }
     }
 
-    var type        by rememberSaveable { mutableStateOf(TransactionType.EXPENSE) }
-    var amount      by rememberSaveable { mutableStateOf("") }
-    var selectedCat by rememberSaveable { mutableStateOf<String?>(null) }
-    var note        by rememberSaveable { mutableStateOf("") } // Unifies description/note
+    var type        by rememberSaveable {
+        mutableStateOf(if (editTransaction?.type == "credit") TransactionType.INCOME else TransactionType.EXPENSE)
+    }
+    var amount      by rememberSaveable { mutableStateOf(editTransaction?.amount ?: "") }
+    var selectedCat by rememberSaveable { mutableStateOf(editTransaction?.category) }
+    var note        by rememberSaveable { mutableStateOf(editTransaction?.note ?: "") } // Unifies description/note
 
     // Mutable states for lists of categories to allow adding custom ones
     var customIncomeCategories by remember { mutableStateOf(incomeCategories) }
     var customExpenseCategories by remember { mutableStateOf(expenseCategories) }
 
+    // If editing a transaction whose category isn't one of the built-ins,
+    // inject it so the grid can show it as an existing, selected chip.
+    LaunchedEffect(Unit) {
+        val editCategory = editTransaction?.category ?: return@LaunchedEffect
+        if (editTransaction.type == "credit") {
+            if (customIncomeCategories.none { it.label == editCategory }) {
+                customIncomeCategories = customIncomeCategories + Category(editCategory, Icons.Default.Star)
+            }
+        } else {
+            if (customExpenseCategories.none { it.label == editCategory }) {
+                customExpenseCategories = customExpenseCategories + Category(editCategory, Icons.Default.Star)
+            }
+        }
+    }
+
+    // Restore previously-added custom categories (persisted locally — icons
+    // aren't serializable, so restored entries get a generic star icon).
+    val savedIncomeNames by sessionDataStore.customIncomeCategoryNames.collectAsState(initial = emptyList())
+    val savedExpenseNames by sessionDataStore.customExpenseCategoryNames.collectAsState(initial = emptyList())
+    LaunchedEffect(savedIncomeNames) {
+        val missing = savedIncomeNames.filter { name -> customIncomeCategories.none { it.label == name } }
+        if (missing.isNotEmpty()) {
+            customIncomeCategories = customIncomeCategories + missing.map { Category(it, Icons.Default.Star) }
+        }
+    }
+    LaunchedEffect(savedExpenseNames) {
+        val missing = savedExpenseNames.filter { name -> customExpenseCategories.none { it.label == name } }
+        if (missing.isNotEmpty()) {
+            customExpenseCategories = customExpenseCategories + missing.map { Category(it, Icons.Default.Star) }
+        }
+    }
+
     val categories  = if (type == TransactionType.INCOME) customIncomeCategories else customExpenseCategories
+
+    // Auto-suggest a category from what the user types, based on past picks
+    // (backend learns merchant-keyword → category rules as transactions are
+    // saved — see the createCategory call below). Only kicks in before the
+    // user has manually picked a category, and only for a name already in
+    // the current grid so the suggestion always shows as a highlighted chip.
+    LaunchedEffect(note) {
+        if (selectedCat == null && note.isNotBlank()) {
+            when (val res = financeRepository.suggestCategory(note)) {
+                is AuthResult.Success -> {
+                    val suggested = res.data.suggestedCategory
+                    if (suggested != null && selectedCat == null &&
+                        categories.any { it.label == suggested }
+                    ) {
+                        selectedCat = suggested
+                    }
+                }
+                is AuthResult.Error -> Unit
+            }
+        }
+    }
     val accentColor = if (type == TransactionType.INCOME) SemanticSuccess else SemanticError
     val headerColor by animateColorAsState(
         targetValue   = accentColor,
@@ -180,6 +243,7 @@ fun AddExpenseScreen(
         categories + Category("+ Add", Icons.Default.Add)
     }
 
+    ToastHost(toast = toast, onDismiss = { toast = null }) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -205,7 +269,7 @@ fun AddExpenseScreen(
                     )
                 }
                 Text(
-                    text       = "Add Transaction",
+                    text       = if (isEditing) "Edit Transaction" else "Add Transaction",
                     color      = NeutralWhite,
                     fontSize   = 20.sp,
                     fontWeight = FontWeight.Bold,
@@ -373,17 +437,43 @@ fun AddExpenseScreen(
                                 scope.launch {
                                      val apiType = if (type == TransactionType.INCOME) "credit" else "debit"
                                      val merchantName = if (note.isNotBlank()) note else selectedCat ?: "Other"
-                                     val res = financeRepository.createTransaction(
-                                         amount = amountVal,
-                                         type = apiType,
-                                         merchant = merchantName,
-                                         category = selectedCat ?: "Other",
-                                         note = note
-                                     )
+                                     val chosenCategory = selectedCat ?: "Other"
+                                     val res = if (isEditing) {
+                                         financeRepository.updateTransaction(
+                                             id = editTransaction.id,
+                                             amount = amountVal,
+                                             type = apiType,
+                                             merchant = merchantName,
+                                             category = chosenCategory,
+                                             note = note
+                                         )
+                                     } else {
+                                         financeRepository.createTransaction(
+                                             amount = amountVal,
+                                             type = apiType,
+                                             merchant = merchantName,
+                                             category = chosenCategory,
+                                             note = note
+                                         )
+                                     }
+                                     // Teach the suggestion engine: next time this merchant
+                                     // is typed, suggestCategory() will offer this category.
+                                     // Own coroutine so it never delays navigating back —
+                                     // a duplicate keyword 409s harmlessly either way.
+                                     if (note.isNotBlank()) {
+                                         val keyword = note.trim().lowercase()
+                                         scope.launch { financeRepository.createCategory(keyword, chosenCategory) }
+                                     }
                                      if (res is AuthResult.Success) {
+                                         toast = ToastMessage(
+                                             if (isEditing) "Transaction updated" else "Transaction added",
+                                             isError = false
+                                         )
+                                         delay(500)
                                          onBack()
                                      } else {
-                                         onBack()
+                                         val message = (res as AuthResult.Error).message
+                                         toast = ToastMessage(message, isError = true)
                                      }
                                 }
                             }
@@ -393,7 +483,12 @@ fun AddExpenseScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text       = if (type == TransactionType.INCOME) "Save Income" else "Save Expense",
+                    text       = when {
+                        isEditing && type == TransactionType.INCOME  -> "Update Income"
+                        isEditing                                    -> "Update Expense"
+                        type == TransactionType.INCOME                -> "Save Income"
+                        else                                          -> "Save Expense"
+                    },
                     color      = NeutralWhite,
                     fontSize   = 16.sp,
                     fontWeight = FontWeight.Bold,
@@ -412,14 +507,17 @@ fun AddExpenseScreen(
                 val newCat = Category(name, icon)
                 if (type == TransactionType.INCOME) {
                     customIncomeCategories = customIncomeCategories + newCat
+                    scope.launch { sessionDataStore.addCustomIncomeCategory(name) }
                 } else {
                     customExpenseCategories = customExpenseCategories + newCat
+                    scope.launch { sessionDataStore.addCustomExpenseCategory(name) }
                 }
                 selectedCat = name // Automatically select the newly created category
                 showAddCategory = false
             },
             accentColor = accentColor
         )
+    }
     }
 }
 

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -45,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -71,6 +73,7 @@ import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.remote.model.DashboardSummaryDto
 import androidx.compose.runtime.LaunchedEffect
+import com.example.spendsync.ui.components.SkeletonLine
 import com.example.spendsync.ui.theme.BrandBlue
 import com.example.spendsync.ui.theme.BrandBlueDark
 import com.example.spendsync.ui.theme.BrandYellow
@@ -90,9 +93,16 @@ fun ProfileScreen(
     sessionDataStore: SessionDataStore,
     repository: AuthRepository,
     financeRepository: FinanceRepository,
+    openSettingsRequestId: Int = 0,
     onSignOut: () -> Unit,
 ) {
     var route by rememberSaveable { mutableStateOf(ProfileRoute.PROFILE) }
+
+    // Each increment (from Home's global search) is a distinct value, so this
+    // fires even if Settings was already the current route.
+    LaunchedEffect(openSettingsRequestId) {
+        if (openSettingsRequestId > 0) route = ProfileRoute.SETTINGS
+    }
 
     AnimatedContent(
         targetState   = route,
@@ -109,12 +119,15 @@ fun ProfileScreen(
             )
             ProfileRoute.SETTINGS -> SettingsScreen(
                 sessionDataStore = sessionDataStore,
+                repository = repository,
+                financeRepository = financeRepository,
                 onBack = { route = ProfileRoute.PROFILE },
             )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProfileContent(
     sessionDataStore: SessionDataStore,
@@ -134,12 +147,26 @@ private fun ProfileContent(
     val userCreatedAt by sessionDataStore.userCreatedAt.collectAsState(initial = "")
     val scope     = rememberCoroutineScope()
 
+    val currencyCode by sessionDataStore.currency.collectAsState(initial = "USD")
+    val currencySymbol = remember(currencyCode) {
+        when (currencyCode) {
+            "EUR" -> "€"
+            "GBP" -> "£"
+            "INR" -> "₹"
+            "JPY" -> "¥"
+            else  -> "$"
+        }
+    }
+
     val today = remember { LocalDate.now() }
 
     var dashboardSummary by remember { mutableStateOf<DashboardSummaryDto?>(null) }
-    LaunchedEffect(Unit) {
+    var isStatsLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    suspend fun loadStats(forceRefresh: Boolean) {
         val activeMonth = LocalDate.now().toString().slice(0..6)
-        when (val res = financeRepository.getDashboardSummary(month = activeMonth)) {
+        when (val res = financeRepository.getDashboardSummary(month = activeMonth, forceRefresh = forceRefresh)) {
             is AuthResult.Success -> {
                 dashboardSummary = res.data
             }
@@ -147,6 +174,11 @@ private fun ProfileContent(
                 // handle error
             }
         }
+    }
+
+    LaunchedEffect(Unit) {
+        loadStats(forceRefresh = false)
+        isStatsLoading = false
     }
 
     // Dialog state controllers
@@ -261,6 +293,27 @@ private fun ProfileContent(
                 .background(NeutralWhite)
                 .padding(vertical = 16.dp),
         ) {
+            if (isStatsLoading) {
+                repeat(3) { index ->
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        SkeletonLine(modifier = Modifier.width(48.dp), height = 18.dp)
+                        Spacer(Modifier.height(6.dp))
+                        SkeletonLine(modifier = Modifier.width(64.dp), height = 11.dp)
+                    }
+                    if (index < 2) {
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(36.dp)
+                                .background(NeutralLight)
+                                .align(Alignment.CenterVertically),
+                        )
+                    }
+                }
+            } else {
             StatItem(
                 label  = "Transactions",
                 value  = totalTransactionsCount.toString(),
@@ -275,7 +328,7 @@ private fun ProfileContent(
             )
             StatItem(
                 label  = "This Month",
-                value  = "$%,.2f".format(currentMonthSpent),
+                value  = "${currencySymbol}%,.2f".format(currentMonthSpent),
                 modifier = Modifier.weight(1f),
             )
             Box(
@@ -287,14 +340,26 @@ private fun ProfileContent(
             )
             StatItem(
                 label  = "Savings",
-                value  = "$%,.2f".format(savingsAccumulated),
+                value  = "${currencySymbol}%,.2f".format(savingsAccumulated),
                 modifier = Modifier.weight(1f),
             )
+            }
         }
 
         HorizontalDivider(color = NeutralLight, thickness = 1.dp)
 
-        // ── Menu list ─────────────────────────────────────────────────────────
+        // ── Menu list (pull-to-refresh) ──────────────────────────────────────
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                scope.launch {
+                    isRefreshing = true
+                    loadStats(forceRefresh = true)
+                    isRefreshing = false
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -352,6 +417,7 @@ private fun ProfileContent(
             }
 
             Spacer(Modifier.height(100.dp))
+        }
         }
     }
 
@@ -718,7 +784,7 @@ private fun SupportCenterDialog(
             Column(
                 modifier = Modifier
                     .padding(24.dp)
-                    .height(380.dp)
+                    .heightIn(max = 380.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

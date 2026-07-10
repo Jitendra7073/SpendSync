@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only manifest overlay — merged into debug builds on top of the main
+  manifest. Points the app at network_security_config.xml so it can reach
+  the local dev backend over plain http:// (see that file for why).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

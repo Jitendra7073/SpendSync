@@ -37,6 +37,11 @@ class SessionDataStore(private val context: Context) {
         private val KEY_CURRENCY            = stringPreferencesKey("settings_currency")
         private val KEY_DATE_FORMAT         = stringPreferencesKey("settings_date_format")
         private val KEY_SECURITY_PIN        = stringPreferencesKey("settings_security_pin")
+
+        // Custom transaction categories added via the "+ Add" chip — comma-joined
+        // names (icons aren't persisted; restored entries get a generic icon).
+        private val KEY_CUSTOM_INCOME_CATEGORIES  = stringPreferencesKey("custom_income_categories")
+        private val KEY_CUSTOM_EXPENSE_CATEGORIES = stringPreferencesKey("custom_expense_categories")
     }
 
     // ── Read ──────────────────────────────────────────────────────────────────
@@ -96,6 +101,14 @@ class SessionDataStore(private val context: Context) {
 
     val securityPin: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_SECURITY_PIN] ?: ""
+    }
+
+    val customIncomeCategoryNames: Flow<List<String>> = context.dataStore.data.map { prefs ->
+        prefs[KEY_CUSTOM_INCOME_CATEGORIES]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+    }
+
+    val customExpenseCategoryNames: Flow<List<String>> = context.dataStore.data.map { prefs ->
+        prefs[KEY_CUSTOM_EXPENSE_CATEGORIES]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
     }
 
     // ── Write ─────────────────────────────────────────────────────────────────
@@ -190,6 +203,20 @@ class SessionDataStore(private val context: Context) {
     suspend fun updateSecurityPin(pin: String) {
         context.dataStore.edit { prefs ->
             prefs[KEY_SECURITY_PIN] = pin
+        }
+    }
+
+    suspend fun addCustomIncomeCategory(name: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_CUSTOM_INCOME_CATEGORIES]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+            if (name !in current) prefs[KEY_CUSTOM_INCOME_CATEGORIES] = (current + name).joinToString(",")
+        }
+    }
+
+    suspend fun addCustomExpenseCategory(name: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_CUSTOM_EXPENSE_CATEGORIES]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+            if (name !in current) prefs[KEY_CUSTOM_EXPENSE_CATEGORIES] = (current + name).joinToString(",")
         }
     }
 }

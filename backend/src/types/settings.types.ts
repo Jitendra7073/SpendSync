@@ -7,6 +7,12 @@ export const updateSettingsSchema = z.object({
   developerMode: z.boolean().optional(),
   emailNotifications: z.boolean().optional(),
   darkMode: z.boolean().optional(),
+  pushNotifications: z.boolean().optional(),
+  autoBackup: z.boolean().optional(),
+  accentColor: z.string().min(1).max(50).optional(),
+  language: z.string().min(1).max(50).optional(),
+  currency: z.string().min(1).max(10).optional(),
+  dateFormat: z.string().min(1).max(50).optional(),
 });
 
 /**

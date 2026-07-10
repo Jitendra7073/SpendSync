@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only: permits plain http:// to the local dev backend. Reached via
+  `adb reverse tcp:3000 tcp:3000` (works for both the emulator and a
+  USB-connected physical device), plus the emulator's 10.0.2.2 host alias
+  for anyone still using that. This file lives under src/debug so it
+  never ships in a release build — release stays on the platform default
+  (cleartext blocked, HTTPS only).
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

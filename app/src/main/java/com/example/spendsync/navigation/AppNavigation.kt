@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -23,13 +24,14 @@ import com.example.spendsync.ui.main.MainScreen
 import com.example.spendsync.ui.splash.SplashScreen
 import com.example.spendsync.ui.splash.SplashViewModel
 import com.example.spendsync.ui.splash.SplashViewModelFactory
-import com.example.spendsync.ui.welcome.WelcomeScreen
+import com.example.spendsync.data.repository.hydrateSettingsFromBackend
+import com.example.spendsync.data.repository.warmFinanceCache
+import kotlinx.coroutines.launch
 
 // ── Top-level route constants ─────────────────────────────────────────────────
 
 object Route {
     const val SPLASH   = "splash"
-    const val WELCOME  = "welcome" // choose: continue as guest OR sign in
     const val LOGIN    = "login"
     const val REGISTER = "register"
     const val MAIN     = "main"   // hosts MainScreen which owns the bottom nav
@@ -45,6 +47,7 @@ fun AppNavigation(
     val context          = LocalContext.current
     val repository       = remember { AuthRepository(sessionDataStore) }
     val financeRepository = remember { FinanceRepository(sessionDataStore) }
+    val scope            = rememberCoroutineScope()
 
     val splashViewModel: SplashViewModel = viewModel(
         factory = SplashViewModelFactory(repository),
@@ -91,6 +94,12 @@ fun AppNavigation(
             SplashScreen(
                 viewModel           = splashViewModel,
                 onNavigateToHome    = {
+                    // Fire-and-forget — Home reads from SessionDataStore reactively,
+                    // so it'll pick up synced settings as soon as this resolves.
+                    scope.launch { hydrateSettingsFromBackend(financeRepository, sessionDataStore) }
+                    // Warm every tab's default-view cache now, so Home/Analytics/
+                    // Budget/Profile already have data by the time the user taps them.
+                    scope.launch { warmFinanceCache(financeRepository) }
                     navController.navigate(Route.MAIN) {
                         // Pop SPLASH off the stack (inclusive) AFTER MAIN is pushed.
                         // This is safe because MAIN is pushed first, so the stack
@@ -98,27 +107,10 @@ fun AppNavigation(
                         popUpTo(Route.SPLASH) { inclusive = true }
                     }
                 },
-                onNavigateToWelcome = {
-                    navController.navigate(Route.WELCOME) {
+                onNavigateToLogin = {
+                    navController.navigate(Route.LOGIN) {
                         popUpTo(Route.SPLASH) { inclusive = true }
                     }
-                },
-            )
-        }
-
-        // ── Welcome (guest vs. sign in) ─────────────────────────────────────────
-        composable(route = Route.WELCOME) {
-            WelcomeScreen(
-                onContinueAsGuest = {
-                    // Guest mode: straight into the app, no auth. Pop WELCOME so
-                    // back-press from Home exits the app. Stack: [MAIN].
-                    navController.navigate(Route.MAIN) {
-                        popUpTo(Route.WELCOME) { inclusive = true }
-                    }
-                },
-                onSignIn = {
-                    // Keep WELCOME underneath so back-press returns here.
-                    navController.navigate(Route.LOGIN)
                 },
             )
         }
@@ -128,11 +120,11 @@ fun AppNavigation(
             LoginScreen(
                 viewModel            = authViewModel,
                 onNavigateToHome     = {
-                    // Clear the whole auth stack (WELCOME → LOGIN → …) once signed
-                    // in. WELCOME is the root reached before LOGIN, so popping it
-                    // inclusive leaves just [MAIN]. Never empty (MAIN pushed first).
+                    scope.launch { hydrateSettingsFromBackend(financeRepository, sessionDataStore) }
+                    scope.launch { warmFinanceCache(financeRepository) }
+                    // Clear LOGIN off the stack once signed in. Stack: [MAIN].
                     navController.navigate(Route.MAIN) {
-                        popUpTo(Route.WELCOME) { inclusive = true }
+                        popUpTo(Route.LOGIN) { inclusive = true }
                     }
                 },
                 onNavigateToRegister = {
@@ -146,10 +138,12 @@ fun AppNavigation(
             RegisterScreen(
                 viewModel         = authViewModel,
                 onNavigateToHome  = {
-                    // Clear the whole auth stack (WELCOME → LOGIN → REGISTER) once
-                    // registered. Stack: [MAIN]. Never empty (MAIN pushed first).
+                    scope.launch { hydrateSettingsFromBackend(financeRepository, sessionDataStore) }
+                    scope.launch { warmFinanceCache(financeRepository) }
+                    // Clear the auth stack (LOGIN → REGISTER) once registered.
+                    // Stack: [MAIN]. Never empty (MAIN pushed first).
                     navController.navigate(Route.MAIN) {
-                        popUpTo(Route.WELCOME) { inclusive = true }
+                        popUpTo(Route.LOGIN) { inclusive = true }
                     }
                 },
                 onNavigateToLogin = {
@@ -165,9 +159,10 @@ fun AppNavigation(
                 financeRepository = financeRepository,
                 sessionDataStore = sessionDataStore,
                 onSignOut        = {
-                    // Return to WELCOME (the entry choice) and pop MAIN off.
-                    // Works for both real users and guests. Stack: [WELCOME].
-                    navController.navigate(Route.WELCOME) {
+                    // Drop cached data so the next signed-in user never sees it.
+                    financeRepository.clearCache()
+                    // Back to LOGIN, pop MAIN off. Stack: [LOGIN].
+                    navController.navigate(Route.LOGIN) {
                         popUpTo(Route.MAIN) { inclusive = true }
                     }
                 },

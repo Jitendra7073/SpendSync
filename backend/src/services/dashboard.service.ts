@@ -92,7 +92,7 @@ export class DashboardService {
       .where(
         and(
           eq(transactions.userId, userId),
-          gte(transactions.createdAt, sql`NOW() - INTERVAL '${months} months'`)
+          gte(transactions.createdAt, sql`NOW() - INTERVAL '1 month' * ${months}`)
         )
       )
       .groupBy(sql`TO_CHAR(${transactions.createdAt}, 'YYYY-MM')`)

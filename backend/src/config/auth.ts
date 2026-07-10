@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth';
+import { bearer } from 'better-auth/plugins/bearer';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '../db/index.js';
 import { config } from './env.js';
@@ -33,6 +34,11 @@ export const auth = betterAuth({
   
   // Trust host (for reverse proxies)
   trustedOrigins: config.cors.allowedOrigins,
+
+  // Accept `Authorization: Bearer <token>` in addition to the session
+  // cookie — the Android client is a native app with no shared cookie
+  // jar across process restarts, so it authenticates via bearer token.
+  plugins: [bearer()],
 });
 
 export type Auth = typeof auth;

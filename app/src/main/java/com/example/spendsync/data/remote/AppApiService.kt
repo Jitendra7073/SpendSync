@@ -91,4 +91,55 @@ interface AppApiService {
         @Header("Authorization") token: String,
         @Query("limit") limit: Int?
     ): Response<SuccessResponseList<TopMerchantDto>>
+
+    // ── Settings ──────────────────────────────────────────────────────────────
+
+    @GET("api/settings")
+    suspend fun getSettings(
+        @Header("Authorization") token: String
+    ): Response<SuccessResponse<SettingsDto>>
+
+    @PATCH("api/settings")
+    suspend fun updateSettings(
+        @Header("Authorization") token: String,
+        @Body body: UpdateSettingsRequest
+    ): Response<SuccessResponse<SettingsDto>>
+
+    // ── Categories ────────────────────────────────────────────────────────────
+
+    @POST("api/categories")
+    suspend fun createCategory(
+        @Header("Authorization") token: String,
+        @Body body: CreateCategoryRequest
+    ): Response<SuccessResponse<CategoryDto>>
+
+    @GET("api/categories")
+    suspend fun getCategories(
+        @Header("Authorization") token: String
+    ): Response<SuccessResponseList<CategoryDto>>
+
+    @GET("api/categories/{id}")
+    suspend fun getCategoryById(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<SuccessResponse<CategoryDto>>
+
+    @PATCH("api/categories/{id}")
+    suspend fun updateCategory(
+        @Header("Authorization") token: String,
+        @Path("id") id: String,
+        @Body body: UpdateCategoryRequest
+    ): Response<SuccessResponse<CategoryDto>>
+
+    @DELETE("api/categories/{id}")
+    suspend fun deleteCategory(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<SuccessResponse<Unit>>
+
+    @POST("api/categories/suggest")
+    suspend fun suggestCategory(
+        @Header("Authorization") token: String,
+        @Body body: CategorySuggestRequest
+    ): Response<SuccessResponse<CategorySuggestResponse>>
 }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -73,8 +74,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.example.spendsync.data.local.SessionDataStore
+import com.example.spendsync.data.repository.AuthRepository
+import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.ui.theme.BrandBlue
 import com.example.spendsync.utils.LocalizationUtils
+import androidx.compose.runtime.LaunchedEffect
 import com.example.spendsync.ui.theme.NeutralBlack
 import com.example.spendsync.ui.theme.NeutralLight
 import com.example.spendsync.ui.theme.NeutralMid
@@ -86,6 +90,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     sessionDataStore: SessionDataStore,
+    repository: AuthRepository,
+    financeRepository: FinanceRepository,
     onBack: () -> Unit
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
@@ -95,6 +101,10 @@ fun SettingsScreen(
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     val BrandBlue = MaterialTheme.colorScheme.primary
     val scope = rememberCoroutineScope()
+
+    // Signed-in users sync these prefs to the backend; guests stay local-only.
+    var isSignedIn by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { isSignedIn = repository.hasLocalSession() }
 
     // Read reactive flows from DataStore
     val darkMode by sessionDataStore.darkMode.collectAsState(initial = false)
@@ -173,7 +183,12 @@ fun SettingsScreen(
                     label   = LocalizationUtils.getTranslation("dark_mode", language),
                     sub     = "Switch to a dark colour theme",
                     checked = darkMode,
-                    onToggle = { scope.launch { sessionDataStore.updateDarkMode(it) } },
+                    onToggle = {
+                        scope.launch {
+                            sessionDataStore.updateDarkMode(it)
+                            if (isSignedIn) financeRepository.updateSettings(darkMode = it)
+                        }
+                    },
                 )
                 Divider()
                 NavigationRow(
@@ -222,7 +237,12 @@ fun SettingsScreen(
                     label   = LocalizationUtils.getTranslation("push_notifications", language),
                     sub     = "Reminders and alerts",
                     checked = notifications,
-                    onToggle = { scope.launch { sessionDataStore.updateNotifications(it) } },
+                    onToggle = {
+                        scope.launch {
+                            sessionDataStore.updateNotifications(it)
+                            if (isSignedIn) financeRepository.updateSettings(pushNotifications = it)
+                        }
+                    },
                 )
                 Divider()
                 ToggleRow(
@@ -251,7 +271,12 @@ fun SettingsScreen(
                     label   = LocalizationUtils.getTranslation("auto_backup", language),
                     sub     = "Back up data to the cloud daily",
                     checked = autoBackup,
-                    onToggle = { scope.launch { sessionDataStore.updateAutoBackup(it) } },
+                    onToggle = {
+                        scope.launch {
+                            sessionDataStore.updateAutoBackup(it)
+                            if (isSignedIn) financeRepository.updateSettings(autoBackup = it)
+                        }
+                    },
                 )
                 Divider()
                 NavigationRow(
@@ -318,6 +343,7 @@ fun SettingsScreen(
             onSelect = {
                 scope.launch {
                     sessionDataStore.updateAccentColor(it)
+                    if (isSignedIn) financeRepository.updateSettings(accentColor = it)
                     showAccentDialog = false
                 }
             }
@@ -334,6 +360,7 @@ fun SettingsScreen(
             onSelect = {
                 scope.launch {
                     sessionDataStore.updateLanguage(it)
+                    if (isSignedIn) financeRepository.updateSettings(language = it)
                     showLanguageDialog = false
                 }
             }
@@ -350,6 +377,7 @@ fun SettingsScreen(
             onSelect = {
                 scope.launch {
                     sessionDataStore.updateCurrency(it)
+                    if (isSignedIn) financeRepository.updateSettings(currency = it)
                     showCurrencyDialog = false
                 }
             }
@@ -366,6 +394,7 @@ fun SettingsScreen(
             onSelect = {
                 scope.launch {
                     sessionDataStore.updateDateFormat(it)
+                    if (isSignedIn) financeRepository.updateSettings(dateFormat = it)
                     showDateFormatDialog = false
                 }
             }
@@ -959,7 +988,7 @@ private fun PrivacyPolicyDialog(
             Column(
                 modifier = Modifier
                     .padding(24.dp)
-                    .height(320.dp)
+                    .heightIn(max = 320.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

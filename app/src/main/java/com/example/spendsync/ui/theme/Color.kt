@@ -1,5 +1,7 @@
 package com.example.spendsync.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 // ── SpendSync Brand ─────────────────────────────────────────────────────────
@@ -27,6 +29,39 @@ val SemanticInfo     = Color(0xFF2563EB)
 val KakarikiBg       = Color(0xFFE9EDDF) // light beige/green background
 val KakarikiActive   = Color(0xFFC7D3A6) // active olive pill
 val KakarikiOnBg     = Color(0xFF2E3324) // dark olive/black text
+
+// ── Chart categorical palette ─────────────────────────────────────────────────
+// Fixed, CVD-validated order — never reorder or cycle (verified with the
+// dataviz skill's validator against both surfaces). Slot 1 matches the app's
+// own brand blue so charts read as "SpendSync's blue", not a generic default.
+// Categories beyond slot 7 fold into "Other" (NeutralMid, not a real identity).
+val ChartCategoricalLight = listOf(
+    BrandBlue,
+    Color(0xFF1BAF7A),
+    Color(0xFFEDA100),
+    Color(0xFF008300),
+    Color(0xFF4A3AA7),
+    Color(0xFFE34948),
+    Color(0xFFE87BA4),
+    Color(0xFFEB6834),
+)
+
+// Same 8 identities, re-stepped for the dark surface (not a flip of the light
+// values — validated separately per the skill's dark-mode rule).
+val ChartCategoricalDark = listOf(
+    BrandBlueSurface,
+    Color(0xFF199E70),
+    Color(0xFFC98500),
+    Color(0xFF008300),
+    Color(0xFF9085E9),
+    Color(0xFFE66767),
+    Color(0xFFD55181),
+    Color(0xFFD95926),
+)
+
+@Composable
+fun chartCategoricalColors(): List<Color> =
+    if (isSystemInDarkTheme()) ChartCategoricalDark else ChartCategoricalLight
 
 // ── Legacy / Material fallbacks ──────────────────────────────────────────────
 val Purple80         = Color(0xFFD0BCFF)

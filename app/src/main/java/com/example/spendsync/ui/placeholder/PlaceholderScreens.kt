@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -51,6 +52,12 @@ import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.remote.model.*
 import com.example.spendsync.utils.LocalizationUtils
+import com.example.spendsync.ui.components.SkeletonBox
+import com.example.spendsync.ui.components.SkeletonLine
+import com.example.spendsync.ui.components.ToastHost
+import com.example.spendsync.ui.components.ToastMessage
+import com.example.spendsync.ui.search.GlobalSearchDialog
+import com.example.spendsync.ui.shared.TopBarDateSearchGroup
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,6 +67,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,14 +89,14 @@ import com.example.spendsync.ui.home.TransactionType
 import com.example.spendsync.ui.shared.CalendarHeader
 import com.example.spendsync.ui.shared.DateFilterState
 import com.example.spendsync.ui.theme.BrandBlue
-import com.example.spendsync.ui.theme.KakarikiActive
-import com.example.spendsync.ui.theme.KakarikiBg
-import com.example.spendsync.ui.theme.KakarikiOnBg
+import com.example.spendsync.ui.theme.chartCategoricalColors
 import com.example.spendsync.ui.theme.NeutralBlack
 import com.example.spendsync.ui.theme.NeutralLight
 import com.example.spendsync.ui.theme.NeutralMid
 import com.example.spendsync.ui.theme.NeutralOffWhite
 import com.example.spendsync.ui.theme.NeutralWhite
+import com.example.spendsync.ui.theme.SemanticError
+import com.example.spendsync.ui.theme.SemanticSuccess
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -99,20 +107,76 @@ enum class DateRange {
     THIS_WEEK, LAST_WEEK, THIS_MONTH, LAST_MONTH, THIS_YEAR, LAST_YEAR, CUSTOM
 }
 
+private data class TrendPoint(val label: String, val spent: Double)
+
+/**
+ * Buckets debit transactions by day (ranges up to ~45 days) or by month
+ * (longer ranges) so the trend chart always has a readable number of points
+ * regardless of which date-range pill is selected.
+ */
+private fun buildTrendPoints(
+    transactions: List<TransactionDto>,
+    startDate: LocalDate,
+    endDate: LocalDate,
+): List<TrendPoint> {
+    val totalDays = ChronoUnit.DAYS.between(startDate, endDate) + 1
+    val debits = transactions.filter { it.type == "debit" }
+
+    return if (totalDays <= 45) {
+        val byDay = debits.groupBy {
+            try {
+                java.time.ZonedDateTime.parse(it.createdAt).toLocalDate()
+            } catch (e: Exception) {
+                null
+            }
+        }
+        val dayFormatter = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+        (0 until totalDays).map { offset ->
+            val day = startDate.plusDays(offset)
+            val spent = byDay[day]?.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } ?: 0.0
+            TrendPoint(day.format(dayFormatter), spent)
+        }
+    } else {
+        val byMonth = debits.groupBy {
+            try {
+                java.time.ZonedDateTime.parse(it.createdAt).toLocalDate().withDayOfMonth(1)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        val monthFormatter = DateTimeFormatter.ofPattern("MMM", Locale.getDefault())
+        val points = mutableListOf<TrendPoint>()
+        var cursor = startDate.withDayOfMonth(1)
+        val end = endDate.withDayOfMonth(1)
+        while (!cursor.isAfter(end)) {
+            val spent = byMonth[cursor]?.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } ?: 0.0
+            points.add(TrendPoint(cursor.format(monthFormatter), spent))
+            cursor = cursor.plusMonths(1)
+        }
+        points
+    }
+}
+
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
-    dateFilterState: DateFilterState
+    dateFilterState: DateFilterState,
+    onOpenSettings: () -> Unit = {},
+    onViewTransaction: (TransactionDto) -> Unit = {},
 ) {
+    var showGlobalSearch by remember { mutableStateOf(false) }
     val NeutralOffWhite = MaterialTheme.colorScheme.background
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralLight = MaterialTheme.colorScheme.outlineVariant
-    val KakarikiBg = MaterialTheme.colorScheme.background
-    val KakarikiOnBg = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    // Reads the user's chosen accent (Settings → Accent Color) like every
+    // other tab does, instead of a hardcoded palette.
+    val BrandBlue = MaterialTheme.colorScheme.primary
 
     val language by sessionDataStore.language.collectAsState(initial = "English")
     val currencyCode by sessionDataStore.currency.collectAsState(initial = "USD")
@@ -175,12 +239,13 @@ fun AnalyticsScreen(
 
     var apiTransactions by remember { mutableStateOf<List<TransactionDto>>(emptyList()) }
     var isAnalyticsLoading by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(bounds) {
-        isAnalyticsLoading = true
+    suspend fun loadAnalyticsData(forceRefresh: Boolean) {
         val startStr = startDate.toString() + "T00:00:00.000Z"
         val endStr = endDate.toString() + "T23:59:59.999Z"
-        when (val res = financeRepository.getTransactions(startDate = startStr, endDate = endStr, limit = 500)) {
+        when (val res = financeRepository.getTransactions(startDate = startStr, endDate = endStr, limit = 500, forceRefresh = forceRefresh)) {
             is AuthResult.Success -> {
                 apiTransactions = res.data
             }
@@ -188,6 +253,11 @@ fun AnalyticsScreen(
                 // handle error
             }
         }
+    }
+
+    LaunchedEffect(bounds) {
+        isAnalyticsLoading = true
+        loadAnalyticsData(forceRefresh = false)
         isAnalyticsLoading = false
     }
 
@@ -204,28 +274,7 @@ fun AnalyticsScreen(
         ((totalIncome - totalExpenses) / totalIncome * 100).coerceIn(0.0..100.0)
     } else 0.0
 
-    // Kakariki-matching category colors
-    val categoryColors = remember {
-        mapOf(
-            "Salary" to Color(0xFF4D7C0F),        // Olive Green Accent
-            "Freelance" to Color(0xFF65A30D),     // Light Olive Accent
-            "Side Income" to Color(0xFF84CC16),   // Lime Accent
-            "Gift" to Color(0xFF14B8A6),          // Teal
-            "Groceries" to Color(0xFF0284C7),     // Sky Blue
-            "Café" to Color(0xFFD97706),          // Dark Amber
-            "Rent" to Color(0xFFB91C1C),          // Crimson Red
-            "Fitness" to Color(0xFF0D9488),       // Teal Dark
-            "Bills" to Color(0xFF7C3AED),         // Violet
-            "Entertainment" to Color(0xFFDB2777), // Pink Accent
-            "Transport" to Color(0xFFEA580C),      // Orange Accent
-            "Dining Out" to Color(0xFF059669),     // Emerald
-            "Shopping" to Color(0xFF4F46E5),       // Indigo
-            "Travel" to Color(0xFF475569),         // Slate Grey
-            "Other" to Color(0xFF64748B)          // Cool Grey
-        )
-    }
-
-    // Group expenses by category
+    // Group expenses by category, biggest first
     val expensesByCategory = remember(apiTransactions) {
         apiTransactions
             .filter { it.type == "debit" }
@@ -235,12 +284,33 @@ fun AnalyticsScreen(
             .sortedByDescending { it.second }
     }
 
+    // Fixed, CVD-validated categorical order (separately validated per theme
+    // surface) — never a generated hue per category name. Past 7 real
+    // categories, the tail folds into "Other" in neutral gray so it doesn't
+    // masquerade as its own identity.
+    val categoricalColors = chartCategoricalColors()
+    val chartCategoryData = remember(expensesByCategory, categoricalColors) {
+        val top = expensesByCategory.take(7)
+        val tailSum = expensesByCategory.drop(7).sumOf { it.second }
+        val entries = if (tailSum > 0.0) top + ("Other" to tailSum) else top
+        entries.mapIndexed { index, (category, amount) ->
+            val color = if (category == "Other") NeutralMid else categoricalColors[index]
+            Triple(category, amount, color)
+        }
+    }
+
+    // Spending trend across the selected range — daily buckets for short
+    // ranges, monthly buckets once it spans more than ~45 days.
+    val trendPoints = remember(apiTransactions, startDate, endDate) {
+        buildTrendPoints(apiTransactions, startDate, endDate)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(NeutralOffWhite),
     ) {
-        // ── Top bar (Integrated Kakariki SpendSync Header) ────────────────────
+        // ── Top bar (matches Home/Budget's header) ────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -255,53 +325,49 @@ fun AnalyticsScreen(
                 Icon(
                     imageVector = Icons.Default.Savings,
                     contentDescription = "App Logo",
-                    tint = KakarikiOnBg,
+                    tint = NeutralBlack,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "SpendSync",
-                    color = KakarikiOnBg,
+                    color = NeutralBlack,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 18.sp
                 )
             }
 
-            // Right Side: Date & Calendar Icon
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable { 
-                        selectedRange = DateRange.CUSTOM
-                        dateFilterState.showMonthPicker = true 
-                    }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                val dateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
-                Text(
-                    text = dateFilterState.selectedDate.format(dateFormatter),
-                    color = KakarikiOnBg,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    imageVector = Icons.Default.CalendarMonth,
-                    contentDescription = "Select Date",
-                    tint = KakarikiOnBg,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+            // Right Side: Calendar + global search, grouped together.
+            TopBarDateSearchGroup(
+                selectedDate = dateFilterState.selectedDate,
+                onCalendarClick = {
+                    selectedRange = DateRange.CUSTOM
+                    dateFilterState.showMonthPicker = true
+                },
+                onSearchClick = { showGlobalSearch = true },
+                contentColor = NeutralBlack,
+                groupBackgroundColor = Color(0xFFF1F5F9),
+            )
         }
 
-        // ── Scrollable Body Content ──────────────────────────────────────────
+        // ── Scrollable Body Content (pull-to-refresh) ─────────────────────────
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                scope.launch {
+                    isRefreshing = true
+                    loadAnalyticsData(forceRefresh = true)
+                    isRefreshing = false
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // ── Pill selector capsules (Kakariki Styling) ────────────────────
+            // ── Pill selector capsules ────────────────────────────────────────
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -318,11 +384,11 @@ fun AnalyticsScreen(
                 )
                 items(ranges) { (range, label) ->
                     val isSelected = selectedRange == range
-                    
-                    // Selected: Dark Olive (KakarikiOnBg), Unselected: White with Olive Border
-                    val pillBg = if (isSelected) KakarikiOnBg else NeutralWhite
-                    val pillText = if (isSelected) KakarikiBg else KakarikiOnBg
-                    val border = BorderStroke(1.dp, KakarikiActive.copy(alpha = 0.6f))
+
+                    // Selected: brand accent fill; unselected: white with a hairline border.
+                    val pillBg = if (isSelected) BrandBlue else NeutralWhite
+                    val pillText = if (isSelected) NeutralWhite else NeutralBlack
+                    val border = BorderStroke(1.dp, NeutralLight)
 
                     Box(
                         modifier = Modifier
@@ -360,10 +426,16 @@ fun AnalyticsScreen(
 
             Spacer(Modifier.height(16.dp))
 
+            if (isAnalyticsLoading) {
+                AnalyticsSkeleton()
+                Spacer(Modifier.height(100.dp))
+                return@Column
+            }
+
             // ── SECTION 1: Overview ──────────────────────────────────────────
             SectionHeader(title = "Financial Overview", subtitle = "Net balance and flow summary")
             Spacer(Modifier.height(8.dp))
-            
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -373,63 +445,104 @@ fun AnalyticsScreen(
                 SummaryStatCard(
                     label = LocalizationUtils.getTranslation("income", language) + " Flow",
                     amount = "${currencySymbol}%,.2f".format(totalIncome),
-                    color = Color(0xFF16A34A),
+                    color = SemanticSuccess,
                     modifier = Modifier.weight(1f)
                 )
                 SummaryStatCard(
                     label = LocalizationUtils.getTranslation("expenses", language) + " Flow",
                     amount = "${currencySymbol}%,.2f".format(totalExpenses),
-                    color = Color(0xFFDC2626),
+                    color = SemanticError,
                     modifier = Modifier.weight(1f)
                 )
             }
-
-            Spacer(Modifier.height(24.dp))
-
-            // ── SECTION 2: Breakdown Analysis ────────────────────────────────
-            SectionHeader(title = "Breakdown Analysis", subtitle = "Expense share by categories")
-            Spacer(Modifier.height(8.dp))
-
+            Spacer(Modifier.height(12.dp))
+            // Net balance gets its own full-width line — it's the one number
+            // that answers "am I ahead or behind," and shouldn't require the
+            // reader to subtract the two cards above themselves.
             Card(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                border = BorderStroke(1.dp, KakarikiActive.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, NeutralLight),
                 elevation = CardDefaults.cardElevation(0.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    DonutChart(
-                        categoryExpenses = expensesByCategory,
-                        totalExpenseSum = totalExpenses,
-                        categoryColors = categoryColors,
-                        currencySymbol = currencySymbol
-                    )
-
-                    Spacer(Modifier.height(24.dp))
-
-                    ExpensesLegend(
-                        categoryExpenses = expensesByCategory,
-                        totalExpenseSum = totalExpenses,
-                        categoryColors = categoryColors
+                    Text(text = "Net Balance", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = NeutralMid)
+                    Text(
+                        text = "${if (totalBalance >= 0) "+" else "-"}${currencySymbol}%,.2f".format(kotlin.math.abs(totalBalance)),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (totalBalance >= 0) SemanticSuccess else SemanticError,
                     )
                 }
             }
 
             Spacer(Modifier.height(24.dp))
 
-            // ── SECTION 3: Spending Comparison ───────────────────────────────
+            // ── SECTION 2: Spending Trend ─────────────────────────────────────
+            SectionHeader(title = "Spending Trend", subtitle = "How your spending moved across this period")
+            Spacer(Modifier.height(8.dp))
+
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+                border = BorderStroke(1.dp, NeutralLight),
+                elevation = CardDefaults.cardElevation(0.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    SpendingTrendChart(
+                        points = trendPoints,
+                        currencySymbol = currencySymbol,
+                        lineColor = BrandBlue,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // ── SECTION 3: Where Your Money Goes ──────────────────────────────
+            SectionHeader(title = "Where Your Money Goes", subtitle = "Categories ranked by spend, biggest first")
+            Spacer(Modifier.height(8.dp))
+
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+                border = BorderStroke(1.dp, NeutralLight),
+                elevation = CardDefaults.cardElevation(0.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    CategoryBarChart(
+                        items = chartCategoryData,
+                        totalExpenseSum = totalExpenses,
+                        currencySymbol = currencySymbol,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // ── SECTION 4: Income vs Expenses ─────────────────────────────────
             SectionHeader(title = "Income vs Expenses", subtitle = "Flow proportion comparison")
             Spacer(Modifier.height(8.dp))
 
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                border = BorderStroke(1.dp, KakarikiActive.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, NeutralLight),
                 elevation = CardDefaults.cardElevation(0.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -445,7 +558,7 @@ fun AnalyticsScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // ── SECTION 4: Financial Insights ─────────────────────────────────
+            // ── SECTION 5: Financial Insights ─────────────────────────────────
             SectionHeader(title = "Financial Insights", subtitle = "Automated spending analysis")
             Spacer(Modifier.height(8.dp))
 
@@ -461,7 +574,7 @@ fun AnalyticsScreen(
                     value = "%,.1f%%".format(savingsRate),
                     desc = if (savingsRate >= 20.0) "Excellent! You are building safety funds." else "Aim to save at least 20% of your earnings.",
                     icon = Icons.Default.Savings,
-                    accentColor = Color(0xFF16A34A)
+                    accentColor = SemanticSuccess
                 )
 
                 // 2. Average Daily Spending
@@ -475,72 +588,86 @@ fun AnalyticsScreen(
                     value = "${currencySymbol}%,.2f".format(avgDaily),
                     desc = "Calculated over a range of $daysCount day(s).",
                     icon = Icons.Default.Wallet,
-                    accentColor = KakarikiOnBg
+                    accentColor = BrandBlue
                 )
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // ── SECTION 5: Category Details List ─────────────────────────────
-            SectionHeader(title = "Category Details", subtitle = "Percentage weight breakdown")
-            Spacer(Modifier.height(8.dp))
-
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                border = BorderStroke(1.dp, KakarikiActive.copy(alpha = 0.3f)),
-                elevation = CardDefaults.cardElevation(0.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    if (expensesByCategory.isEmpty()) {
-                        Text(
-                            text = "No category data available.",
-                            color = NeutralMid,
-                            fontSize = 13.sp
-                        )
-                    } else {
-                        expensesByCategory.forEach { (category, amount) ->
-                            val pct = if (totalExpenses > 0) (amount / totalExpenses).toFloat() else 0f
-                            val color = categoryColors[category] ?: Color.Gray
-
-                            CategoryProgressItem(
-                                label = category,
-                                amount = "${currencySymbol}%,.2f".format(amount),
-                                progress = pct,
-                                color = color
-                            )
-                            Spacer(Modifier.height(12.dp))
-                        }
-                    }
-                }
             }
 
             // Bottom padding for the navigation bar
             Spacer(Modifier.height(100.dp))
         }
+        }
+    }
+
+    if (showGlobalSearch) {
+        GlobalSearchDialog(
+            financeRepository = financeRepository,
+            onDismiss = { showGlobalSearch = false },
+            onTransactionSelected = { tx ->
+                showGlobalSearch = false
+                onViewTransaction(tx)
+            },
+            onOpenSettings = {
+                showGlobalSearch = false
+                onOpenSettings()
+            },
+        )
+    }
+}
+
+// ── Analytics loading skeleton — one shape per section, in place of the ──────
+// real content while the transactions for the selected range are in flight.
+@Composable
+private fun AnalyticsSkeleton() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SkeletonBox(modifier = Modifier.weight(1f).height(64.dp), shape = RoundedCornerShape(16.dp))
+            SkeletonBox(modifier = Modifier.weight(1f).height(64.dp), shape = RoundedCornerShape(16.dp))
+        }
+        Spacer(Modifier.height(12.dp))
+        SkeletonBox(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(48.dp),
+            shape = RoundedCornerShape(16.dp),
+        )
+        Spacer(Modifier.height(24.dp))
+        SkeletonLine(modifier = Modifier.padding(horizontal = 20.dp).width(140.dp))
+        Spacer(Modifier.height(12.dp))
+        SkeletonBox(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(200.dp),
+            shape = RoundedCornerShape(20.dp),
+        )
+        Spacer(Modifier.height(24.dp))
+        SkeletonLine(modifier = Modifier.padding(horizontal = 20.dp).width(160.dp))
+        Spacer(Modifier.height(12.dp))
+        SkeletonBox(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(220.dp),
+            shape = RoundedCornerShape(20.dp),
+        )
     }
 }
 
 // ── Section Header Helper Component ──────────────────────────────────────────
 @Composable
 private fun SectionHeader(title: String, subtitle: String? = null) {
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    val BrandBlue = MaterialTheme.colorScheme.primary
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(width = 4.dp, height = 16.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(KakarikiActive)
+                    .background(BrandBlue)
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 text = title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = KakarikiOnBg
+                color = NeutralBlack
             )
         }
         if (subtitle != null) {
@@ -565,10 +692,11 @@ private fun SummaryStatCard(
 ) {
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-        border = BorderStroke(1.dp, KakarikiActive.copy(alpha = 0.3f)),
+        border = BorderStroke(1.dp, NeutralLight),
         elevation = CardDefaults.cardElevation(0.dp),
         modifier = modifier
     ) {
@@ -588,107 +716,163 @@ private fun SummaryStatCard(
     }
 }
 
-// ── Interactive Custom Canvas Donut Chart ────────────────────────────────────
+// ── Spending Trend — single-series line + area, the headline "where is my ──
+// money going over time" view. One hue (sequential job), gridlines, a direct
+// peak label instead of a legend (a single series needs none).
 @Composable
-private fun DonutChart(
-    categoryExpenses: List<Pair<String, Double>>,
-    totalExpenseSum: Double,
-    categoryColors: Map<String, Color>,
-    currencySymbol: String
+private fun SpendingTrendChart(
+    points: List<TrendPoint>,
+    currencySymbol: String,
+    lineColor: Color,
 ) {
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val KakarikiOnBg = MaterialTheme.colorScheme.onBackground
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.size(180.dp)
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val strokeWidth = 24.dp.toPx()
-            var startAngle = -90f
+    val gridColor = MaterialTheme.colorScheme.outlineVariant
 
-            if (totalExpenseSum == 0.0) {
-                // Draw a standard grey circle when there are no expenses
-                drawArc(
-                    color = Color(0xFFE2E8F0),
-                    startAngle = 0f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    style = Stroke(width = strokeWidth)
+    if (points.isEmpty() || points.sumOf { it.spent } <= 0.0) {
+        Box(
+            modifier = Modifier.fillMaxWidth().height(140.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("No spending recorded in this period yet.", fontSize = 13.sp, color = NeutralMid)
+        }
+        return
+    }
+
+    val maxSpent = points.maxOf { it.spent }.let { if (it <= 0.0) 1.0 else it }
+    val peakIndex = points.indices.maxByOrNull { points[it].spent } ?: 0
+
+    Column {
+        Text(
+            text = "Peak: ${currencySymbol}%,.2f".format(points[peakIndex].spent) + " · ${points[peakIndex].label}",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = NeutralBlack,
+        )
+        Spacer(Modifier.height(12.dp))
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+        ) {
+            val chartHeight = size.height
+            val stepX = if (points.size > 1) size.width / (points.size - 1) else 0f
+
+            // Recessive gridlines
+            val gridSteps = 3
+            for (i in 0..gridSteps) {
+                val y = chartHeight - (chartHeight * i / gridSteps)
+                drawLine(
+                    color = gridColor,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = 1.dp.toPx(),
                 )
-            } else {
-                categoryExpenses.forEach { (cat, amount) ->
-                    val sweepAngle = ((amount / totalExpenseSum) * 360f).toFloat()
-                    val color = categoryColors[cat] ?: Color.Gray
+            }
 
-                    drawArc(
-                        color = color,
-                        startAngle = startAngle,
-                        sweepAngle = sweepAngle,
-                        useCenter = false,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                    )
-                    startAngle += sweepAngle
+            val linePath = Path()
+            val fillPath = Path()
+            points.forEachIndexed { index, point ->
+                val x = index * stepX
+                val y = chartHeight - (point.spent / maxSpent).toFloat() * chartHeight
+                if (index == 0) {
+                    linePath.moveTo(x, y)
+                    fillPath.moveTo(x, chartHeight)
+                    fillPath.lineTo(x, y)
+                } else {
+                    linePath.lineTo(x, y)
+                    fillPath.lineTo(x, y)
+                }
+                if (index == points.lastIndex) {
+                    fillPath.lineTo(x, chartHeight)
+                    fillPath.close()
                 }
             }
-        }
-        
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "Total Spent", fontSize = 11.sp, color = NeutralMid, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = "${currencySymbol}%,.2f".format(totalExpenseSum),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = KakarikiOnBg
+
+            drawPath(
+                path = fillPath,
+                brush = Brush.verticalGradient(
+                    colors = listOf(lineColor.copy(alpha = 0.22f), lineColor.copy(alpha = 0f))
+                ),
             )
+            drawPath(
+                path = linePath,
+                color = lineColor,
+                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round),
+            )
+
+            // Direct-label the peak instead of a legend box.
+            val peakX = peakIndex * stepX
+            val peakY = chartHeight - (points[peakIndex].spent / maxSpent).toFloat() * chartHeight
+            drawCircle(color = lineColor, radius = 5.dp.toPx(), center = Offset(peakX, peakY))
+            drawCircle(color = Color.White, radius = 2.dp.toPx(), center = Offset(peakX, peakY))
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(points.first().label, fontSize = 10.sp, color = NeutralMid)
+            if (points.size > 1) Text(points.last().label, fontSize = 10.sp, color = NeutralMid)
         }
     }
 }
 
-// ── Legend items below the chart ─────────────────────────────────────────────
+// ── Category Breakdown — horizontal ranked bars ───────────────────────────────
+// Part-to-whole with real labels reads far better as ranked bars than a donut:
+// direct amount + percentage per row, and categories are instantly comparable
+// by length instead of by eyeballing arc angles.
 @Composable
-private fun ExpensesLegend(
-    categoryExpenses: List<Pair<String, Double>>,
+private fun CategoryBarChart(
+    items: List<Triple<String, Double, Color>>,
     totalExpenseSum: Double,
-    categoryColors: Map<String, Color>
+    currencySymbol: String,
 ) {
-    val KakarikiOnBg = MaterialTheme.colorScheme.onBackground
-    if (categoryExpenses.isEmpty()) return
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
 
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // Chunk categories into rows of 2 for clean alignment
-        val rows = categoryExpenses.chunked(2)
-        rows.forEach { rowItems ->
-            Row(modifier = Modifier.fillMaxWidth()) {
-                rowItems.forEach { (category, amount) ->
-                    val color = categoryColors[category] ?: Color.Gray
-                    val pct = if (totalExpenseSum > 0) (amount / totalExpenseSum * 100) else 0.0
+    if (items.isEmpty()) {
+        Text(text = "No category data available.", color = NeutralMid, fontSize = 13.sp)
+        return
+    }
 
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "%s (%,.1f%%)".format(category, pct),
-                            fontSize = 12.sp,
-                            color = KakarikiOnBg,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+    val maxAmount = items.maxOf { it.second }.let { if (it <= 0.0) 1.0 else it }
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        items.forEach { (category, amount, color) ->
+            val pct = if (totalExpenseSum > 0) (amount / totalExpenseSum * 100) else 0.0
+            val fraction = (amount / maxAmount).toFloat().coerceIn(0f, 1f)
+
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(text = category, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = NeutralBlack)
+                    Text(
+                        text = "${currencySymbol}%,.2f".format(amount) + "  ·  %,.1f%%".format(pct),
+                        fontSize = 12.sp,
+                        color = NeutralMid,
+                    )
                 }
-                // Add a blank placeholder spacer if row has only 1 item
-                if (rowItems.size == 1) {
-                    Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(trackColor)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(color)
+                    )
                 }
             }
         }
@@ -717,26 +901,26 @@ private fun DoubleBarChart(
                 val totalWidth = barWidth * 2 + spacing
                 val startX = (size.width - totalWidth) / 2
                 
-                // 1. Income Bar (Green)
+                // 1. Income Bar
                 val incomeHeight = (income / maxVal) * size.height
                 drawRoundRect(
-                    color = Color(0xFF16A34A),
+                    color = SemanticSuccess,
                     topLeft = Offset(startX, size.height - incomeHeight),
                     size = Size(barWidth, incomeHeight),
                     cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
                 )
 
-                // 2. Expense Bar (Red)
+                // 2. Expense Bar
                 val expenseHeight = (expense / maxVal) * size.height
                 drawRoundRect(
-                    color = Color(0xFFDC2626),
+                    color = SemanticError,
                     topLeft = Offset(startX + barWidth + spacing, size.height - expenseHeight),
                     size = Size(barWidth, expenseHeight),
                     cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
                 )
             }
         }
-        
+
         Spacer(Modifier.height(12.dp))
 
         // Chart Legends label
@@ -745,13 +929,13 @@ private fun DoubleBarChart(
             horizontalArrangement = Arrangement.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF16A34A)))
+                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(SemanticSuccess))
                 Spacer(Modifier.width(6.dp))
                 Text("Income", fontSize = 11.sp, color = NeutralMid, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.width(24.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFDC2626)))
+                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(SemanticError))
                 Spacer(Modifier.width(6.dp))
                 Text("Expenses", fontSize = 11.sp, color = NeutralMid, fontWeight = FontWeight.SemiBold)
             }
@@ -770,11 +954,12 @@ private fun InsightCard(
 ) {
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val KakarikiOnBg = MaterialTheme.colorScheme.onBackground
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-        border = BorderStroke(1.dp, KakarikiActive.copy(alpha = 0.3f)),
+        border = BorderStroke(1.dp, NeutralLight),
         elevation = CardDefaults.cardElevation(0.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -800,43 +985,11 @@ private fun InsightCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, fontSize = 12.sp, color = NeutralMid, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(2.dp))
-                Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = KakarikiOnBg)
+                Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = NeutralBlack)
                 Spacer(Modifier.height(2.dp))
                 Text(text = desc, fontSize = 11.sp, color = NeutralMid)
             }
         }
-    }
-}
-
-// ── Category List Progress Item Component ─────────────────────────────────────
-@Composable
-private fun CategoryProgressItem(
-    label: String,
-    amount: String,
-    progress: Float,
-    color: Color
-) {
-    val KakarikiOnBg = MaterialTheme.colorScheme.onBackground
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = KakarikiOnBg)
-            Text(text = amount, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = KakarikiOnBg)
-        }
-        Spacer(Modifier.height(6.dp))
-        LinearProgressIndicator(
-            progress = { progress },
-            color = color,
-            trackColor = Color(0xFFF1F5F9),
-            strokeCap = StrokeCap.Round,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp))
-        )
     }
 }
 
@@ -944,11 +1097,14 @@ private fun PlaceholderTab(
 }
 
 // ── Budget ────────────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
-    dateFilterState: DateFilterState
+    dateFilterState: DateFilterState,
+    onOpenSettings: () -> Unit = {},
+    onViewTransaction: (TransactionDto) -> Unit = {},
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
     val NeutralWhite = MaterialTheme.colorScheme.surface
@@ -971,23 +1127,30 @@ fun BudgetScreen(
 
     var summaryData by remember { mutableStateOf<DashboardSummaryDto?>(null) }
     var isBudgetLoading by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var toast by remember { mutableStateOf<ToastMessage?>(null) }
+    var showGlobalSearch by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val activeMonth = remember(dateFilterState.selectedDate) {
         dateFilterState.selectedDate.toString().slice(0..6) // "YYYY-MM"
     }
 
+    suspend fun fetchBudgetData(forceRefresh: Boolean) {
+        when (val res = financeRepository.getDashboardSummary(month = activeMonth, forceRefresh = forceRefresh)) {
+            is AuthResult.Success -> {
+                summaryData = res.data
+            }
+            is AuthResult.Error -> {
+                // handle
+            }
+        }
+    }
+
     val loadData = {
         isBudgetLoading = true
         scope.launch {
-            when (val res = financeRepository.getDashboardSummary(month = activeMonth)) {
-                is AuthResult.Success -> {
-                    summaryData = res.data
-                }
-                is AuthResult.Error -> {
-                    // handle
-                }
-            }
+            fetchBudgetData(forceRefresh = false)
             isBudgetLoading = false
         }
     }
@@ -998,6 +1161,7 @@ fun BudgetScreen(
 
     var showCreateBudgetDialog by remember { mutableStateOf(false) }
 
+    ToastHost(toast = toast, onDismiss = { toast = null }) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1029,32 +1193,29 @@ fun BudgetScreen(
                 )
             }
 
-            // Month Select Card
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable { dateFilterState.showMonthPicker = true }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                val dateFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
-                Text(
-                    text = dateFilterState.selectedDate.format(dateFormatter),
-                    color = NeutralBlack,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    imageVector = Icons.Default.CalendarMonth,
-                    contentDescription = "Select Month",
-                    tint = NeutralBlack,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+            // Month Select Card + global search, grouped together.
+            TopBarDateSearchGroup(
+                selectedDate = dateFilterState.selectedDate,
+                onCalendarClick = { dateFilterState.showMonthPicker = true },
+                onSearchClick = { showGlobalSearch = true },
+                contentColor = NeutralBlack,
+                groupBackgroundColor = Color(0xFFF1F5F9),
+                dateFormatPattern = "MMMM yyyy",
+            )
         }
 
-        // ── Main Body ─────────────────────────────────────────────────────────
+        // ── Main Body (pull-to-refresh) ──────────────────────────────────────
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                scope.launch {
+                    isRefreshing = true
+                    fetchBudgetData(forceRefresh = true)
+                    isRefreshing = false
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1069,6 +1230,12 @@ fun BudgetScreen(
             val totalSpent = totals?.totalSpent ?: 0.0
             val budgetProgress = if (totalBudget > 0.0) (totalSpent / totalBudget).toFloat().coerceIn(0f..1f) else 0f
 
+            if (isBudgetLoading) {
+                SkeletonBox(
+                    modifier = Modifier.fillMaxWidth().height(140.dp),
+                    shape = RoundedCornerShape(24.dp),
+                )
+            } else {
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = NeutralWhite),
@@ -1120,6 +1287,7 @@ fun BudgetScreen(
                     )
                 }
             }
+            }
 
             Spacer(Modifier.height(24.dp))
 
@@ -1155,7 +1323,14 @@ fun BudgetScreen(
             // List of Category Limits
             val breakdown = summaryData?.categoryBreakdown?.filter { it.budget != null } ?: emptyList()
 
-            if (breakdown.isEmpty()) {
+            if (isBudgetLoading) {
+                repeat(3) {
+                    SkeletonBox(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).height(72.dp),
+                        shape = RoundedCornerShape(16.dp),
+                    )
+                }
+            } else if (breakdown.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1226,6 +1401,7 @@ fun BudgetScreen(
 
             Spacer(Modifier.height(100.dp))
         }
+        }
     }
 
     if (showCreateBudgetDialog) {
@@ -1240,12 +1416,33 @@ fun BudgetScreen(
                         limitAmount = limit
                     )
                     if (res is AuthResult.Success) {
+                        toast = ToastMessage("Budget added", isError = false)
                         loadData()
+                        showCreateBudgetDialog = false
+                    } else {
+                        // Keep the dialog open so the user can pick a different
+                        // category/month instead of the save silently vanishing.
+                        toast = ToastMessage((res as AuthResult.Error).message, isError = true)
                     }
-                    showCreateBudgetDialog = false
                 }
             }
         )
+    }
+
+    if (showGlobalSearch) {
+        GlobalSearchDialog(
+            financeRepository = financeRepository,
+            onDismiss = { showGlobalSearch = false },
+            onTransactionSelected = { tx ->
+                showGlobalSearch = false
+                onViewTransaction(tx)
+            },
+            onOpenSettings = {
+                showGlobalSearch = false
+                onOpenSettings()
+            },
+        )
+    }
     }
 }
 

@@ -6,10 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -83,15 +83,19 @@ fun LoginScreen(
     }
 
     ToastHost(toast = toast, onDismiss = { toast = null }) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        // A flexible Column (header sized to its own content, card takes the
+        // rest via weight) replaces a hard 0.42f/0.68f height split so short
+        // or landscape screens — or the keyboard opening — never clip content;
+        // the card's own verticalScroll absorbs any remaining overflow.
+        Column(modifier = Modifier.fillMaxSize()) {
 
             // ── Blue header ──────────────────────────────────────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.42f)
                     .background(BrandBlue)
-                    .statusBarsPadding(),
+                    .statusBarsPadding()
+                    .padding(vertical = 32.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -116,8 +120,7 @@ fun LoginScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .fillMaxHeight(0.68f)
+                    .weight(1f)
                     .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
                     .background(NeutralWhite),
             ) {
@@ -125,6 +128,7 @@ fun LoginScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
+                        .imePadding()
                         .padding(horizontal = 28.dp, vertical = 36.dp),
                     verticalArrangement = Arrangement.Top,
                 ) {

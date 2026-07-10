@@ -8,6 +8,7 @@ import com.example.spendsync.data.remote.model.SignUpResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 
 /**
@@ -26,11 +27,11 @@ interface AuthApiService {
     @POST("api/auth/sign-up/email")
     suspend fun signUp(@Body body: SignUpRequest): Response<SignUpResponse>
 
-    /** Verify that the current session cookie is still valid. */
+    /** Verify that the current session token is still valid. */
     @GET("api/auth/get-session")
-    suspend fun getSession(): Response<SessionResponse>
+    suspend fun getSession(@Header("Authorization") token: String): Response<SessionResponse>
 
     /** Sign out — invalidates the server-side session. */
     @POST("api/auth/sign-out")
-    suspend fun signOut(): Response<Unit>
+    suspend fun signOut(@Header("Authorization") token: String): Response<Unit>
 }

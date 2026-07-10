@@ -36,10 +36,12 @@ class AuthRepository(
 
             if (response.isSuccessful) {
                 val body = response.body()
-                // Better Auth returns the token inside session.token or top-level token
-                val token = body?.session?.token
+                // The bearer plugin mirrors the session cookie into this response
+                // header — that's the actual usable bearer token. Body fields are
+                // a fallback for older/differently-configured Better Auth setups.
+                val token = response.headers()["set-auth-token"]
+                    ?: body?.session?.token
                     ?: body?.token
-                    ?: extractTokenFromCookies()
 
                 if (token != null) {
                     val user = body?.user
@@ -52,20 +54,9 @@ class AuthRepository(
                     )
                     AuthResult.Success(token)
                 } else {
-                    // Session cookie was set but token wasn't in body — still success
-                    val user = body?.user
-                    if (user != null) {
-                        sessionDataStore.saveSession(
-                            token  = "cookie-session",
-                            userId = user.id,
-                            email  = user.email,
-                            name   = user.name,
-                            createdAt = user.createdAt,
-                        )
-                        AuthResult.Success("cookie-session")
-                    } else {
-                        AuthResult.Error("Sign in succeeded but no session data returned.")
-                    }
+                    // No usable bearer token — a saved placeholder here would silently
+                    // break every subsequent authenticated request, so treat as failure.
+                    AuthResult.Error("Sign in succeeded but no session token was returned.")
                 }
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
@@ -83,17 +74,21 @@ class AuthRepository(
 
             if (response.isSuccessful) {
                 val body  = response.body()
-                val token = body?.session?.token ?: body?.token ?: "cookie-session"
+                val token = response.headers()["set-auth-token"] ?: body?.session?.token ?: body?.token
                 val user  = body?.user
 
-                sessionDataStore.saveSession(
-                    token  = token,
-                    userId = user?.id ?: "",
-                    email  = user?.email ?: email,
-                    name   = user?.name ?: name,
-                    createdAt = user?.createdAt,
-                )
-                AuthResult.Success(token)
+                if (token != null) {
+                    sessionDataStore.saveSession(
+                        token  = token,
+                        userId = user?.id ?: "",
+                        email  = user?.email ?: email,
+                        name   = user?.name ?: name,
+                        createdAt = user?.createdAt,
+                    )
+                    AuthResult.Success(token)
+                } else {
+                    AuthResult.Error("Sign up succeeded but no session token was returned.")
+                }
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
             }
@@ -113,7 +108,7 @@ class AuthRepository(
         if (localToken.isNullOrBlank()) return false
 
         return try {
-            val response = api.getSession()
+            val response = api.getSession("Bearer $localToken")
             response.isSuccessful && response.body()?.session != null
         } catch (e: Exception) {
             // Network error — assume the local session might still be valid
@@ -131,7 +126,10 @@ class AuthRepository(
 
     suspend fun signOut(): AuthResult<Unit> {
         return try {
-            api.signOut() // best-effort — ignore result
+            val localToken = sessionDataStore.sessionToken.firstOrNull()
+            if (!localToken.isNullOrBlank()) {
+                api.signOut("Bearer $localToken") // best-effort — ignore result
+            }
             sessionDataStore.clearSession()
             AuthResult.Success(Unit)
         } catch (e: Exception) {
@@ -141,8 +139,6 @@ class AuthRepository(
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private fun extractTokenFromCookies(): String? = null // cookies managed by OkHttp's CookieJar
 
     private fun parseErrorMessage(errorBody: String?): String {
         if (errorBody.isNullOrBlank()) return "An unexpected error occurred."

@@ -117,3 +117,57 @@ data class TopMerchantDto(
     @SerializedName("totalSpent") val totalSpent: String,
     @SerializedName("count")      val count: Int,
 )
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+
+data class SettingsDto(
+    @SerializedName("developerMode")      val developerMode: Boolean,
+    @SerializedName("emailNotifications") val emailNotifications: Boolean,
+    @SerializedName("darkMode")           val darkMode: Boolean,
+    @SerializedName("pushNotifications")  val pushNotifications: Boolean,
+    @SerializedName("autoBackup")         val autoBackup: Boolean,
+    @SerializedName("accentColor")        val accentColor: String,
+    @SerializedName("language")           val language: String,
+    @SerializedName("currency")           val currency: String,
+    @SerializedName("dateFormat")         val dateFormat: String,
+)
+
+data class UpdateSettingsRequest(
+    @SerializedName("darkMode")          val darkMode: Boolean? = null,
+    @SerializedName("pushNotifications") val pushNotifications: Boolean? = null,
+    @SerializedName("autoBackup")        val autoBackup: Boolean? = null,
+    @SerializedName("accentColor")       val accentColor: String? = null,
+    @SerializedName("language")          val language: String? = null,
+    @SerializedName("currency")          val currency: String? = null,
+    @SerializedName("dateFormat")        val dateFormat: String? = null,
+)
+
+// ── Categories ───────────────────────────────────────────────────────────────
+
+data class CategoryDto(
+    @SerializedName("id")        val id: String,
+    @SerializedName("userId")    val userId: String,
+    @SerializedName("keyword")   val keyword: String,
+    @SerializedName("category")  val category: String,
+    @SerializedName("createdAt") val createdAt: String,
+    @SerializedName("updatedAt") val updatedAt: String?,
+)
+
+data class CreateCategoryRequest(
+    @SerializedName("keyword")  val keyword: String,
+    @SerializedName("category") val category: String,
+)
+
+data class UpdateCategoryRequest(
+    @SerializedName("keyword")  val keyword: String? = null,
+    @SerializedName("category") val category: String? = null,
+)
+
+data class CategorySuggestRequest(
+    @SerializedName("merchant") val merchant: String,
+)
+
+data class CategorySuggestResponse(
+    @SerializedName("merchant")          val merchant: String,
+    @SerializedName("suggestedCategory") val suggestedCategory: String?,
+)

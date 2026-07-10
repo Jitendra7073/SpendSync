@@ -35,6 +35,12 @@ export class SettingsService {
         developerMode: false,
         emailNotifications: true,
         darkMode: false,
+        pushNotifications: true,
+        autoBackup: true,
+        accentColor: 'Brand Blue',
+        language: 'English',
+        currency: 'USD',
+        dateFormat: 'DD / MM / YYYY',
       })
       .returning();
 
@@ -50,6 +56,12 @@ export class SettingsService {
       developerMode?: boolean;
       emailNotifications?: boolean;
       darkMode?: boolean;
+      pushNotifications?: boolean;
+      autoBackup?: boolean;
+      accentColor?: string;
+      language?: string;
+      currency?: string;
+      dateFormat?: string;
     }
   ) {
     // Ensure settings exist

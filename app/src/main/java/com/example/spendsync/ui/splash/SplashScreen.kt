@@ -48,14 +48,14 @@ private const val CHAR_ANIM_DURATION_MS = 500
 fun SplashScreen(
     viewModel: SplashViewModel,
     onNavigateToHome: () -> Unit,
-    onNavigateToWelcome: () -> Unit,
+    onNavigateToLogin: () -> Unit,
 ) {
     // Collect navigation events — must use a unique key so both effects run
     LaunchedEffect("nav_events") {
         viewModel.navEvent.collectLatest { event ->
             when (event) {
-                SplashNavEvent.GoHome    -> onNavigateToHome()
-                SplashNavEvent.GoWelcome -> onNavigateToWelcome()
+                SplashNavEvent.GoHome  -> onNavigateToHome()
+                SplashNavEvent.GoLogin -> onNavigateToLogin()
             }
         }
     }

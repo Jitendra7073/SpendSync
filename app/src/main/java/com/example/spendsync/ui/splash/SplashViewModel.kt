@@ -11,10 +11,9 @@ import kotlinx.coroutines.launch
 
 /** One-shot navigation events emitted by the ViewModel. */
 sealed class SplashNavEvent {
-    object GoHome    : SplashNavEvent()
-    // No local session — send the user to the Welcome screen where they choose
-    // between continuing as a guest or signing in.
-    object GoWelcome : SplashNavEvent()
+    object GoHome  : SplashNavEvent()
+    // No local session — send the user straight to Login.
+    object GoLogin : SplashNavEvent()
 }
 
 class SplashViewModel(
@@ -44,7 +43,7 @@ class SplashViewModel(
             if (remaining > 0) delay(remaining)
 
             _navEvent.emit(
-                if (hasSession) SplashNavEvent.GoHome else SplashNavEvent.GoWelcome
+                if (hasSession) SplashNavEvent.GoHome else SplashNavEvent.GoLogin
             )
         }
     }

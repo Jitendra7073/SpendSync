@@ -6,10 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -84,15 +84,19 @@ fun RegisterScreen(
     }
 
     ToastHost(toast = toast, onDismiss = { toast = null }) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        // Flexible Column (header wraps its content, card takes the rest via
+        // weight) instead of a hard 0.32f/0.76f height split — Register has
+        // more fields than Login, so a fixed fraction is even more likely to
+        // squeeze the card on short/landscape screens or under the keyboard.
+        Column(modifier = Modifier.fillMaxSize()) {
 
             // ── Blue header ──────────────────────────────────────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.32f)
                     .background(BrandBlue)
-                    .statusBarsPadding(),
+                    .statusBarsPadding()
+                    .padding(vertical = 24.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -116,8 +120,7 @@ fun RegisterScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .fillMaxHeight(0.76f)
+                    .weight(1f)
                     .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
                     .background(NeutralWhite),
             ) {
@@ -125,6 +128,7 @@ fun RegisterScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
+                        .imePadding()
                         .padding(horizontal = 28.dp, vertical = 32.dp),
                     verticalArrangement = Arrangement.Top,
                 ) {

@@ -25,18 +25,23 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +55,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.collectAsState
 import androidx.compose.material3.MaterialTheme
 import com.example.spendsync.data.local.SessionDataStore
@@ -58,14 +64,22 @@ import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.data.repository.AuthResult
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.spendsync.ui.components.SkeletonBox
+import com.example.spendsync.ui.components.ToastHost
+import com.example.spendsync.ui.components.ToastMessage
+import com.example.spendsync.ui.search.GlobalSearchDialog
 import com.example.spendsync.utils.LocalizationUtils
 import com.example.spendsync.ui.shared.DateFilterState
+import com.example.spendsync.ui.shared.TopBarDateSearchGroup
 import com.example.spendsync.ui.theme.BrandBlue
 import com.example.spendsync.ui.theme.BrandYellow
 import com.example.spendsync.ui.theme.NeutralBlack
 import com.example.spendsync.ui.theme.NeutralMid
 import com.example.spendsync.ui.theme.NeutralOffWhite
 import com.example.spendsync.ui.theme.NeutralWhite
+import com.example.spendsync.ui.theme.SemanticError
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -83,14 +97,25 @@ data class MockTransaction(
     val date: LocalDate
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     repository: AuthRepository,
     financeRepository: FinanceRepository,
     sessionDataStore: SessionDataStore,
     dateFilterState: DateFilterState,
+    refreshKey: Int = 0,
+    onEditTransaction: (TransactionDto) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    // Set when a search result is picked from a different tab (Analytics/
+    // Budget) — each request uses a distinct id so repeat-selecting the same
+    // transaction still reopens the dialog.
+    externalViewTransactionId: Int = 0,
+    externalViewTransaction: TransactionDto? = null,
     onSignOut: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+    var toast by remember { mutableStateOf<ToastMessage?>(null) }
     val NeutralOffWhite = MaterialTheme.colorScheme.background
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
@@ -114,12 +139,12 @@ fun HomeScreen(
 
     var monthlyTransactions by remember { mutableStateOf<List<TransactionDto>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
-    LaunchedEffect(dateFilterState.selectedDate) {
-        isLoading = true
+    suspend fun loadTransactions(forceRefresh: Boolean) {
         val start = dateFilterState.selectedDate.withDayOfMonth(1).toString() + "T00:00:00.000Z"
         val end = dateFilterState.selectedDate.withDayOfMonth(dateFilterState.selectedDate.lengthOfMonth()).toString() + "T23:59:59.999Z"
-        when (val res = financeRepository.getTransactions(startDate = start, endDate = end, limit = 500)) {
+        when (val res = financeRepository.getTransactions(startDate = start, endDate = end, limit = 500, forceRefresh = forceRefresh)) {
             is AuthResult.Success -> {
                 monthlyTransactions = res.data
             }
@@ -127,12 +152,25 @@ fun HomeScreen(
                 // handle error
             }
         }
+    }
+
+    LaunchedEffect(dateFilterState.selectedDate, refreshKey) {
+        isLoading = true
+        loadTransactions(forceRefresh = false)
         isLoading = false
     }
 
     // Dynamic Filter State
-    var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf("ALL") } // ALL, CREDIT, DEBIT
+
+    // Global search modal + per-row action state
+    var showGlobalSearch by remember { mutableStateOf(false) }
+    var transactionToDelete by remember { mutableStateOf<TransactionDto?>(null) }
+    var transactionToView by remember { mutableStateOf<TransactionDto?>(null) }
+
+    LaunchedEffect(externalViewTransactionId) {
+        if (externalViewTransactionId > 0) externalViewTransaction?.let { transactionToView = it }
+    }
 
     // 1. Filter by EXACT Selected Date from Top Bar
     val dailyTransactions = remember(monthlyTransactions, dateFilterState.selectedDate) {
@@ -155,22 +193,29 @@ fun HomeScreen(
     }
     val totalBalance = totalIncome - totalExpenses
 
-    // 2. Filter by Search Query and Credit/Debit Type
-    val filteredTransactions = remember(dailyTransactions, searchQuery, selectedTypeFilter) {
+    // 2. Filter by Credit/Debit Type (tapping the Income/Expense tile above)
+    val filteredTransactions = remember(dailyTransactions, selectedTypeFilter) {
         dailyTransactions.filter { transaction ->
-            val matchesSearch = transaction.merchant.contains(searchQuery, ignoreCase = true) ||
-                    transaction.category.contains(searchQuery, ignoreCase = true) ||
-                    (transaction.note ?: "").contains(searchQuery, ignoreCase = true)
-            
-            val matchesType = when (selectedTypeFilter) {
+            when (selectedTypeFilter) {
                 "CREDIT" -> transaction.type == "credit"
                 "DEBIT" -> transaction.type == "debit"
                 else -> true
             }
-            matchesSearch && matchesType
         }
     }
 
+    ToastHost(toast = toast, onDismiss = { toast = null }) {
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            scope.launch {
+                isRefreshing = true
+                loadTransactions(forceRefresh = true)
+                isRefreshing = false
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -208,31 +253,16 @@ fun HomeScreen(
                     )
                 }
 
-                // Right Side: Date & Calendar Icon (Shows full date now)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { dateFilterState.showMonthPicker = true }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    val dateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
-                    Text(
-                        text = dateFilterState.selectedDate.format(dateFormatter),
-                        color = NeutralWhite,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = "Select Date",
-                        tint = NeutralWhite,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                // Right Side: Calendar + global search, grouped together.
+                TopBarDateSearchGroup(
+                    selectedDate = dateFilterState.selectedDate,
+                    onCalendarClick = { dateFilterState.showMonthPicker = true },
+                    onSearchClick = { showGlobalSearch = true },
+                    contentColor = NeutralWhite,
+                    groupBackgroundColor = NeutralWhite.copy(alpha = 0.15f),
+                )
             }
-            
+
             Spacer(Modifier.height(20.dp))
 
             // ── Balance card ──────────────────────────────────────────────────
@@ -274,12 +304,18 @@ fun HomeScreen(
         Spacer(Modifier.height(16.dp))
 
         // ── Responsive & Premium Summary tiles (Income & Expenses) ───────────
+        // Tapping a tile filters the list below by that type — tap again to
+        // clear the filter. Replaces the separate ALL/Income/Expense pills.
         Row(
             modifier              = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (isLoading) {
+                SkeletonBox(modifier = Modifier.weight(1f).height(78.dp), shape = RoundedCornerShape(16.dp))
+                SkeletonBox(modifier = Modifier.weight(1f).height(78.dp), shape = RoundedCornerShape(16.dp))
+            } else {
             // Premium Income Card
             SummaryTile(
                 label = LocalizationUtils.getTranslation("income", language),
@@ -288,6 +324,8 @@ fun HomeScreen(
                 cardColor = Color(0xFFF0FDF4),       // Soft light green tint
                 borderColor = Color(0xFFDCFCE7),     // Soft green border
                 accentColor = Color(0xFF15803D),     // Deep green icon/text
+                isSelected = selectedTypeFilter == "CREDIT",
+                onClick = { selectedTypeFilter = if (selectedTypeFilter == "CREDIT") "ALL" else "CREDIT" },
                 modifier = Modifier.weight(1f)
             )
 
@@ -299,77 +337,10 @@ fun HomeScreen(
                 cardColor = Color(0xFFFEF2F2),       // Soft light red tint
                 borderColor = Color(0xFFFEE2E2),     // Soft red border
                 accentColor = Color(0xFFB91C1C),     // Deep red icon/text
+                isSelected = selectedTypeFilter == "DEBIT",
+                onClick = { selectedTypeFilter = if (selectedTypeFilter == "DEBIT") "ALL" else "DEBIT" },
                 modifier = Modifier.weight(1f)
             )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        // ── Search Bar ────────────────────────────────────────────────────────
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            placeholder = { Text("Search transactions...", color = NeutralMid, fontSize = 14.sp) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = NeutralMid) },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear search", tint = NeutralMid)
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = NeutralWhite,
-                unfocusedContainerColor = NeutralWhite,
-                focusedBorderColor = BrandBlue,
-                unfocusedBorderColor = Color(0xFFE2E8F0),
-                focusedLabelColor = BrandBlue,
-                unfocusedLabelColor = NeutralMid
-            )
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        // ── Transaction Filter Pills ──────────────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val filters = listOf(
-                "ALL" to LocalizationUtils.getTranslation("all", language),
-                "CREDIT" to LocalizationUtils.getTranslation("income", language),
-                "DEBIT" to LocalizationUtils.getTranslation("expenses", language)
-            )
-            filters.forEach { (type, label) ->
-                val isSelected = selectedTypeFilter == type
-                val backgroundColor = if (isSelected) BrandBlue else NeutralWhite
-                val contentColor = if (isSelected) NeutralWhite else NeutralBlack
-                val borderStroke = if (isSelected) null else BorderStroke(1.dp, Color(0xFFE2E8F0))
-                
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(backgroundColor)
-                        .then(if (borderStroke != null) Modifier.border(borderStroke, RoundedCornerShape(20.dp)) else Modifier)
-                        .clickable { selectedTypeFilter = type }
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = label,
-                        color = contentColor,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
             }
         }
 
@@ -386,7 +357,9 @@ fun HomeScreen(
         
         Spacer(Modifier.height(8.dp))
 
-        if (filteredTransactions.isEmpty()) {
+        if (isLoading) {
+            repeat(3) { TransactionRowSkeleton() }
+        } else if (filteredTransactions.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -405,13 +378,64 @@ fun HomeScreen(
                 TransactionRow(
                     transaction = transaction,
                     currencySymbol = currencySymbol,
-                    dateFormatPattern = dateFormatPattern
+                    dateFormatPattern = dateFormatPattern,
+                    onDelete = { transactionToDelete = transaction },
+                    onEdit = { onEditTransaction(transaction) },
+                    onInfo = { transactionToView = transaction },
                 )
             }
         }
 
         // Bottom padding to ensure content isn't hidden behind the floating bottom navigation bar
         Spacer(Modifier.height(100.dp))
+    }
+    }
+
+    // ── Delete confirmation ───────────────────────────────────────────────────
+    transactionToDelete?.let { tx ->
+        DeleteTransactionDialog(
+            transaction = tx,
+            currencySymbol = currencySymbol,
+            onDismiss = { transactionToDelete = null },
+            onConfirm = {
+                scope.launch {
+                    val res = financeRepository.deleteTransaction(tx.id)
+                    if (res is AuthResult.Success) {
+                        monthlyTransactions = monthlyTransactions.filter { it.id != tx.id }
+                        toast = ToastMessage("Transaction deleted", isError = false)
+                    } else {
+                        toast = ToastMessage((res as AuthResult.Error).message, isError = true)
+                    }
+                    transactionToDelete = null
+                }
+            },
+        )
+    }
+
+    // ── Transaction details ───────────────────────────────────────────────────
+    transactionToView?.let { tx ->
+        TransactionInfoDialog(
+            transaction = tx,
+            currencySymbol = currencySymbol,
+            onDismiss = { transactionToView = null },
+        )
+    }
+
+    // ── Global search ─────────────────────────────────────────────────────────
+    if (showGlobalSearch) {
+        GlobalSearchDialog(
+            financeRepository = financeRepository,
+            onDismiss = { showGlobalSearch = false },
+            onTransactionSelected = { tx ->
+                showGlobalSearch = false
+                transactionToView = tx
+            },
+            onOpenSettings = {
+                showGlobalSearch = false
+                onOpenSettings()
+            },
+        )
+    }
     }
 }
 
@@ -425,14 +449,18 @@ private fun SummaryTile(
     cardColor: Color,
     borderColor: Color,
     accentColor: Color,
+    isSelected: Boolean = false,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
-        border = BorderStroke(1.dp, borderColor),
+        border = BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) accentColor else borderColor),
         elevation = CardDefaults.cardElevation(0.dp),
-        modifier = modifier,
+        modifier = modifier.then(
+            if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+        ),
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -474,12 +502,44 @@ private fun SummaryTile(
     }
 }
 
+// ── Transaction Row Skeleton (shown while the month's data is loading) ───────
+@Composable
+private fun TransactionRowSkeleton() {
+    val NeutralWhite = MaterialTheme.colorScheme.surface
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+        elevation = CardDefaults.cardElevation(1.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SkeletonBox(modifier = Modifier.size(40.dp), shape = CircleShape)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                SkeletonBox(modifier = Modifier.width(120.dp).height(14.dp))
+                Spacer(modifier = Modifier.height(6.dp))
+                SkeletonBox(modifier = Modifier.width(80.dp).height(11.dp))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            SkeletonBox(modifier = Modifier.width(60.dp).height(15.dp))
+        }
+    }
+}
+
 // ── Transaction Row Component ────────────────────────────────────────────────
 @Composable
 private fun TransactionRow(
     transaction: TransactionDto,
     currencySymbol: String,
-    dateFormatPattern: String
+    dateFormatPattern: String,
+    onDelete: () -> Unit,
+    onEdit: () -> Unit,
+    onInfo: () -> Unit,
 ) {
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
@@ -511,10 +571,9 @@ private fun TransactionRow(
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
     ) {
+        Column(modifier = Modifier.padding(14.dp)) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -594,5 +653,215 @@ private fun TransactionRow(
                 fontSize = 15.sp
             )
         }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // ── Row actions: info, edit, delete ───────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            IconButton(onClick = onInfo, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Transaction details",
+                    tint = NeutralMid,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit transaction",
+                    tint = NeutralMid,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete transaction",
+                    tint = Color(0xFFDC2626),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        }
+    }
+}
+
+// ── Delete Confirmation Dialog ───────────────────────────────────────────────
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun DeleteTransactionDialog(
+    transaction: TransactionDto,
+    currencySymbol: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val NeutralWhite = MaterialTheme.colorScheme.surface
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    val amountVal = transaction.amount.toDoubleOrNull() ?: 0.0
+
+    BasicAlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+            modifier = Modifier
+                .padding(horizontal = 32.dp)
+                .fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = SemanticError,
+                    modifier = Modifier.size(36.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "Delete transaction?",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = NeutralBlack,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "${transaction.merchant.ifBlank { transaction.category }} — $currencySymbol%,.2f".format(amountVal),
+                    fontSize = 13.sp,
+                    color = NeutralMid,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "This can't be undone.",
+                    fontSize = 12.sp,
+                    color = NeutralMid,
+                )
+                Spacer(Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(BorderStroke(1.dp, Color(0xFFE2E8F0)), RoundedCornerShape(12.dp))
+                            .clickable(onClick = onDismiss)
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("Cancel", color = NeutralBlack, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SemanticError)
+                            .clickable(onClick = onConfirm)
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("Delete", color = NeutralWhite, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Transaction Info Dialog ──────────────────────────────────────────────────
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun TransactionInfoDialog(
+    transaction: TransactionDto,
+    currencySymbol: String,
+    onDismiss: () -> Unit,
+) {
+    val NeutralWhite = MaterialTheme.colorScheme.surface
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    val amountVal = transaction.amount.toDoubleOrNull() ?: 0.0
+    val isCredit = transaction.type == "credit"
+
+    val createdDate = remember(transaction.createdAt) {
+        try {
+            java.time.ZonedDateTime.parse(transaction.createdAt)
+                .format(DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.getDefault()))
+        } catch (e: Exception) {
+            transaction.createdAt
+        }
+    }
+
+    BasicAlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth(),
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Transaction Details",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = NeutralBlack,
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = NeutralMid)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+
+                InfoRow("Amount", "${if (isCredit) "+" else "-"} $currencySymbol%,.2f".format(amountVal))
+                InfoRow("Type", if (isCredit) "Income" else "Expense")
+                InfoRow("Merchant / Note", transaction.merchant.ifBlank { "—" })
+                InfoRow("Category", transaction.category)
+                if (!transaction.note.isNullOrBlank()) InfoRow("Note", transaction.note)
+                if (!transaction.sourceApp.isNullOrBlank()) InfoRow("Source", transaction.sourceApp)
+                InfoRow("Date", createdDate)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(text = label, fontSize = 13.sp, color = NeutralMid)
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = value,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = NeutralBlack,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+        )
     }
 }

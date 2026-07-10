@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.example.spendsync.data.local.SessionDataStore
+import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.data.repository.AuthRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.navigation.BottomNavItem
@@ -55,13 +56,44 @@ fun MainScreen(
 
     // ── Add-expense overlay flag ──────────────────────────────────────────────
     var showAddExpense by rememberSaveable { mutableStateOf(false) }
+    // Non-null while editing an existing transaction (opened from Home's row
+    // actions) — the same overlay is reused in "edit" mode.
+    var editingTransaction by remember { mutableStateOf<TransactionDto?>(null) }
+    val expenseOverlayVisible = showAddExpense || editingTransaction != null
+
+    // Bumped every time the add/edit overlay closes so Home reloads its list —
+    // Home only reacts to date-filter changes otherwise.
+    var homeRefreshKey by remember { mutableStateOf(0) }
+    fun closeExpenseOverlay() {
+        showAddExpense = false
+        editingTransaction = null
+        homeRefreshKey++
+    }
+
+    // Bumped to jump straight to Settings inside the Profile tab (used by
+    // any tab's global search when a settings result is tapped).
+    var openSettingsRequestId by remember { mutableStateOf(0) }
+
+    // Set when Analytics/Budget's global search selects a transaction — jumps
+    // to Home and opens that transaction's detail dialog there.
+    var viewTransactionRequestId by remember { mutableStateOf(0) }
+    var viewTransactionRequestData by remember { mutableStateOf<TransactionDto?>(null) }
+    fun requestOpenSettings() {
+        selectedRoute = BottomNavItem.Profile.route
+        openSettingsRequestId++
+    }
+    fun requestViewTransaction(tx: TransactionDto) {
+        selectedRoute = BottomNavItem.Home.route
+        viewTransactionRequestData = tx
+        viewTransactionRequestId++
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
             // Hide the bottom bar when the add-expense screen is open so it
             // doesn't peek through the overlay.
-            if (!showAddExpense) {
+            if (!expenseOverlayVisible) {
                 SpendSyncBottomBar(
                     sessionDataStore = sessionDataStore,
                     currentRoute   = selectedRoute,
@@ -90,16 +122,21 @@ fun MainScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
                         dateFilterState = dateFilterState,
+                        onOpenSettings = ::requestOpenSettings,
+                        onViewTransaction = ::requestViewTransaction,
                     )
                     BottomNavItem.Budget.route    -> BudgetScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
                         dateFilterState = dateFilterState,
+                        onOpenSettings = ::requestOpenSettings,
+                        onViewTransaction = ::requestViewTransaction,
                     )
                     BottomNavItem.Profile.route   -> ProfileScreen(
                         sessionDataStore = sessionDataStore,
                         repository       = repository,
                         financeRepository = financeRepository,
+                        openSettingsRequestId = openSettingsRequestId,
                         onSignOut        = onSignOut,
                     )
                     else -> HomeScreen(
@@ -107,14 +144,19 @@ fun MainScreen(
                         financeRepository = financeRepository,
                         sessionDataStore = sessionDataStore,
                         dateFilterState  = dateFilterState,
+                        refreshKey       = homeRefreshKey,
+                        onEditTransaction = { tx -> editingTransaction = tx },
+                        onOpenSettings   = ::requestOpenSettings,
+                        externalViewTransactionId = viewTransactionRequestId,
+                        externalViewTransaction = viewTransactionRequestData,
                         onSignOut        = onSignOut,
                     )
                 }
             }
 
-            // ── Add Expense overlay — slides up over everything ───────────────
+            // ── Add/Edit Expense overlay — slides up over everything ──────────
             AnimatedContent(
-                targetState    = showAddExpense,
+                targetState    = expenseOverlayVisible,
                 transitionSpec = {
                     if (targetState) {
                         // Opening: slide up from bottom
@@ -132,7 +174,8 @@ fun MainScreen(
                     AddExpenseScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
-                        onBack = { showAddExpense = false },
+                        editTransaction = editingTransaction,
+                        onBack = { closeExpenseOverlay() },
                     )
                 }
             }
