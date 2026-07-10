@@ -8,6 +8,14 @@ const logFormat = printf(({ level, message, timestamp, stack }) => {
   return `${timestamp} [${level}]: ${stack || message}`;
 });
 
+// Vercel (and most serverless hosts) mount a read-only filesystem, so
+// winston's File transport throws at construction time — which crashes
+// every route that imports the logger before it ever handles a request.
+// Console output is enough there since Vercel captures stdout/stderr into
+// its own log viewer; file transports only make sense on a persistent
+// local/VM filesystem.
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
 // Create logger instance
 export const logger = winston.createLogger({
   level: config.logging.level,
@@ -21,15 +29,18 @@ export const logger = winston.createLogger({
     new winston.transports.Console({
       format: combine(colorize(), logFormat),
     }),
-    // File transport for errors
-    new winston.transports.File({
-      filename: 'logs/error.log',
-      level: 'error',
-    }),
-    // File transport for all logs
-    new winston.transports.File({
-      filename: 'logs/combined.log',
-    }),
+    // File transports — local/VM only
+    ...(isServerless
+      ? []
+      : [
+          new winston.transports.File({
+            filename: 'logs/error.log',
+            level: 'error',
+          }),
+          new winston.transports.File({
+            filename: 'logs/combined.log',
+          }),
+        ]),
   ],
 });
 

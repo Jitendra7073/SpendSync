@@ -20,11 +20,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Base URL for API. Requires `adb reverse tcp:3000 tcp:3000` before
-        // launching — maps this device's (emulator OR USB-cabled phone)
-        // localhost:3000 to the dev machine's localhost:3000. Re-run the
-        // adb command any time the app is reinstalled or the device reconnects.
-        buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:3000\"")
+        // Base URL for API — deployed backend, reachable from any device/network.
+        buildConfigField("String", "API_BASE_URL", "\"https://spend-sync-api.vercel.app\"")
     }
 
     buildTypes {
