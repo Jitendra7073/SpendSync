@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
 import com.example.spendsync.data.local.SessionDataStore
+import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.repository.FinanceRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,8 +34,17 @@ class NotificationReplyReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                financeRepository.updateTransaction(id = transactionId, note = reply)
-                NotificationManagerCompat.from(context).cancel(transactionId.hashCode())
+                val result = financeRepository.updateTransaction(id = transactionId, note = reply)
+                when (result) {
+                    is AuthResult.Success -> {
+                        NotificationManagerCompat.from(context).cancel(transactionId.hashCode())
+                    }
+                    is AuthResult.Error -> {
+                        // Save failed (offline, expired session, etc.) — leave the
+                        // notification up so the user sees the reply didn't save
+                        // and can retry, instead of silently dropping it.
+                    }
+                }
             } finally {
                 pendingResult.finish()
             }
