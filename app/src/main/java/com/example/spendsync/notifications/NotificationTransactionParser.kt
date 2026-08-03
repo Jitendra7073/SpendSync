@@ -20,7 +20,9 @@ object NotificationTransactionParser {
 
     private val DEBIT_KEYWORDS = Regex("""\b(debited|paid|spent)\b""", RegexOption.IGNORE_CASE)
     private val CREDIT_KEYWORDS = Regex("""\b(credited|received)\b""", RegexOption.IGNORE_CASE)
-    private val CURRENCY_AMOUNT = Regex("""(?:₹|Rs\.?|INR)\s?([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
+    // \b before Rs/INR so the "rs" inside words like "hrs"/"customers" can't
+    // anchor a match and swallow a phone number as the amount.
+    private val CURRENCY_AMOUNT = Regex("""(?:₹\s?|\bRs\.?\s?|\bINR\s?)([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
     private val KEYWORD_AMOUNT = Regex("""\b(?:by|of)\s+([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
     private val REF_NUMBER = Regex(
         """(?:Refno|Ref\s?No\.?|UPI\s?Ref|Txn\s?ID)\s*[:\-]?\s*(\w+)""",

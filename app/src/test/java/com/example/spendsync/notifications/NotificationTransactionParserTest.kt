@@ -39,6 +39,23 @@ class NotificationTransactionParserTest {
     }
 
     @Test
+    fun `does not mistake a phone number for the amount when 'rs' appears inside a word`() {
+        val result = NotificationTransactionParser.parse(
+            "A/C debited by 30.00. Call 24 hrs 18001234 for other services"
+        )
+
+        assertEquals(30.00, result?.amount)
+    }
+
+    @Test
+    fun `extracts amounts across currency prefix spellings`() {
+        assertEquals(30.0, NotificationTransactionParser.parse("Rs.30 debited")?.amount)
+        assertEquals(1200.0, NotificationTransactionParser.parse("Rs 1,200 debited")?.amount)
+        assertEquals(500.0, NotificationTransactionParser.parse("INR 500 debited")?.amount)
+        assertEquals(30.50, NotificationTransactionParser.parse("Rs30.50 debited")?.amount)
+    }
+
+    @Test
     fun `returns null when there is no direction keyword`() {
         assertNull(NotificationTransactionParser.parse("Your OTP is 493821, do not share it."))
     }

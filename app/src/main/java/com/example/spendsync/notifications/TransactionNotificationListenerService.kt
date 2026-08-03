@@ -28,34 +28,48 @@ class TransactionNotificationListenerService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val packageName = sbn.packageName
+        // Cheap synchronous pre-filter — no text extraction or DataStore reads
+        // for the vast majority of notifications, which come from apps we never
+        // read. The per-user opt-in check still runs below.
+        if (NotificationAppAllowlist.APPS.none { it.packageName == packageName }) return
         val text = extractText(sbn.notification) ?: return
 
         serviceScope.launch {
-            if (sessionDataStore.autoCaptureEnabled.firstOrNull() != true) return@launch
-            val enabledPackages = sessionDataStore.autoCapturePackages.firstOrNull().orEmpty()
-            if (packageName !in enabledPackages) return@launch
+            // A notification must never be able to crash the app: swallow
+            // parsing/DataStore/network failures rather than letting them reach
+            // the uncaught handler.
+            runCatching {
+                if (sessionDataStore.autoCaptureEnabled.firstOrNull() != true) return@launch
+                // No session means the create would 401, which triggers a global
+                // sign-out and ejects the user from the foreground UI.
+                if (sessionDataStore.sessionToken.firstOrNull().isNullOrBlank()) return@launch
+                val enabledPackages = sessionDataStore.autoCapturePackages.firstOrNull().orEmpty()
+                if (packageName !in enabledPackages) return@launch
 
-            val parsed = NotificationTransactionParser.parse(text) ?: return@launch
-            val now = System.currentTimeMillis()
-            if (recentCaptures.isDuplicate(parsed.amount, parsed.direction, now)) return@launch
+                val parsed = NotificationTransactionParser.parse(text) ?: return@launch
+                val now = System.currentTimeMillis()
+                // Record before the network call, not after — two notifications for
+                // the same payment arrive within ~1s and would both pass the check
+                // while the first create is still in flight.
+                if (recentCaptures.isDuplicate(parsed.amount, parsed.direction, now)) return@launch
+                recentCaptures.record(parsed.amount, parsed.direction, now)
 
-            val type = if (parsed.direction == TransactionDirection.DEBIT) "debit" else "credit"
-            when (val result = financeRepository.createTransaction(
-                amount = parsed.amount,
-                type = type,
-                merchant = parsed.payee ?: "Unknown",
-                category = "Other",
-                sourceApp = packageName,
-            )) {
-                is AuthResult.Success -> {
-                    recentCaptures.record(parsed.amount, parsed.direction, now)
-                    TransactionCaptureNotifier.postDescriptionRequest(applicationContext, result.data)
-                }
-                is AuthResult.Error -> {
-                    sessionDataStore.addPendingCapture(
-                        PendingCapture(parsed.amount, parsed.direction, parsed.payee, packageName, now)
-                    )
-                    PendingCaptureRetryWorker.schedule(applicationContext)
+                val type = if (parsed.direction == TransactionDirection.DEBIT) "debit" else "credit"
+                when (val result = financeRepository.createTransaction(
+                    amount = parsed.amount,
+                    type = type,
+                    merchant = parsed.payee ?: "Unknown",
+                    category = "Other",
+                    sourceApp = packageName,
+                )) {
+                    is AuthResult.Success ->
+                        TransactionCaptureNotifier.postDescriptionRequest(applicationContext, result.data)
+                    is AuthResult.Error -> {
+                        sessionDataStore.addPendingCapture(
+                            PendingCapture(parsed.amount, parsed.direction, parsed.payee, packageName, now)
+                        )
+                        PendingCaptureRetryWorker.schedule(applicationContext)
+                    }
                 }
             }
         }

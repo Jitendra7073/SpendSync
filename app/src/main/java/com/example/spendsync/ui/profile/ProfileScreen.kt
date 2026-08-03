@@ -181,7 +181,12 @@ fun ProfileScreen(
     var showAutoCaptureExplainer by remember { mutableStateOf(false) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* no-op: the follow-up notification just won't show if denied */ }
+    ) {
+        // Deep-link to Notification Access only once the permission dialog has
+        // resolved — launching both at once races and the Settings screen wins,
+        // so the user never sees the permission prompt.
+        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+    }
     var showClearDataDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
@@ -663,9 +668,11 @@ fun ProfileScreen(
                             showAutoCaptureExplainer = false
                             scope.launch { sessionDataStore.updateAutoCaptureEnabled(true) }
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                // The launcher's callback opens Notification Access.
                                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                             }
-                            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                         }) {
                             Text("Continue")
                         }

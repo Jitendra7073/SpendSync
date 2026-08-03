@@ -173,6 +173,11 @@ class SessionDataStore(private val context: Context) {
             prefs.remove(KEY_USER_EMAIL)
             prefs.remove(KEY_USER_NAME)
             prefs.remove(KEY_USER_CREATED_AT)
+            // Sign-out is the account boundary: a queued capture (or the
+            // auto-capture opt-in) must not carry over to the next account.
+            prefs.remove(KEY_PENDING_CAPTURES)
+            prefs.remove(KEY_AUTO_CAPTURE_ENABLED)
+            prefs.remove(KEY_AUTO_CAPTURE_PACKAGES)
         }
     }
 

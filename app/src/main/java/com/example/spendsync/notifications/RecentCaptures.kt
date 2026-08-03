@@ -12,11 +12,13 @@ class RecentCaptures(private val windowMillis: Long = 300_000L) {
 
     private val recent = mutableListOf<Signature>()
 
+    @Synchronized
     fun isDuplicate(amount: Double, direction: TransactionDirection, nowMillis: Long): Boolean {
         recent.removeAll { nowMillis - it.timestampMillis > windowMillis }
         return recent.any { it.amount == amount && it.direction == direction }
     }
 
+    @Synchronized
     fun record(amount: Double, direction: TransactionDirection, nowMillis: Long) {
         recent.add(Signature(amount, direction, nowMillis))
     }
