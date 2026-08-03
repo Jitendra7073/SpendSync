@@ -1,6 +1,11 @@
 package com.example.spendsync.ui.profile
 
 import android.content.Intent
+import android.Manifest
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,6 +54,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -78,6 +84,7 @@ import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.remote.model.DashboardSummaryDto
 import androidx.compose.runtime.LaunchedEffect
+import com.example.spendsync.notifications.NotificationAppAllowlist
 import com.example.spendsync.ui.components.SkeletonLine
 import com.example.spendsync.ui.theme.BrandBlue
 import com.example.spendsync.ui.theme.BrandBlueDark
@@ -98,6 +105,7 @@ import java.time.LocalDate
  * support are all shown inline here instead of behind separate nav targets,
  * so nothing is a tap away in a nested screen.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     sessionDataStore: SessionDataStore,
@@ -117,6 +125,7 @@ fun ProfileScreen(
     val userId    by sessionDataStore.userId.collectAsState(initial = "")
     val userCreatedAt by sessionDataStore.userCreatedAt.collectAsState(initial = "")
     val scope     = rememberCoroutineScope()
+    val context   = LocalContext.current
 
     // Signed-in users sync these prefs to the backend; guests stay local-only.
     var isSignedIn by remember { mutableStateOf(false) }
@@ -139,6 +148,8 @@ fun ProfileScreen(
     val notifications by sessionDataStore.notificationsEnabled.collectAsState(initial = true)
     val autoBackup by sessionDataStore.autoBackup.collectAsState(initial = true)
     val dateFormat by sessionDataStore.dateFormat.collectAsState(initial = "DD / MM / YYYY")
+    val autoCaptureEnabled by sessionDataStore.autoCaptureEnabled.collectAsState(initial = false)
+    val autoCapturePackages by sessionDataStore.autoCapturePackages.collectAsState(initial = emptySet())
 
     val today = remember { LocalDate.now() }
 
@@ -167,6 +178,10 @@ fun ProfileScreen(
     var showEditProfile by remember { mutableStateOf(false) }
     var showDateFormatDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
+    var showAutoCaptureExplainer by remember { mutableStateOf(false) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* no-op: the follow-up notification just won't show if denied */ }
     var showClearDataDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
@@ -425,6 +440,41 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(20.dp))
 
+            // ── Automation ───────────────────────────────────────────────────
+            SectionHeader("Automation")
+            ProfileMenuCard {
+                SettingsToggleRow(
+                    icon = Icons.Default.NotificationsActive,
+                    label = "Auto-detect transactions",
+                    sub = "Reads payment notifications from apps you choose below",
+                    checked = autoCaptureEnabled,
+                    onToggle = { turningOn ->
+                        if (turningOn) {
+                            showAutoCaptureExplainer = true
+                        } else {
+                            scope.launch { sessionDataStore.updateAutoCaptureEnabled(false) }
+                        }
+                    },
+                )
+                if (autoCaptureEnabled) {
+                    NotificationAppAllowlist.APPS.forEach { app ->
+                        SettingsDivider()
+                        SettingsToggleRow(
+                            icon = Icons.Default.NotificationsActive,
+                            label = app.displayName,
+                            checked = app.packageName in autoCapturePackages,
+                            onToggle = { checked ->
+                                val updated = if (checked) autoCapturePackages + app.packageName
+                                    else autoCapturePackages - app.packageName
+                                scope.launch { sessionDataStore.updateAutoCapturePackages(updated) }
+                            },
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
             // ── Data ──────────────────────────────────────────────────────────
             SectionHeader("Data")
             ProfileMenuCard {
@@ -579,6 +629,50 @@ fun ProfileScreen(
             financeRepository = financeRepository,
             onDismiss = { showExportDialog = false }
         )
+    }
+
+    // ── Dialog: Notification Access Explainer ───────────────────────────────
+    if (showAutoCaptureExplainer) {
+        BasicAlertDialog(onDismissRequest = { showAutoCaptureExplainer = false }) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+                modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text(
+                        text = "Notification Access Required",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = NeutralBlack,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "SpendSync needs permission to read notifications so it can detect payments " +
+                            "automatically. Only the apps you select below are read — nothing else, and " +
+                            "nothing is sent anywhere else.",
+                        fontSize = 13.sp,
+                        color = NeutralMid,
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showAutoCaptureExplainer = false }) {
+                            Text("Cancel")
+                        }
+                        TextButton(onClick = {
+                            showAutoCaptureExplainer = false
+                            scope.launch { sessionDataStore.updateAutoCaptureEnabled(true) }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                        }) {
+                            Text("Continue")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ── Dialog 4: Clear Data Confirmation Dialog ────────────────────────────
