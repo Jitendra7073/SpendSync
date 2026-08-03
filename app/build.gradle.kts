@@ -81,6 +81,8 @@ dependencies {
     implementation(libs.androidx.core.splashscreen)
     // Accompanist
     implementation(libs.accompanist.systemuicontroller)
+    // WorkManager — retries transaction creation for auto-captured notifications
+    implementation(libs.androidx.work.runtime.ktx)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
