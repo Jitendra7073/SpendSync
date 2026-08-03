@@ -103,7 +103,7 @@ fun RegisterScreen(
                     Text(
                         text       = "SpendSync",
                         color      = NeutralWhite,
-                        fontSize   = 34.sp,
+                        fontSize   = 28.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(8.dp))
@@ -135,14 +135,14 @@ fun RegisterScreen(
                     Text(
                         text       = "CREATE ACCOUNT",
                         color      = BrandBlue,
-                        fontSize   = 22.sp,
+                        fontSize   = 18.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text     = "Sign up and start tracking your expenses",
                         color    = NeutralMid,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                     )
 
                     Spacer(Modifier.height(24.dp))
@@ -280,7 +280,7 @@ fun RegisterScreen(
                         Text(
                             text     = "Just browsing?",
                             color    = NeutralMid,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                         )
                         TextLinkButton(
                             text       = "Overview",

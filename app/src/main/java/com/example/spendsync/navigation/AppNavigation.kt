@@ -5,25 +5,29 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.spendsync.data.local.SessionDataStore
+import com.example.spendsync.data.remote.AuthEvents
 import com.example.spendsync.data.repository.AuthRepository
+import com.example.spendsync.data.repository.CurrencyRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.ui.auth.AuthViewModel
 import com.example.spendsync.ui.auth.AuthViewModelFactory
 import com.example.spendsync.ui.auth.LoginScreen
 import com.example.spendsync.ui.auth.RegisterScreen
 import com.example.spendsync.ui.main.MainScreen
-import com.example.spendsync.ui.splash.SplashScreen
-import com.example.spendsync.ui.splash.SplashViewModel
-import com.example.spendsync.ui.splash.SplashViewModelFactory
 import com.example.spendsync.data.repository.hydrateSettingsFromBackend
 import com.example.spendsync.data.repository.warmFinanceCache
 import kotlinx.coroutines.launch
@@ -31,7 +35,6 @@ import kotlinx.coroutines.launch
 // ── Top-level route constants ─────────────────────────────────────────────────
 
 object Route {
-    const val SPLASH   = "splash"
     const val LOGIN    = "login"
     const val REGISTER = "register"
     const val MAIN     = "main"   // hosts MainScreen which owns the bottom nav
@@ -42,23 +45,77 @@ object Route {
 @Composable
 fun AppNavigation(
     sessionDataStore: SessionDataStore,
+    authRepository: AuthRepository,
+    startDestination: String,
     navController: NavHostController = rememberNavController(),
 ) {
     val context          = LocalContext.current
-    val repository       = remember { AuthRepository(sessionDataStore) }
+    val repository       = authRepository
     val financeRepository = remember { FinanceRepository(sessionDataStore) }
+    val currencyRepository = remember { CurrencyRepository() }
     val scope            = rememberCoroutineScope()
 
-    val splashViewModel: SplashViewModel = viewModel(
-        factory = SplashViewModelFactory(repository),
-    )
     val authViewModel: AuthViewModel = viewModel(
         factory = AuthViewModelFactory(repository),
     )
 
+    // Already-authenticated cold start (startDestination == MAIN) skips the
+    // Login/Register screens' own onNavigateToHome warmup entirely, so do it
+    // once here instead.
+    LaunchedEffect(Unit) {
+        if (startDestination == Route.MAIN) {
+            scope.launch { hydrateSettingsFromBackend(financeRepository, sessionDataStore) }
+            scope.launch { warmFinanceCache(financeRepository) }
+        }
+    }
+
+    // Listen for 401 Unauthorized events from AuthInterceptor.
+    // Clear session, cache, and navigate to Login with full back stack clear.
+    LaunchedEffect(Unit) {
+        AuthEvents.unauthorizedFlow.collect {
+            sessionDataStore.clearSession()
+            financeRepository.clearCache()
+            navController.navigate(Route.LOGIN) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
+    // Reactively fetch exchange rates whenever the user's preferred currency changes.
+    LaunchedEffect(Unit) {
+        sessionDataStore.currency.collect { currency ->
+            currencyRepository.fetchRates(currency)
+        }
+    }
+
+    // Guard against returning to the app with an expired/cleared local session.
+    // On every ON_RESUME, check whether a local token still exists — if not,
+    // redirect to Login (unless we're already on an auth screen).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val currentRoute = navController.currentBackStackEntry?.destination?.route
+                if (currentRoute != Route.LOGIN && currentRoute != Route.REGISTER) {
+                    scope.launch {
+                        if (!authRepository.hasLocalSession()) {
+                            navController.navigate(Route.LOGIN) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     NavHost(
         navController    = navController,
-        startDestination = Route.SPLASH,
+        startDestination = startDestination,
         enterTransition  = {
             fadeIn(tween(300)) + slideIntoContainer(
                 towards       = AnimatedContentTransitionScope.SlideDirection.Start,
@@ -84,36 +141,6 @@ fun AppNavigation(
             )
         },
     ) {
-
-        // ── Splash ────────────────────────────────────────────────────────────
-        composable(
-            route           = Route.SPLASH,
-            enterTransition = { fadeIn(tween(200)) },
-            exitTransition  = { fadeOut(tween(400)) },
-        ) {
-            SplashScreen(
-                viewModel           = splashViewModel,
-                onNavigateToHome    = {
-                    // Fire-and-forget — Home reads from SessionDataStore reactively,
-                    // so it'll pick up synced settings as soon as this resolves.
-                    scope.launch { hydrateSettingsFromBackend(financeRepository, sessionDataStore) }
-                    // Warm every tab's default-view cache now, so Home/Analytics/
-                    // Budget/Profile already have data by the time the user taps them.
-                    scope.launch { warmFinanceCache(financeRepository) }
-                    navController.navigate(Route.MAIN) {
-                        // Pop SPLASH off the stack (inclusive) AFTER MAIN is pushed.
-                        // This is safe because MAIN is pushed first, so the stack
-                        // is never empty — it always has at least MAIN in it.
-                        popUpTo(Route.SPLASH) { inclusive = true }
-                    }
-                },
-                onNavigateToLogin = {
-                    navController.navigate(Route.LOGIN) {
-                        popUpTo(Route.SPLASH) { inclusive = true }
-                    }
-                },
-            )
-        }
 
         // ── Login ─────────────────────────────────────────────────────────────
         composable(route = Route.LOGIN) {
@@ -155,10 +182,11 @@ fun AppNavigation(
         // ── Main (bottom nav host) ────────────────────────────────────────────
         composable(route = Route.MAIN) {
             MainScreen(
-                repository       = repository,
+                repository        = repository,
                 financeRepository = financeRepository,
-                sessionDataStore = sessionDataStore,
-                onSignOut        = {
+                currencyRepository = currencyRepository,
+                sessionDataStore  = sessionDataStore,
+                onSignOut         = {
                     // Drop cached data so the next signed-in user never sees it.
                     financeRepository.clearCache()
                     // Back to LOGIN, pop MAIN off. Stack: [LOGIN].

@@ -12,11 +12,14 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -24,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.data.repository.AuthRepository
+import com.example.spendsync.data.repository.CurrencyRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.navigation.BottomNavItem
 import com.example.spendsync.navigation.SpendSyncBottomBar
@@ -36,6 +40,7 @@ import com.example.spendsync.ui.shared.MonthPickerDialog
 import com.example.spendsync.ui.transaction.AddExpenseScreen
 import com.example.spendsync.ui.transaction.AddTransactionTypeSheet
 import com.example.spendsync.ui.transaction.TransactionType
+import kotlinx.coroutines.launch
 
 /**
  * Main scaffold — owns the bottom nav, the shared [DateFilterState] (calendar
@@ -49,14 +54,22 @@ import com.example.spendsync.ui.transaction.TransactionType
 fun MainScreen(
     repository: AuthRepository,
     financeRepository: FinanceRepository,
+    currencyRepository: CurrencyRepository,
     sessionDataStore: SessionDataStore,
     onSignOut: () -> Unit,
 ) {
     // ── Shared date filter — one instance, all tabs read/mutate it ────────────
     val dateFilterState = remember { DateFilterState() }
 
-    // ── Tab selection ─────────────────────────────────────────────────────────
-    var selectedRoute by rememberSaveable { mutableStateOf(BottomNavItem.Home.route) }
+    // ── Tab selection — a real swipeable pager (Home/Analytics/Budget/Profile;
+    // the FAB "Add" isn't a page, it opens the overlay below instead) so tabs
+    // can be reached either by dragging left/right or by tapping the bottom bar.
+    val pages = remember {
+        listOf(BottomNavItem.Home.route, BottomNavItem.Analytics.route, BottomNavItem.Budget.route, BottomNavItem.Profile.route)
+    }
+    val pagerState = rememberPagerState(initialPage = 0) { pages.size }
+    val selectedRoute = pages[pagerState.currentPage]
+    val pagerScope = rememberCoroutineScope()
 
     // ── Add-expense flow ─────────────────────────────────────────────────────
     // Tapping the FAB opens the half-screen "Income or Expense?" sheet first;
@@ -85,13 +98,23 @@ fun MainScreen(
     var viewTransactionRequestId by remember { mutableStateOf(0) }
     var viewTransactionRequestData by remember { mutableStateOf<TransactionDto?>(null) }
     fun requestOpenSettings() {
-        selectedRoute = BottomNavItem.Profile.route
+        // A direct jump from another tab's search — snap instead of animating
+        // through every page in between.
+        pagerScope.launch { pagerState.scrollToPage(pages.indexOf(BottomNavItem.Profile.route)) }
         openSettingsRequestId++
     }
     fun requestViewTransaction(tx: TransactionDto) {
-        selectedRoute = BottomNavItem.Home.route
+        pagerScope.launch { pagerState.scrollToPage(pages.indexOf(BottomNavItem.Home.route)) }
         viewTransactionRequestData = tx
         viewTransactionRequestId++
+    }
+
+    // Bottom-bar taps jump instantly, no slide — only a hand-drag on the
+    // pager itself animates. Sliding a tap through every in-between page was
+    // where the jank was (Analytics/Budget composing live mid-animation);
+    // an instant switch has no animation for that to happen during.
+    fun jumpToTab(target: Int) {
+        pagerScope.launch { pagerState.scrollToPage(target) }
     }
 
     Scaffold(
@@ -106,7 +129,10 @@ fun MainScreen(
                     onItemSelected = { item ->
                         when {
                             item.isFab -> showTypeSheet = true
-                            else       -> selectedRoute  = item.route
+                            else -> {
+                                val index = pages.indexOf(item.route)
+                                if (index >= 0) jumpToTab(index)
+                            }
                         }
                     },
                 )
@@ -117,16 +143,22 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize(),
         ) {
-            // ── Tab content ───────────────────────────────────────────────────
-            AnimatedContent(
-                targetState    = selectedRoute,
-                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(180)) },
-                label          = "tab_switch",
-            ) { route ->
-                when (route) {
+            // ── Tab content — swipe left/right or tap the bottom bar ──────────
+            // beyondViewportPageCount keeps the neighboring tab pre-composed
+            // (its network fetch, chart draws, layout) so that work happens
+            // once you land on a page, not mid-drag when you swipe to it —
+            // that on-demand composition was the stutter.
+            HorizontalPager(
+                state = pagerState,
+                userScrollEnabled = !expenseOverlayVisible,
+                beyondViewportPageCount = 1,
+                modifier = Modifier.fillMaxSize(),
+            ) { page ->
+                when (pages[page]) {
                     BottomNavItem.Analytics.route -> AnalyticsScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
+                        currencyRepository = currencyRepository,
                         dateFilterState = dateFilterState,
                         onOpenSettings = ::requestOpenSettings,
                         onViewTransaction = ::requestViewTransaction,
@@ -134,6 +166,7 @@ fun MainScreen(
                     BottomNavItem.Budget.route    -> BudgetScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
+                        currencyRepository = currencyRepository,
                         dateFilterState = dateFilterState,
                         onOpenSettings = ::requestOpenSettings,
                         onViewTransaction = ::requestViewTransaction,
@@ -142,12 +175,14 @@ fun MainScreen(
                         sessionDataStore = sessionDataStore,
                         repository       = repository,
                         financeRepository = financeRepository,
+                        currencyRepository = currencyRepository,
                         openSettingsRequestId = openSettingsRequestId,
                         onSignOut        = onSignOut,
                     )
                     else -> HomeScreen(
                         repository       = repository,
                         financeRepository = financeRepository,
+                        currencyRepository = currencyRepository,
                         sessionDataStore = sessionDataStore,
                         dateFilterState  = dateFilterState,
                         refreshKey       = homeRefreshKey,
@@ -160,23 +195,24 @@ fun MainScreen(
                 }
             }
 
-            // ── Add/Edit Expense overlay — slides up over everything with a ───
-            // springy, slightly-decelerating motion instead of a flat linear tween.
+            // ── Add/Edit Expense overlay — slides up/down with the SAME spring ─
+            // both ways. It used to spring in but tween out (flat 280ms) —
+            // two different motion characters for one modal read as a glitch,
+            // not two deliberate choices.
+            val overlaySlideSpec = spring<androidx.compose.ui.unit.IntOffset>(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            )
             AnimatedContent(
                 targetState    = expenseOverlayVisible,
                 transitionSpec = {
                     if (targetState) {
                         // Opening: spring up from the bottom
-                        slideInVertically(
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow,
-                            )
-                        ) { it } togetherWith fadeOut(tween(0))
+                        slideInVertically(animationSpec = overlaySlideSpec) { it } togetherWith fadeOut(tween(0))
                     } else {
-                        // Closing: slide back down
+                        // Closing: spring back down — mirrors the opening motion
                         fadeIn(tween(0)) togetherWith
-                            slideOutVertically(tween(280)) { it }
+                            slideOutVertically(animationSpec = overlaySlideSpec) { it }
                     }
                 },
                 label = "add_expense_overlay",

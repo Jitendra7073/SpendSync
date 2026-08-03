@@ -64,7 +64,7 @@ fun AddTransactionTypeSheet(
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "Choose a type to continue",
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 color = NeutralMid,
             )
             Spacer(Modifier.height(20.dp))

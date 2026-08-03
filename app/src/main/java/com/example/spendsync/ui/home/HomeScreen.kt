@@ -1,6 +1,7 @@
 package com.example.spendsync.ui.home
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,10 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -37,11 +38,15 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,24 +56,31 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.collectAsState
 import androidx.compose.material3.MaterialTheme
+import coil3.compose.AsyncImage
 import com.example.spendsync.data.local.SessionDataStore
+import com.example.spendsync.data.remote.IconifyApiClient
 import com.example.spendsync.data.repository.AuthRepository
+import com.example.spendsync.data.repository.CurrencyRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.data.repository.AuthResult
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import com.example.spendsync.ui.components.SkeletonBox
+import com.example.spendsync.ui.components.SkeletonLine
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
 import com.example.spendsync.ui.search.GlobalSearchDialog
+import com.example.spendsync.ui.transaction.builtInCategoryIcon
 import com.example.spendsync.utils.LocalizationUtils
 import com.example.spendsync.ui.shared.DateFilterState
 import com.example.spendsync.ui.shared.TopBarDateSearchGroup
@@ -97,11 +109,22 @@ data class MockTransaction(
     val date: LocalDate
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** One calendar day's worth of transactions, used to render sticky date-header groups. */
+data class DayGroup(val date: LocalDate, val transactions: List<TransactionDto>)
+
+/** "Today" / "Yesterday" / "EEE, d MMM" — the label shown on each day's sticky header. */
+fun LocalDate.toRelativeLabel(): String = when (this) {
+    LocalDate.now() -> "Today"
+    LocalDate.now().minusDays(1) -> "Yesterday"
+    else -> format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault()))
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     repository: AuthRepository,
     financeRepository: FinanceRepository,
+    currencyRepository: CurrencyRepository,
     sessionDataStore: SessionDataStore,
     dateFilterState: DateFilterState,
     refreshKey: Int = 0,
@@ -121,7 +144,7 @@ fun HomeScreen(
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralLight = MaterialTheme.colorScheme.outlineVariant
 
-    val currencyCode by sessionDataStore.currency.collectAsState(initial = "USD")
+    val currencyCode by sessionDataStore.currency.collectAsState(initial = "INR")
     val currencySymbol = remember(currencyCode) {
         when (currencyCode) {
             "EUR" -> "€"
@@ -131,10 +154,18 @@ fun HomeScreen(
             else  -> "$"
         }
     }
+    val ratesUnavailable by currencyRepository.ratesUnavailable.collectAsState()
     val language by sessionDataStore.language.collectAsState(initial = "English")
-    val dateFormat by sessionDataStore.dateFormat.collectAsState(initial = "DD / MM / YYYY")
-    val dateFormatPattern = remember(dateFormat) {
-        LocalizationUtils.getDateFormatPattern(dateFormat)
+
+    // Custom categories' icons live only in local storage (iconId, from the
+    // Iconify picker) — a transaction only carries the category name, so it
+    // has to be cross-referenced here, not guessed from the name alone.
+    val customIncomeCategories by sessionDataStore.customIncomeCategories.collectAsState(initial = emptyList())
+    val customExpenseCategories by sessionDataStore.customExpenseCategories.collectAsState(initial = emptyList())
+    val customCategoryIcons = remember(customIncomeCategories, customExpenseCategories) {
+        (customIncomeCategories + customExpenseCategories)
+            .mapNotNull { cat -> cat.iconId?.let { cat.name to it } }
+            .toMap()
     }
 
     var monthlyTransactions by remember { mutableStateOf<List<TransactionDto>>(emptyList()) }
@@ -160,6 +191,24 @@ fun HomeScreen(
         isLoading = false
     }
 
+    // ── All-time balance (independent of the selected month) ─────────────────
+    var allTimeBalance by remember { mutableStateOf<Double?>(null) }
+    var isBalanceLoading by remember { mutableStateOf(false) }
+    var balanceRefreshKey by remember { mutableStateOf(0) }
+
+    suspend fun loadAllTimeBalance(forceRefresh: Boolean) {
+        when (val res = financeRepository.getAllTimeBalance(forceRefresh = forceRefresh)) {
+            is AuthResult.Success -> allTimeBalance = res.data
+            is AuthResult.Error -> Unit
+        }
+    }
+
+    LaunchedEffect(refreshKey, balanceRefreshKey) {
+        isBalanceLoading = true
+        loadAllTimeBalance(forceRefresh = false)
+        isBalanceLoading = false
+    }
+
     // Dynamic Filter State
     var selectedTypeFilter by remember { mutableStateOf("ALL") } // ALL, CREDIT, DEBIT
 
@@ -172,7 +221,8 @@ fun HomeScreen(
         if (externalViewTransactionId > 0) externalViewTransaction?.let { transactionToView = it }
     }
 
-    // 1. Filter by EXACT Selected Date from Top Bar
+    // 1. Filter by EXACT Selected Date from Top Bar — powers the Income/Expense
+    // summary tiles only; the type filter below does not affect this.
     val dailyTransactions = remember(monthlyTransactions, dateFilterState.selectedDate) {
         monthlyTransactions.filter {
             try {
@@ -191,17 +241,27 @@ fun HomeScreen(
     val totalExpenses = remember(dailyTransactions) {
         dailyTransactions.filter { it.type == "debit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
     }
-    val totalBalance = totalIncome - totalExpenses
 
-    // 2. Filter by Credit/Debit Type (tapping the Income/Expense tile above)
-    val filteredTransactions = remember(dailyTransactions, selectedTypeFilter) {
-        dailyTransactions.filter { transaction ->
-            when (selectedTypeFilter) {
-                "CREDIT" -> transaction.type == "credit"
-                "DEBIT" -> transaction.type == "debit"
-                else -> true
+    // 2. Full month, grouped by day and sorted newest-first — the type filter
+    // (tapping the Income/Expense tile above) applies here, not to dailyTransactions.
+    val groupedByDay = remember(monthlyTransactions, selectedTypeFilter) {
+        monthlyTransactions
+            .filter { transaction ->
+                when (selectedTypeFilter) {
+                    "CREDIT" -> transaction.type == "credit"
+                    "DEBIT" -> transaction.type == "debit"
+                    else -> true
+                }
             }
-        }
+            .groupBy {
+                try {
+                    java.time.ZonedDateTime.parse(it.createdAt).toLocalDate()
+                } catch (e: Exception) {
+                    LocalDate.now()
+                }
+            }
+            .map { (date, txns) -> DayGroup(date, txns.sortedByDescending { it.createdAt }) }
+            .sortedByDescending { it.date }
     }
 
     ToastHost(toast = toast, onDismiss = { toast = null }) {
@@ -211,18 +271,19 @@ fun HomeScreen(
             scope.launch {
                 isRefreshing = true
                 loadTransactions(forceRefresh = true)
+                loadAllTimeBalance(forceRefresh = true)
                 isRefreshing = false
             }
         },
         modifier = Modifier.fillMaxSize(),
     ) {
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(NeutralOffWhite)
-            .verticalScroll(rememberScrollState()),
+            .background(NeutralOffWhite),
     ) {
-        // ── Header — blue section ─────────────────────────────────────────────
+        // ── Header — blue section + all-time balance card ────────────────────
+        item {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -265,7 +326,7 @@ fun HomeScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── Balance card ──────────────────────────────────────────────────
+            // ── Balance card — shows the all-time net balance, not just today ──
             Card(
                 shape     = RoundedCornerShape(20.dp),
                 colors    = CardDefaults.cardColors(
@@ -280,15 +341,19 @@ fun HomeScreen(
                     Text(
                         text     = LocalizationUtils.getTranslation("total_balance", language),
                         color    = NeutralWhite.copy(alpha = 0.80f),
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        text       = "${currencySymbol}%,.2f".format(totalBalance),
-                        color      = NeutralWhite,
-                        fontSize   = 36.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    if (isBalanceLoading) {
+                        SkeletonLine(modifier = Modifier.width(160.dp), height = 32.dp)
+                    } else {
+                        Text(
+                            text       = currencyRepository.formatAmount(allTimeBalance ?: 0.0, currencyCode, currencySymbol),
+                            color      = NeutralWhite,
+                            fontSize   = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                     Spacer(Modifier.height(8.dp))
                     // Yellow accent bar
                     Box(
@@ -300,12 +365,40 @@ fun HomeScreen(
                 }
             }
         }
+        }
 
-        Spacer(Modifier.height(16.dp))
+        // ── Rates unavailable banner ──────────────────────────────────────────
+        if (ratesUnavailable) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = "Rates unavailable — amounts shown in INR",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(16.dp)) }
 
         // ── Responsive & Premium Summary tiles (Income & Expenses) ───────────
         // Tapping a tile filters the list below by that type — tap again to
         // clear the filter. Replaces the separate ALL/Income/Expense pills.
+        item {
         Row(
             modifier              = Modifier
                 .fillMaxWidth()
@@ -319,7 +412,7 @@ fun HomeScreen(
             // Premium Income Card
             SummaryTile(
                 label = LocalizationUtils.getTranslation("income", language),
-                amount = "${currencySymbol}%,.2f".format(totalIncome),
+                amount = currencyRepository.formatAmount(totalIncome, currencyCode, currencySymbol),
                 icon = Icons.Default.ArrowUpward,
                 cardColor = Color(0xFFF0FDF4),       // Soft light green tint
                 borderColor = Color(0xFFDCFCE7),     // Soft green border
@@ -332,7 +425,7 @@ fun HomeScreen(
             // Premium Expenses Card
             SummaryTile(
                 label = LocalizationUtils.getTranslation("expenses", language),
-                amount = "${currencySymbol}%,.2f".format(totalExpenses),
+                amount = currencyRepository.formatAmount(totalExpenses, currencyCode, currencySymbol),
                 icon = Icons.Default.ArrowDownward,
                 cardColor = Color(0xFFFEF2F2),       // Soft light red tint
                 borderColor = Color(0xFFFEE2E2),     // Soft red border
@@ -343,10 +436,12 @@ fun HomeScreen(
             )
             }
         }
+        }
 
-        Spacer(Modifier.height(24.dp))
+        item { Spacer(Modifier.height(24.dp)) }
 
         // ── Transactions List Section ─────────────────────────────────────────
+        item {
         Text(
             text       = LocalizationUtils.getTranslation("recent_transactions", language),
             fontSize   = 16.sp,
@@ -354,40 +449,75 @@ fun HomeScreen(
             color      = NeutralBlack,
             modifier   = Modifier.padding(horizontal = 20.dp),
         )
-        
-        Spacer(Modifier.height(8.dp))
+        }
+
+        item { Spacer(Modifier.height(8.dp)) }
 
         if (isLoading) {
-            repeat(3) { TransactionRowSkeleton() }
-        } else if (filteredTransactions.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text     = "No transactions found for this period.",
-                    fontSize = 14.sp,
-                    color    = NeutralMid,
-                )
+            items(3) { TransactionRowSkeleton() }
+        } else if (groupedByDay.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text     = "No transactions found for this period.",
+                        fontSize = 14.sp,
+                        color    = NeutralMid,
+                    )
+                }
             }
         } else {
-            // Render filtered list dynamically inside the Scrollable Column
-            filteredTransactions.forEach { transaction ->
-                TransactionRow(
-                    transaction = transaction,
-                    currencySymbol = currencySymbol,
-                    dateFormatPattern = dateFormatPattern,
-                    onDelete = { transactionToDelete = transaction },
-                    onEdit = { onEditTransaction(transaction) },
-                    onInfo = { transactionToView = transaction },
-                )
+            groupedByDay.forEach { group ->
+                item(key = "day_${group.date}") {
+                    DayHeader(
+                        label = group.date.toRelativeLabel(),
+                        creditTotal = group.transactions.filter { it.type == "credit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 },
+                        debitTotal = group.transactions.filter { it.type == "debit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 },
+                        currencyRepository = currencyRepository,
+                        currencyCode = currencyCode,
+                        currencySymbol = currencySymbol,
+                    )
+                    // No spacer here — the header sits flush against the card.
+                    // One card per day — all its transactions grouped together
+                    // with thin dividers between rows, not separate cards with
+                    // gaps between every single transaction.
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+                        elevation = CardDefaults.cardElevation(1.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                    ) {
+                        Column {
+                            group.transactions.forEachIndexed { index, transaction ->
+                                TransactionRow(
+                                    transaction = transaction,
+                                    currencyRepository = currencyRepository,
+                                    currencyCode = currencyCode,
+                                    currencySymbol = currencySymbol,
+                                    customCategoryIcons = customCategoryIcons,
+                                    onDelete = { transactionToDelete = transaction },
+                                    onEdit = { onEditTransaction(transaction) },
+                                    onInfo = { transactionToView = transaction },
+                                )
+                                if (index != group.transactions.lastIndex) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.8.dp)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
             }
         }
 
         // Bottom padding to ensure content isn't hidden behind the floating bottom navigation bar
-        Spacer(Modifier.height(100.dp))
+        item { Spacer(Modifier.height(100.dp)) }
     }
     }
 
@@ -395,6 +525,8 @@ fun HomeScreen(
     transactionToDelete?.let { tx ->
         DeleteTransactionDialog(
             transaction = tx,
+            currencyRepository = currencyRepository,
+            currencyCode = currencyCode,
             currencySymbol = currencySymbol,
             onDismiss = { transactionToDelete = null },
             onConfirm = {
@@ -402,6 +534,7 @@ fun HomeScreen(
                     val res = financeRepository.deleteTransaction(tx.id)
                     if (res is AuthResult.Success) {
                         monthlyTransactions = monthlyTransactions.filter { it.id != tx.id }
+                        balanceRefreshKey++
                         toast = ToastMessage("Transaction deleted", isError = false)
                     } else {
                         toast = ToastMessage((res as AuthResult.Error).message, isError = true)
@@ -416,6 +549,8 @@ fun HomeScreen(
     transactionToView?.let { tx ->
         TransactionInfoDialog(
             transaction = tx,
+            currencyRepository = currencyRepository,
+            currencyCode = currencyCode,
             currencySymbol = currencySymbol,
             onDismiss = { transactionToView = null },
         )
@@ -425,6 +560,7 @@ fun HomeScreen(
     if (showGlobalSearch) {
         GlobalSearchDialog(
             financeRepository = financeRepository,
+            sessionDataStore = sessionDataStore,
             onDismiss = { showGlobalSearch = false },
             onTransactionSelected = { tx ->
                 showGlobalSearch = false
@@ -440,6 +576,55 @@ fun HomeScreen(
 }
 
 
+// ── Sticky day-group header — shows the day's net flow, split when it has ───
+// both income and expenses (matches "+200 -518" style), a single total
+// otherwise, so a glance at the header already answers "how did this day go."
+@Composable
+private fun DayHeader(
+    label: String,
+    creditTotal: Double,
+    debitTotal: Double,
+    currencyRepository: CurrencyRepository,
+    currencyCode: String,
+    currencySymbol: String,
+) {
+    val NeutralOffWhite = MaterialTheme.colorScheme.background
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(NeutralOffWhite)
+            .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = NeutralMid,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (creditTotal > 0.0) {
+                Text(
+                    text = "+${currencyRepository.formatAmount(creditTotal, currencyCode, currencySymbol)}",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF16A34A),
+                )
+            }
+            if (debitTotal > 0.0) {
+                Text(
+                    text = "-${currencyRepository.formatAmount(debitTotal, currencyCode, currencySymbol)}",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFDC2626),
+                )
+            }
+        }
+    }
+}
+
 // ── Premium Summary Card Component ──────────────────────────────────────────
 @Composable
 private fun SummaryTile(
@@ -453,6 +638,7 @@ private fun SummaryTile(
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
@@ -486,7 +672,7 @@ private fun SummaryTile(
                 }
                 Text(
                     text = label,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = NeutralMid
                 )
@@ -532,11 +718,19 @@ private fun TransactionRowSkeleton() {
 }
 
 // ── Transaction Row Component ────────────────────────────────────────────────
+// Tap to edit; swipe left to delete; swipe right for details — no per-row
+// icon buttons, the gesture IS the action. Swiping always snaps back
+// (confirmValueChange returns false): delete still goes through the existing
+// confirmation dialog, and info is just a peek, neither actually dismisses
+// the row itself — HomeScreen's own state removes it once deletion succeeds.
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TransactionRow(
     transaction: TransactionDto,
+    currencyRepository: CurrencyRepository,
+    currencyCode: String,
     currencySymbol: String,
-    dateFormatPattern: String,
+    customCategoryIcons: Map<String, String>,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
     onInfo: () -> Unit,
@@ -545,33 +739,60 @@ private fun TransactionRow(
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
 
-    val dateForm = remember(dateFormatPattern) {
-        java.time.format.DateTimeFormatter.ofPattern(dateFormatPattern)
-    }
-
-    val parsedDate = remember(transaction.createdAt) {
-        try {
-            java.time.ZonedDateTime.parse(transaction.createdAt).toLocalDate()
-        } catch (e: Exception) {
-            LocalDate.now()
-        }
-    }
-
     val amountVal = remember(transaction.amount) {
         transaction.amount.toDoubleOrNull() ?: 0.0
     }
 
     val isCredit = transaction.type == "credit"
 
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-        elevation = CardDefaults.cardElevation(1.dp),
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.EndToStart -> onDelete()
+                SwipeToDismissBoxValue.StartToEnd -> onInfo()
+                SwipeToDismissBoxValue.Settled -> Unit
+            }
+            false
+        },
+    )
+
+    // Lives inside the shared per-day Card (HomeScreen groups every day's
+    // rows into one card with dividers) — no card/shape/margin of its own here.
+    SwipeToDismissBox(
+        state = dismissState,
+        modifier = Modifier.fillMaxWidth(),
+        backgroundContent = {
+            val (bgColor, icon, alignment) = when (dismissState.dismissDirection) {
+                SwipeToDismissBoxValue.EndToStart -> Triple(Color(0xFFDC2626), Icons.Default.Delete, Alignment.CenterEnd)
+                SwipeToDismissBoxValue.StartToEnd -> Triple(BrandBlue, Icons.Default.Info, Alignment.CenterStart)
+                SwipeToDismissBoxValue.Settled -> Triple(Color.Transparent, null, Alignment.Center)
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(bgColor),
+                contentAlignment = alignment,
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier
+                            .padding(horizontal = 24.dp)
+                            .size(22.dp),
+                    )
+                }
+            }
+        },
+    ) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .background(NeutralWhite)
+            .clickable(onClick = onEdit)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -581,112 +802,82 @@ private fun TransactionRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Category Icon Badge
-                val iconBg = if (isCredit) Color(0xFFDCFCE7) else Color(0xFFF1F5F9)
-                val iconTint = if (isCredit) Color(0xFF15803D) else Color(0xFF475569)
-                val categoryIcon = when (transaction.category) {
-                    "Salary", "Freelance", "Side Income" -> Icons.Default.Savings
-                    "Groceries", "Shopping" -> Icons.Default.ShoppingCart
-                    "Rent", "Bills" -> Icons.Default.Home
-                    else -> Icons.Default.Star
-                }
-                
+                // Category Icon Badge — a custom category's icon lives in
+                // customCategoryIcons (Iconify), rendered remotely; built-ins
+                // resolve via the shared category → icon table; unknown/
+                // deleted categories are the only ones that fall back to Star.
+                // Income = green background/tint; expense = its own red
+                // background/tint (not a neutral gray) — same color language
+                // the amount below already uses, just applied to the badge too.
+                val iconBg = if (isCredit) Color(0xFFDCFCE7) else Color(0xFFFEE2E2)
+                val iconTint = if (isCredit) Color(0xFF15803D) else Color(0xFFDC2626)
+                val customIconId = customCategoryIcons[transaction.category]
+
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(iconBg),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = categoryIcon,
-                        contentDescription = null,
-                        tint = iconTint,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    if (customIconId != null) {
+                        AsyncImage(
+                            model = IconifyApiClient.iconUrl(
+                                customIconId,
+                                colorHex = "#%06X".format(0xFFFFFF and iconTint.toArgb()),
+                            ),
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = builtInCategoryIcon(transaction.category) ?: Icons.Default.Star,
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
-                
-                Spacer(modifier = Modifier.width(12.dp))
-                
+
+                Spacer(modifier = Modifier.width(10.dp))
+
                 Column {
+                    // Category is the title (matches the day-grouped design —
+                    // the date already lives in the day header above, so it's
+                    // not repeated per row); merchant/note is the subtitle.
                     Text(
-                        text = transaction.merchant.ifBlank { transaction.category },
+                        text = transaction.category,
                         color = NeutralBlack,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
+                    if (transaction.merchant.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(1.dp))
                         Text(
-                            text = transaction.category,
+                            text = transaction.merchant,
                             color = NeutralMid,
                             fontSize = 12.sp
-                        )
-                        Text(
-                            text = "•",
-                            color = NeutralMid,
-                            fontSize = 12.sp
-                        )
-                        Text(
-                            text = parsedDate.format(dateForm),
-                            fontSize = 11.sp,
-                            color = NeutralMid,
                         )
                     }
                 }
             }
-            
+
             val amountText = if (isCredit) {
-                "+ ${currencySymbol}%,.2f".format(amountVal)
+                "+ ${currencyRepository.formatAmount(amountVal, currencyCode, currencySymbol)}"
             } else {
-                "- ${currencySymbol}%,.2f".format(amountVal)
+                "- ${currencyRepository.formatAmount(amountVal, currencyCode, currencySymbol)}"
             }
             val amountColor = if (isCredit) Color(0xFF16A34A) else Color(0xFFDC2626)
-            
+
+            // Deliberately not bold/large — the card shouldn't shout the
+            // amount, the category + icon already carry the row's identity.
             Text(
                 text = amountText,
                 color = amountColor,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp
             )
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // ── Row actions: info, edit, delete ───────────────────────────────
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            IconButton(onClick = onInfo, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = "Transaction details",
-                    tint = NeutralMid,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit transaction",
-                    tint = NeutralMid,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete transaction",
-                    tint = Color(0xFFDC2626),
-                    modifier = Modifier.size(18.dp),
-                )
-            }
         }
         }
     }
@@ -697,6 +888,8 @@ private fun TransactionRow(
 @Composable
 private fun DeleteTransactionDialog(
     transaction: TransactionDto,
+    currencyRepository: CurrencyRepository,
+    currencyCode: String,
     currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
@@ -711,7 +904,7 @@ private fun DeleteTransactionDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Card(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = NeutralWhite),
             modifier = Modifier
                 .padding(horizontal = 32.dp)
@@ -730,14 +923,14 @@ private fun DeleteTransactionDialog(
                 Spacer(Modifier.height(12.dp))
                 Text(
                     text = "Delete transaction?",
-                    fontSize = 17.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = NeutralBlack,
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "${transaction.merchant.ifBlank { transaction.category }} — $currencySymbol%,.2f".format(amountVal),
-                    fontSize = 13.sp,
+                    text = "${transaction.merchant.ifBlank { transaction.category }} — ${currencyRepository.formatAmount(amountVal, currencyCode, currencySymbol)}",
+                    fontSize = 12.sp,
                     color = NeutralMid,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
@@ -785,6 +978,8 @@ private fun DeleteTransactionDialog(
 @Composable
 private fun TransactionInfoDialog(
     transaction: TransactionDto,
+    currencyRepository: CurrencyRepository,
+    currencyCode: String,
     currencySymbol: String,
     onDismiss: () -> Unit,
 ) {
@@ -808,7 +1003,7 @@ private fun TransactionInfoDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Card(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = NeutralWhite),
             modifier = Modifier
                 .padding(horizontal = 24.dp)
@@ -822,7 +1017,7 @@ private fun TransactionInfoDialog(
                 ) {
                     Text(
                         text = "Transaction Details",
-                        fontSize = 17.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = NeutralBlack,
                     )
@@ -832,7 +1027,7 @@ private fun TransactionInfoDialog(
                 }
                 Spacer(Modifier.height(12.dp))
 
-                InfoRow("Amount", "${if (isCredit) "+" else "-"} $currencySymbol%,.2f".format(amountVal))
+                InfoRow("Amount", "${if (isCredit) "+" else "-"} ${currencyRepository.formatAmount(amountVal, currencyCode, currencySymbol)}")
                 InfoRow("Type", if (isCredit) "Income" else "Expense")
                 InfoRow("Merchant / Note", transaction.merchant.ifBlank { "—" })
                 InfoRow("Category", transaction.category)
@@ -854,11 +1049,11 @@ private fun InfoRow(label: String, value: String) {
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(text = label, fontSize = 13.sp, color = NeutralMid)
+        Text(text = label, fontSize = 12.sp, color = NeutralMid)
         Spacer(Modifier.width(12.dp))
         Text(
             text = value,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             color = NeutralBlack,
             textAlign = androidx.compose.ui.text.style.TextAlign.End,

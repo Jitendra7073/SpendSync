@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exposes only the app's private cache dir — where exported CSV/PDF files
+     are written — via FileProvider, so they can be shared without needing
+     any storage permission. -->
+<paths>
+    <cache-path name="exports" path="/" />
+</paths>

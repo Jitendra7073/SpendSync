@@ -25,18 +25,10 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Fingerprint
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -47,6 +39,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,15 +50,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil3.compose.AsyncImage
+import com.example.spendsync.data.local.SessionDataStore
+import com.example.spendsync.data.remote.IconifyApiClient
 import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.repository.FinanceRepository
+import com.example.spendsync.ui.transaction.builtInCategoryIcon
 import com.example.spendsync.ui.theme.BrandBlue
 
 private data class SettingsSearchItem(
@@ -78,12 +77,7 @@ private val SETTINGS_ITEMS = listOf(
     SettingsSearchItem("Dark Mode", listOf("theme", "appearance", "night"), Icons.Default.DarkMode),
     SettingsSearchItem("Push Notifications", listOf("alerts"), Icons.Default.NotificationsActive),
     SettingsSearchItem("Auto Backup", listOf("backup", "sync"), Icons.Default.Backup),
-    SettingsSearchItem("Accent Color", listOf("color", "theme"), Icons.Default.ColorLens),
-    SettingsSearchItem("Language", listOf("locale", "translation"), Icons.Default.Language),
-    SettingsSearchItem("Currency", listOf("money"), Icons.Default.CurrencyExchange),
     SettingsSearchItem("Date Format", listOf("date"), Icons.Default.CalendarMonth),
-    SettingsSearchItem("Security PIN", listOf("pin", "passcode"), Icons.Default.Lock),
-    SettingsSearchItem("Biometric Lock", listOf("fingerprint", "face"), Icons.Default.Fingerprint),
     SettingsSearchItem("Privacy Policy", listOf("legal", "data"), Icons.Default.PrivacyTip),
     SettingsSearchItem("Support & FAQs", listOf("help", "contact"), Icons.AutoMirrored.Filled.HelpOutline),
     SettingsSearchItem("Sign Out", listOf("logout", "log out"), Icons.AutoMirrored.Filled.Logout),
@@ -93,11 +87,12 @@ private val SETTINGS_ITEMS = listOf(
  * Full-screen modal that searches across the whole app — transactions (by
  * merchant/category/note) and Settings items (by label/keyword). Opened from
  * the Home top bar. Tapping a transaction opens its detail dialog on Home;
- * tapping a settings item jumps straight to the Settings screen.
+ * tapping a settings item jumps to the Profile tab and scrolls to it.
  */
 @Composable
 fun GlobalSearchDialog(
     financeRepository: FinanceRepository,
+    sessionDataStore: SessionDataStore,
     onDismiss: () -> Unit,
     onTransactionSelected: (TransactionDto) -> Unit,
     onOpenSettings: () -> Unit,
@@ -106,6 +101,16 @@ fun GlobalSearchDialog(
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+
+    // Same cross-reference HomeScreen uses — a transaction only carries the
+    // category name, so a custom category's icon has to be looked up here.
+    val customIncomeCategories by sessionDataStore.customIncomeCategories.collectAsState(initial = emptyList())
+    val customExpenseCategories by sessionDataStore.customExpenseCategories.collectAsState(initial = emptyList())
+    val customCategoryIcons = remember(customIncomeCategories, customExpenseCategories) {
+        (customIncomeCategories + customExpenseCategories)
+            .mapNotNull { cat -> cat.iconId?.let { cat.name to it } }
+            .toMap()
+    }
 
     var query by remember { mutableStateOf("") }
     var transactions by remember { mutableStateOf<List<TransactionDto>>(emptyList()) }
@@ -225,7 +230,7 @@ fun GlobalSearchDialog(
                     if (matchingTransactions.isNotEmpty()) {
                         item { SectionHeader("Transactions") }
                         items(matchingTransactions) { tx ->
-                            TransactionResultRow(tx) { onTransactionSelected(tx) }
+                            TransactionResultRow(tx, customCategoryIcons) { onTransactionSelected(tx) }
                         }
                     }
                     item { Spacer(Modifier.height(24.dp)) }
@@ -272,16 +277,16 @@ private fun SettingsResultRow(item: SettingsSearchItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TransactionResultRow(transaction: TransactionDto, onClick: () -> Unit) {
+private fun TransactionResultRow(
+    transaction: TransactionDto,
+    customCategoryIcons: Map<String, String>,
+    onClick: () -> Unit,
+) {
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     val isCredit = transaction.type == "credit"
-    val categoryIcon = when (transaction.category) {
-        "Salary", "Freelance", "Side Income" -> Icons.Default.Savings
-        "Groceries", "Shopping" -> Icons.Default.ShoppingCart
-        "Rent", "Bills" -> Icons.Default.Home
-        else -> Icons.Default.Star
-    }
+    val iconTint = if (isCredit) Color(0xFF15803D) else Color(0xFF475569)
+    val customIconId = customCategoryIcons[transaction.category]
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -297,12 +302,24 @@ private fun TransactionResultRow(transaction: TransactionDto, onClick: () -> Uni
                 .background(if (isCredit) Color(0xFFDCFCE7) else Color(0xFFF1F5F9)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                categoryIcon,
-                contentDescription = null,
-                tint = if (isCredit) Color(0xFF15803D) else Color(0xFF475569),
-                modifier = Modifier.size(18.dp),
-            )
+            if (customIconId != null) {
+                AsyncImage(
+                    model = IconifyApiClient.iconUrl(
+                        customIconId,
+                        colorHex = "#%06X".format(0xFFFFFF and iconTint.toArgb()),
+                    ),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(18.dp),
+                )
+            } else {
+                Icon(
+                    builtInCategoryIcon(transaction.category) ?: Icons.Default.Star,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -316,7 +333,7 @@ private fun TransactionResultRow(transaction: TransactionDto, onClick: () -> Uni
         }
         Text(
             text = "${if (isCredit) "+" else "-"} ${transaction.amount.toDoubleOrNull() ?: 0.0}",
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = if (isCredit) Color(0xFF16A34A) else Color(0xFFDC2626),
         )

@@ -3,9 +3,14 @@
     <!-- Base app theme -->
     <style name="Theme.SpendSync" parent="android:Theme.Material.Light.NoActionBar" />
 
-    <!-- Splash screen launcher theme — uses core-splashscreen -->
+    <!-- Splash screen launcher theme — uses core-splashscreen.
+         No custom icon here on purpose: the system splash is only visible
+         for a single frame (installSplashScreen() has no keepOnScreenCondition,
+         so it dismisses as soon as Compose draws), and core-splashscreen's
+         auto-scaling of an arbitrary raster icon rendered it oversized and
+         clipped off-screen. The real branded splash is the Compose
+         SplashScreen (ui/splash/SplashScreen.kt), which owns the logo. -->
     <style name="Theme.SpendSync.Launcher" parent="Theme.SplashScreen">
-        <!-- Icon shown in the centre of the splash window -->
         <item name="windowSplashScreenBackground">#1A56DB</item>
         <!-- Post-splash theme applied after installSplashScreen() -->
         <item name="postSplashScreenTheme">@style/Theme.SpendSync</item>

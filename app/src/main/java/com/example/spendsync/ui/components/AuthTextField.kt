@@ -6,6 +6,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -14,17 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.example.spendsync.ui.theme.BrandBlue
-import com.example.spendsync.ui.theme.NeutralBlack
-import com.example.spendsync.ui.theme.NeutralDark
-import com.example.spendsync.ui.theme.NeutralLight
-import com.example.spendsync.ui.theme.NeutralMid
 
 /**
  * Reusable outlined text field styled to match the SpendSync auth screens.
  *
- * All text/container colors are hardcoded to dark-on-white so the field is
- * always legible on the white card regardless of system theme or dynamic color.
+ * Colors follow the current [MaterialTheme.colorScheme] so the field stays
+ * legible in both light and dark mode.
  */
 @Composable
 fun AuthTextField(
@@ -43,6 +39,11 @@ fun AuthTextField(
     enabled: Boolean = true,
     singleLine: Boolean = true,
 ) {
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val outline = MaterialTheme.colorScheme.outline
+    val primary = MaterialTheme.colorScheme.primary
+
     OutlinedTextField(
         value         = value,
         onValueChange = onValueChange,
@@ -52,7 +53,7 @@ fun AuthTextField(
                 Icon(
                     imageVector        = it,
                     contentDescription = null,
-                    tint               = NeutralMid,
+                    tint               = onSurfaceVariant,
                 )
             }
         },
@@ -62,7 +63,7 @@ fun AuthTextField(
                     Icon(
                         imageVector        = it,
                         contentDescription = trailingIconDescription,
-                        tint               = NeutralMid,
+                        tint               = onSurfaceVariant,
                     )
                 }
             }
@@ -78,26 +79,26 @@ fun AuthTextField(
         enabled         = enabled,
         colors          = OutlinedTextFieldDefaults.colors(
             // ── Text ──────────────────────────────────────────────────────────
-            focusedTextColor          = NeutralBlack,
-            unfocusedTextColor        = NeutralBlack,
-            disabledTextColor         = NeutralMid,
-            // ── Container (transparent so the white card shows through) ───────
+            focusedTextColor          = onSurface,
+            unfocusedTextColor        = onSurface,
+            disabledTextColor         = onSurfaceVariant,
+            // ── Container (transparent so the card's own surface shows through) ─
             focusedContainerColor     = Color.Transparent,
             unfocusedContainerColor   = Color.Transparent,
             disabledContainerColor    = Color.Transparent,
             // ── Border ────────────────────────────────────────────────────────
-            focusedBorderColor        = BrandBlue,
-            unfocusedBorderColor      = NeutralLight,
-            disabledBorderColor       = NeutralLight.copy(alpha = 0.5f),
+            focusedBorderColor        = primary,
+            unfocusedBorderColor      = outline,
+            disabledBorderColor       = outline.copy(alpha = 0.5f),
             // ── Label ─────────────────────────────────────────────────────────
-            focusedLabelColor         = BrandBlue,
-            unfocusedLabelColor       = NeutralMid,
-            disabledLabelColor        = NeutralMid.copy(alpha = 0.6f),
+            focusedLabelColor         = primary,
+            unfocusedLabelColor       = onSurfaceVariant,
+            disabledLabelColor        = onSurfaceVariant.copy(alpha = 0.6f),
             // ── Cursor ────────────────────────────────────────────────────────
-            cursorColor               = BrandBlue,
+            cursorColor               = primary,
             // ── Placeholder ───────────────────────────────────────────────────
-            focusedPlaceholderColor   = NeutralMid,
-            unfocusedPlaceholderColor = NeutralMid,
+            focusedPlaceholderColor   = onSurfaceVariant,
+            unfocusedPlaceholderColor = onSurfaceVariant,
         ),
         modifier = modifier.fillMaxWidth(),
     )

@@ -1,0 +1,406 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create `AuthEvents.kt` — singleton `object AuthEvents` with `val unauthorizedFlow: MutableSharedFlow<Unit>`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748427476
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748443861
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785749756106
+      }
+    ],
+    "1.2 Create `AuthInterceptor.kt` — `Interceptor` that emits to `AuthEvents.unauthorizedFlow` on HTTP 401, then returns the response unchanged": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428023
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785749764854
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785749811447
+      }
+    ],
+    "1.3 Update `ApiClient.kt` — add `AuthInterceptor` to `OkHttpClient.Builder()` before the logging interceptor": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428479
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785749819616
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785749865619
+      }
+    ],
+    "1.4 Update `AppNavigation.kt` — add `LaunchedEffect` that collects `AuthEvents.unauthorizedFlow`, calls `sessionDataStore.clearSession()` + `financeRepository.clearCache()`, then navigates to `Route.LOGIN` with full back-stack clear": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428544
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785749876050
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750222660
+      }
+    ],
+    "1.5 Update `AppNavigation.kt` — add lifecycle RESUMED observer; if `authRepository.hasLocalSession()` returns false on resume, navigate to Login": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428589
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750231601
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750409631
+      }
+    ],
+    "1.6 Update `LoginScreen.kt` — remove the \"Just browsing? Overview\" `TextLinkButton` row that calls `onNavigateToHome` without authentication": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428645
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750425396
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750513386
+      }
+    ],
+    "2.1 Update `AddExpenseScreen.kt` — change `val dateStr = \"${transactionDate}T12:00:00.000Z\"` to `\"${transactionDate}T00:00:00.000Z\"`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428691
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750522550
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750582833
+      }
+    ],
+    "2.2 Update `AddExpenseScreen.kt` — add pre-submit guard in the save button's `onClick` lambda: if `transactionDate.isAfter(LocalDate.now())` show toast \"Transaction date cannot be in the future.\" and return early": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428748
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750588413
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750593789
+      }
+    ],
+    "3.1 Create `ExchangeRateModels.kt` — `data class ExchangeRateResponse(@SerializedName(\"rates\") val rates: Map<String, Double>, @SerializedName(\"result\") val result: String)`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428794
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750604466
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750638812
+      }
+    ],
+    "3.2 Create `ExchangeRateApiService.kt` — Retrofit interface with `@GET(\"v6/latest/INR\") suspend fun getRates(): Response<ExchangeRateResponse>`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428840
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750649737
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750685016
+      }
+    ],
+    "3.3 Create `ExchangeRateApiClient.kt` — standalone Retrofit instance, `baseUrl = \"https://open.er-api.com/\"`, Gson converter, 15s timeouts, no cookies": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428896
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750694269
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750740883
+      }
+    ],
+    "3.4 Create `CurrencyRepository.kt` — `StateFlow<Map<String, Double>>` for rates, `StateFlow<Boolean>` for `ratesUnavailable`, 1-hour in-memory TTL, `fetchRates()` coroutine, `convert(amountInr, toCurrency)` and `formatAmount(amountInr, toCurrency, symbol)` functions": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428951
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750750594
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750821269
+      }
+    ],
+    "3.5 Update `AppNavigation.kt` — instantiate `CurrencyRepository` with `remember`, collect `sessionDataStore.currency` changes and call `currencyRepository.fetchRates(currency)` reactively; pass to `MainScreen`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748428992
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750832324
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750946773
+      }
+    ],
+    "3.6 Update `MainScreen.kt` — accept and pass `currencyRepository: CurrencyRepository` to `HomeScreen`, `AnalyticsScreen`, `BudgetScreen`, and `ProfileScreen`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429034
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785750956845
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785751101731
+      }
+    ],
+    "3.7 Update `HomeScreen.kt` — accept `currencyRepository`, replace `\"%,.2f\"` format calls with `currencyRepository.formatAmount(...)`, add \"Rates unavailable\" banner when `ratesUnavailable == true`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429077
+      },
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785751114236
+      }
+    ],
+    "3.8 Update `PlaceholderScreens.kt` (AnalyticsScreen + BudgetScreen) — same formatAmount replacement + rates unavailable banner": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429121
+      },
+      {
+        "executionId": "57fd4d0c-2f67-4dc8-89af-aff2bb6d2687",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785751338952
+      },
+      {
+        "executionId": "57fd4d0c-2f67-4dc8-89af-aff2bb6d2687",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785752365665
+      }
+    ],
+    "3.9 Update `ProfileScreen.kt` — same formatAmount replacement for stats strip amounts": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429167
+      },
+      {
+        "executionId": "57fd4d0c-2f67-4dc8-89af-aff2bb6d2687",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785752375846
+      },
+      {
+        "executionId": "57fd4d0c-2f67-4dc8-89af-aff2bb6d2687",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785752461772
+      }
+    ],
+    "4.1 Update `FinanceRepository.kt` — add `getAllTimeBalance(forceRefresh: Boolean = false)` that calls `getTransactions(limit = 2000)` with no date bounds, caches under key `\"transactions:alltime\"`, and returns `AuthResult<Double>` (credits sum minus debits sum)": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429212
+      },
+      {
+        "executionId": "57fd4d0c-2f67-4dc8-89af-aff2bb6d2687",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785752478633
+      }
+    ],
+    "4.2 Update `HomeScreen.kt` — add `allTimeBalance: Double?` state and `isBalanceLoading: Boolean` state; load via `LaunchedEffect(refreshKey)` calling `getAllTimeBalance()`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429261
+      }
+    ],
+    "4.3 Update `HomeScreen.kt` — display `SkeletonLine` in the balance card header while `isBalanceLoading == true`; display `allTimeBalance` once loaded (formatted with `formatAmount`)": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429302
+      }
+    ],
+    "4.4 Update `HomeScreen.kt` — replace the `dailyTransactions` list render with `groupedByDay: List<DayGroup>` built from `monthlyTransactions` grouped by `LocalDate` and sorted descending": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429369
+      }
+    ],
+    "4.5 Update `HomeScreen.kt` — add `DayGroup` data class and `toRelativeLabel()` extension on `LocalDate` (\"Today\" / \"Yesterday\" / \"EEE, d MMM\")": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429419
+      }
+    ],
+    "4.6 Update `HomeScreen.kt` — replace `Column + verticalScroll + forEach` transaction list with a `LazyColumn`, rendering each `DayGroup` as a sticky date header item followed by its transaction row items": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429457
+      }
+    ],
+    "4.7 Update `HomeScreen.kt` — keep `dailyTransactions` (filtered by selected date) powering the Income/Expense summary tiles only; the type-filter (CREDIT/DEBIT) applies to `groupedByDay` not `dailyTransactions`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429503
+      }
+    ],
+    "4.8 Update `HomeScreen.kt` — ensure delete and edit actions trigger both `monthlyTransactions` state update and `allTimeBalance` reload": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429542
+      }
+    ],
+    "5.1 Update `AddExpenseScreen.kt` — replace all hardcoded `NeutralOffWhite` (import) background references with `MaterialTheme.colorScheme.background`; add local shadows for `surface`, `onBackground`, `onSurfaceVariant` at composable top": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429584
+      }
+    ],
+    "5.2 Update `AddExpenseScreen.kt` — inside `CategoryChip` composable, replace any hardcoded background/border colors with `MaterialTheme.colorScheme.surfaceVariant` / `outline`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429630
+      }
+    ],
+    "5.3 Update `AddTransactionTypeSheet.kt` — replace hardcoded sheet container background with `MaterialTheme.colorScheme.surface`; verify all text and icon colors use theme roles": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429673
+      }
+    ],
+    "5.4 Update `CategoryIconPickerScreen.kt` — replace hardcoded screen background and search field container colors with `MaterialTheme.colorScheme.background` and `surface`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429721
+      }
+    ],
+    "5.5 Update `AuthTextField.kt` — replace hardcoded `OutlinedTextFieldDefaults.colors(...)` border/background values with `MaterialTheme.colorScheme.outline`, `surface`, `onSurface`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429769
+      }
+    ],
+    "5.6 Update `HomeScreen.kt` — replace `TransactionRow` debit icon badge background `Color(0xFFF1F5F9)` with `MaterialTheme.colorScheme.surfaceVariant`": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429811
+      }
+    ],
+    "5.7 Update `ProfileScreen.kt` — audit `SettingsToggleRow`, `SettingsNavigationRow`, `FAQItem`, `AccountInfoRow` private composables to ensure all use locally-shadowed theme colors, not hardcoded hex values; fix any remaining hardcoded neutrals": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429852
+      }
+    ],
+    "5.8 Smoke-test every screen in both light and dark mode: verify no white cards on dark background, no black text on dark background, no grey skeletons that are invisible on dark surfaces": [
+      {
+        "executionId": "eac5c8b2-63da-4736-bc8b-ad53e530141c",
+        "chatSessionId": "sess_13911f4f-0972-48df-b2e7-a78901399acf",
+        "timestamp": 1785748429895
+      }
+    ]
+  }
+}

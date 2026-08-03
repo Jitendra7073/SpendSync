@@ -133,7 +133,7 @@ fun CalendarHeader(
                 Text(
                     text       = "$day $month, $year",
                     color      = textColor,
-                    fontSize   = 15.sp,
+                    fontSize   = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
             }

@@ -51,13 +51,11 @@ class SessionDataStore(private val context: Context) {
         // Preference settings
         private val KEY_DARK_MODE           = booleanPreferencesKey("settings_dark_mode")
         private val KEY_NOTIFICATIONS       = booleanPreferencesKey("settings_notifications")
-        private val KEY_BIOMETRICS          = booleanPreferencesKey("settings_biometrics")
         private val KEY_AUTO_BACKUP         = booleanPreferencesKey("settings_auto_backup")
         private val KEY_ACCENT_COLOR        = stringPreferencesKey("settings_accent_color")
         private val KEY_LANGUAGE            = stringPreferencesKey("settings_language")
         private val KEY_CURRENCY            = stringPreferencesKey("settings_currency")
         private val KEY_DATE_FORMAT         = stringPreferencesKey("settings_date_format")
-        private val KEY_SECURITY_PIN        = stringPreferencesKey("settings_security_pin")
 
         // Custom transaction categories added via the icon picker — comma-joined
         // "name" or "name||iconId" entries (see PersistedCategory).
@@ -96,10 +94,6 @@ class SessionDataStore(private val context: Context) {
         prefs[KEY_NOTIFICATIONS] ?: true
     }
 
-    val biometricLock: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_BIOMETRICS] ?: false
-    }
-
     val autoBackup: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_AUTO_BACKUP] ?: true
     }
@@ -113,15 +107,11 @@ class SessionDataStore(private val context: Context) {
     }
 
     val currency: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_CURRENCY] ?: "USD"
+        prefs[KEY_CURRENCY] ?: "INR"
     }
 
     val dateFormat: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_DATE_FORMAT] ?: "DD / MM / YYYY"
-    }
-
-    val securityPin: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_SECURITY_PIN] ?: ""
     }
 
     val customIncomeCategories: Flow<List<PersistedCategory>> = context.dataStore.data.map { prefs ->
@@ -185,12 +175,6 @@ class SessionDataStore(private val context: Context) {
         }
     }
 
-    suspend fun updateBiometrics(enabled: Boolean) {
-        context.dataStore.edit { prefs ->
-            prefs[KEY_BIOMETRICS] = enabled
-        }
-    }
-
     suspend fun updateAutoBackup(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_AUTO_BACKUP] = enabled
@@ -221,12 +205,6 @@ class SessionDataStore(private val context: Context) {
         }
     }
 
-    suspend fun updateSecurityPin(pin: String) {
-        context.dataStore.edit { prefs ->
-            prefs[KEY_SECURITY_PIN] = pin
-        }
-    }
-
     suspend fun addCustomIncomeCategory(name: String, iconId: String? = null) {
         context.dataStore.edit { prefs ->
             val current = parsePersistedCategories(prefs[KEY_CUSTOM_INCOME_CATEGORIES])
@@ -242,6 +220,14 @@ class SessionDataStore(private val context: Context) {
             if (current.none { it.name == name }) {
                 prefs[KEY_CUSTOM_EXPENSE_CATEGORIES] = serializePersistedCategories(current + PersistedCategory(name, iconId))
             }
+        }
+    }
+
+    /** Wipes locally cached/added data (custom categories) without touching the session or preferences. */
+    suspend fun clearLocalData() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(KEY_CUSTOM_INCOME_CATEGORIES)
+            prefs.remove(KEY_CUSTOM_EXPENSE_CATEGORIES)
         }
     }
 }

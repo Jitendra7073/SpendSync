@@ -203,7 +203,7 @@ fun MonthPickerDialog(
                             if (isValid) {
                                 Text(
                                     text       = day.toString(),
-                                    fontSize   = 13.sp,
+                                    fontSize   = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color      = when {
                                         isDisabled -> NeutralLight

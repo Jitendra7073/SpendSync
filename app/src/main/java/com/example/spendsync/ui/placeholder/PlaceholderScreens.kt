@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Wallet
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -50,6 +51,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
+import com.example.spendsync.data.repository.CurrencyRepository
 import com.example.spendsync.data.remote.model.*
 import com.example.spendsync.utils.LocalizationUtils
 import com.example.spendsync.ui.components.SkeletonBox
@@ -72,9 +74,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -164,6 +164,7 @@ private fun buildTrendPoints(
 fun AnalyticsScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
+    currencyRepository: CurrencyRepository,
     dateFilterState: DateFilterState,
     onOpenSettings: () -> Unit = {},
     onViewTransaction: (TransactionDto) -> Unit = {},
@@ -179,7 +180,7 @@ fun AnalyticsScreen(
     val BrandBlue = MaterialTheme.colorScheme.primary
 
     val language by sessionDataStore.language.collectAsState(initial = "English")
-    val currencyCode by sessionDataStore.currency.collectAsState(initial = "USD")
+    val currencyCode by sessionDataStore.currency.collectAsState(initial = "INR")
     val currencySymbol = remember(currencyCode) {
         when (currencyCode) {
             "EUR" -> "€"
@@ -189,6 +190,7 @@ fun AnalyticsScreen(
             else  -> "$"
         }
     }
+    val ratesUnavailable by currencyRepository.ratesUnavailable.collectAsState()
     val today = remember { LocalDate.now() }
 
     var selectedRange by remember { mutableStateOf(DateRange.THIS_MONTH) }
@@ -330,7 +332,7 @@ fun AnalyticsScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "SpendSync",
+                    text = LocalizationUtils.getTranslation("analytics", language),
                     color = NeutralBlack,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 18.sp
@@ -346,11 +348,34 @@ fun AnalyticsScreen(
                 },
                 onSearchClick = { showGlobalSearch = true },
                 contentColor = NeutralBlack,
-                groupBackgroundColor = Color(0xFFF1F5F9),
+                groupBackgroundColor = MaterialTheme.colorScheme.surfaceVariant,
             )
         }
 
         // ── Scrollable Body Content (pull-to-refresh) ─────────────────────────
+        // Rates unavailable banner — shown when the last exchange-rate fetch failed.
+        if (ratesUnavailable) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = "Rates unavailable — amounts shown in INR",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
@@ -385,18 +410,17 @@ fun AnalyticsScreen(
                 items(ranges) { (range, label) ->
                     val isSelected = selectedRange == range
 
-                    // Selected: brand accent fill; unselected: white with a hairline border.
-                    val pillBg = if (isSelected) BrandBlue else NeutralWhite
+                    // Selected: brand accent fill; unselected: a soft tonal fill —
+                    // no hairline border, so unselected pills don't read as empty boxes.
+                    val pillBg = if (isSelected) BrandBlue else MaterialTheme.colorScheme.surfaceVariant
                     val pillText = if (isSelected) NeutralWhite else NeutralBlack
-                    val border = BorderStroke(1.dp, NeutralLight)
 
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
                             .background(pillBg)
-                            .border(border, RoundedCornerShape(20.dp))
-                            .clickable { 
-                                selectedRange = range 
+                            .clickable {
+                                selectedRange = range
                                 if (range == DateRange.CUSTOM) {
                                     dateFilterState.showMonthPicker = true
                                 }
@@ -407,7 +431,7 @@ fun AnalyticsScreen(
                         Text(
                             text = label,
                             color = pillText,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -433,37 +457,16 @@ fun AnalyticsScreen(
             }
 
             // ── SECTION 1: Overview ──────────────────────────────────────────
+            // One card, three columns divided by hairlines — not three separate
+            // bordered boxes — so income/expense/net always read as one figure
+            // with related parts, the same stat-strip language Profile uses.
             SectionHeader(title = "Financial Overview", subtitle = "Net balance and flow summary")
             Spacer(Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                SummaryStatCard(
-                    label = LocalizationUtils.getTranslation("income", language) + " Flow",
-                    amount = "${currencySymbol}%,.2f".format(totalIncome),
-                    color = SemanticSuccess,
-                    modifier = Modifier.weight(1f)
-                )
-                SummaryStatCard(
-                    label = LocalizationUtils.getTranslation("expenses", language) + " Flow",
-                    amount = "${currencySymbol}%,.2f".format(totalExpenses),
-                    color = SemanticError,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            // Net balance gets its own full-width line — it's the one number
-            // that answers "am I ahead or behind," and shouldn't require the
-            // reader to subtract the two cards above themselves.
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                border = BorderStroke(1.dp, NeutralLight),
-                elevation = CardDefaults.cardElevation(0.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
@@ -471,16 +474,39 @@ fun AnalyticsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                        .padding(vertical = 18.dp),
                 ) {
-                    Text(text = "Net Balance", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = NeutralMid)
-                    Text(
-                        text = "${if (totalBalance >= 0) "+" else "-"}${currencySymbol}%,.2f".format(kotlin.math.abs(totalBalance)),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                    OverviewStat(
+                        label = LocalizationUtils.getTranslation("income", language),
+                        amount = currencyRepository.formatAmount(totalIncome, currencyCode, currencySymbol),
+                        color = SemanticSuccess,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(32.dp)
+                            .align(Alignment.CenterVertically)
+                            .background(NeutralLight),
+                    )
+                    OverviewStat(
+                        label = LocalizationUtils.getTranslation("expenses", language),
+                        amount = currencyRepository.formatAmount(totalExpenses, currencyCode, currencySymbol),
+                        color = SemanticError,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(32.dp)
+                            .align(Alignment.CenterVertically)
+                            .background(NeutralLight),
+                    )
+                    OverviewStat(
+                        label = "Net Balance",
+                        amount = "${if (totalBalance >= 0) "+" else "-"}${currencyRepository.formatAmount(kotlin.math.abs(totalBalance), currencyCode, currencySymbol)}",
                         color = if (totalBalance >= 0) SemanticSuccess else SemanticError,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -494,8 +520,7 @@ fun AnalyticsScreen(
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                border = BorderStroke(1.dp, NeutralLight),
-                elevation = CardDefaults.cardElevation(0.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
@@ -504,6 +529,8 @@ fun AnalyticsScreen(
                     SpendingTrendChart(
                         points = trendPoints,
                         currencySymbol = currencySymbol,
+                        currencyCode = currencyCode,
+                        currencyRepository = currencyRepository,
                         lineColor = BrandBlue,
                     )
                 }
@@ -518,8 +545,7 @@ fun AnalyticsScreen(
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                border = BorderStroke(1.dp, NeutralLight),
-                elevation = CardDefaults.cardElevation(0.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
@@ -529,6 +555,8 @@ fun AnalyticsScreen(
                         items = chartCategoryData,
                         totalExpenseSum = totalExpenses,
                         currencySymbol = currencySymbol,
+                        currencyCode = currencyCode,
+                        currencyRepository = currencyRepository,
                     )
                 }
             }
@@ -542,8 +570,7 @@ fun AnalyticsScreen(
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                border = BorderStroke(1.dp, NeutralLight),
-                elevation = CardDefaults.cardElevation(0.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
@@ -551,7 +578,10 @@ fun AnalyticsScreen(
                 Column(modifier = Modifier.padding(20.dp)) {
                     DoubleBarChart(
                         income = totalIncome.toFloat(),
-                        expense = totalExpenses.toFloat()
+                        expense = totalExpenses.toFloat(),
+                        currencySymbol = currencySymbol,
+                        currencyCode = currencyCode,
+                        currencyRepository = currencyRepository,
                     )
                 }
             }
@@ -585,7 +615,7 @@ fun AnalyticsScreen(
                 val avgDaily = totalExpenses / daysCount
                 InsightCard(
                     title = "Average Daily Spend",
-                    value = "${currencySymbol}%,.2f".format(avgDaily),
+                    value = currencyRepository.formatAmount(avgDaily, currencyCode, currencySymbol),
                     desc = "Calculated over a range of $daysCount day(s).",
                     icon = Icons.Default.Wallet,
                     accentColor = BrandBlue
@@ -601,6 +631,7 @@ fun AnalyticsScreen(
     if (showGlobalSearch) {
         GlobalSearchDialog(
             financeRepository = financeRepository,
+            sessionDataStore = sessionDataStore,
             onDismiss = { showGlobalSearch = false },
             onTransactionSelected = { tx ->
                 showGlobalSearch = false
@@ -619,17 +650,10 @@ fun AnalyticsScreen(
 @Composable
 private fun AnalyticsSkeleton() {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SkeletonBox(modifier = Modifier.weight(1f).height(64.dp), shape = RoundedCornerShape(16.dp))
-            SkeletonBox(modifier = Modifier.weight(1f).height(64.dp), shape = RoundedCornerShape(16.dp))
-        }
-        Spacer(Modifier.height(12.dp))
+        // Matches the unified Financial Overview card — one shape, not three.
         SkeletonBox(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(48.dp),
-            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(80.dp),
+            shape = RoundedCornerShape(20.dp),
         )
         Spacer(Modifier.height(24.dp))
         SkeletonLine(modifier = Modifier.padding(horizontal = 20.dp).width(140.dp))
@@ -665,7 +689,7 @@ private fun SectionHeader(title: String, subtitle: String? = null) {
             Spacer(Modifier.width(8.dp))
             Text(
                 text = title,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = NeutralBlack
             )
@@ -682,37 +706,29 @@ private fun SectionHeader(title: String, subtitle: String? = null) {
     }
 }
 
-// ── Helper Stats Card Component ──────────────────────────────────────────────
+// ── Overview stat column — one third of the unified Financial Overview card,
+// separated from its neighbors by a hairline divider rather than its own border.
 @Composable
-private fun SummaryStatCard(
+private fun OverviewStat(
     label: String,
     amount: String,
     color: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-        border = BorderStroke(1.dp, NeutralLight),
-        elevation = CardDefaults.cardElevation(0.dp),
-        modifier = modifier
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            Text(text = label, fontSize = 12.sp, color = NeutralMid)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = amount,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = color
-            )
-        }
+        Text(
+            text = amount,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = color,
+            maxLines = 1,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(text = label, fontSize = 11.sp, color = NeutralMid, maxLines = 1)
     }
 }
 
@@ -723,6 +739,8 @@ private fun SummaryStatCard(
 private fun SpendingTrendChart(
     points: List<TrendPoint>,
     currencySymbol: String,
+    currencyCode: String,
+    currencyRepository: CurrencyRepository,
     lineColor: Color,
 ) {
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
@@ -730,11 +748,19 @@ private fun SpendingTrendChart(
     val gridColor = MaterialTheme.colorScheme.outlineVariant
 
     if (points.isEmpty() || points.sumOf { it.spent } <= 0.0) {
-        Box(
+        Column(
             modifier = Modifier.fillMaxWidth().height(140.dp),
-            contentAlignment = Alignment.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            Text("No spending recorded in this period yet.", fontSize = 13.sp, color = NeutralMid)
+            Icon(
+                imageVector = Icons.Default.BarChart,
+                contentDescription = null,
+                tint = NeutralMid.copy(alpha = 0.4f),
+                modifier = Modifier.size(28.dp),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("No spending recorded in this period yet.", fontSize = 12.sp, color = NeutralMid)
         }
         return
     }
@@ -744,7 +770,7 @@ private fun SpendingTrendChart(
 
     Column {
         Text(
-            text = "Peak: ${currencySymbol}%,.2f".format(points[peakIndex].spent) + " · ${points[peakIndex].label}",
+            text = "Peak: ${currencyRepository.formatAmount(points[peakIndex].spent, currencyCode, currencySymbol)}" + " · ${points[peakIndex].label}",
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = NeutralBlack,
@@ -771,24 +797,35 @@ private fun SpendingTrendChart(
                 )
             }
 
+            // Smoothed through quadratic mid-point curves instead of straight
+            // segments — a trend line reads as a trend, not a zig-zag of taps.
+            val coords = points.mapIndexed { index, point ->
+                Offset(index * stepX, chartHeight - (point.spent / maxSpent).toFloat() * chartHeight)
+            }
             val linePath = Path()
             val fillPath = Path()
-            points.forEachIndexed { index, point ->
-                val x = index * stepX
-                val y = chartHeight - (point.spent / maxSpent).toFloat() * chartHeight
-                if (index == 0) {
-                    linePath.moveTo(x, y)
-                    fillPath.moveTo(x, chartHeight)
-                    fillPath.lineTo(x, y)
+            linePath.moveTo(coords.first().x, coords.first().y)
+            fillPath.moveTo(coords.first().x, chartHeight)
+            fillPath.lineTo(coords.first().x, coords.first().y)
+            for (i in 1 until coords.size) {
+                val prev = coords[i - 1]
+                val curr = coords[i]
+                val midX = (prev.x + curr.x) / 2f
+                val midY = (prev.y + curr.y) / 2f
+                if (i == 1) {
+                    linePath.lineTo(midX, midY)
+                    fillPath.lineTo(midX, midY)
                 } else {
-                    linePath.lineTo(x, y)
-                    fillPath.lineTo(x, y)
+                    linePath.quadraticTo(prev.x, prev.y, midX, midY)
+                    fillPath.quadraticTo(prev.x, prev.y, midX, midY)
                 }
-                if (index == points.lastIndex) {
-                    fillPath.lineTo(x, chartHeight)
-                    fillPath.close()
+                if (i == coords.lastIndex) {
+                    linePath.quadraticTo(curr.x, curr.y, curr.x, curr.y)
+                    fillPath.quadraticTo(curr.x, curr.y, curr.x, curr.y)
                 }
             }
+            fillPath.lineTo(coords.last().x, chartHeight)
+            fillPath.close()
 
             drawPath(
                 path = fillPath,
@@ -814,8 +851,8 @@ private fun SpendingTrendChart(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(points.first().label, fontSize = 10.sp, color = NeutralMid)
-            if (points.size > 1) Text(points.last().label, fontSize = 10.sp, color = NeutralMid)
+            Text(points.first().label, fontSize = 11.sp, color = NeutralMid)
+            if (points.size > 1) Text(points.last().label, fontSize = 11.sp, color = NeutralMid)
         }
     }
 }
@@ -829,13 +866,28 @@ private fun CategoryBarChart(
     items: List<Triple<String, Double, Color>>,
     totalExpenseSum: Double,
     currencySymbol: String,
+    currencyCode: String,
+    currencyRepository: CurrencyRepository,
 ) {
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
 
     if (items.isEmpty()) {
-        Text(text = "No category data available.", color = NeutralMid, fontSize = 13.sp)
+        Column(
+            modifier = Modifier.fillMaxWidth().height(100.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Wallet,
+                contentDescription = null,
+                tint = NeutralMid.copy(alpha = 0.4f),
+                modifier = Modifier.size(28.dp),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(text = "No category data available.", color = NeutralMid, fontSize = 12.sp)
+        }
         return
     }
 
@@ -851,9 +903,9 @@ private fun CategoryBarChart(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text(text = category, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = NeutralBlack)
+                    Text(text = category, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NeutralBlack)
                     Text(
-                        text = "${currencySymbol}%,.2f".format(amount) + "  ·  %,.1f%%".format(pct),
+                        text = "${currencyRepository.formatAmount(amount, currencyCode, currencySymbol)}  ·  %,.1f%%".format(pct),
                         fontSize = 12.sp,
                         color = NeutralMid,
                     )
@@ -879,66 +931,83 @@ private fun CategoryBarChart(
     }
 }
 
-// ── Custom Canvas Double Bar Chart Comparison ────────────────────────────────
+// ── Income vs Expenses — two bars with the amount labeled directly above ─────
+// each one, so the comparison reads without cross-checking a legend; the
+// legend below only names the color, it isn't the only place the value lives.
 @Composable
 private fun DoubleBarChart(
     income: Float,
-    expense: Float
+    expense: Float,
+    currencySymbol: String,
+    currencyCode: String,
+    currencyRepository: CurrencyRepository,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    val maxVal = maxOf(income, expense, 1f)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(160.dp),
+        horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
+    ) {
+        ComparisonBar(
+            formattedValue = currencyRepository.formatAmount(income.toDouble(), currencyCode, currencySymbol),
+            label = "Income",
+            fraction = income / maxVal,
+            color = SemanticSuccess,
+            trackColor = trackColor,
+            modifier = Modifier.weight(1f),
+        )
+        ComparisonBar(
+            formattedValue = currencyRepository.formatAmount(expense.toDouble(), currencyCode, currencySymbol),
+            label = "Expenses",
+            fraction = expense / maxVal,
+            color = SemanticError,
+            trackColor = trackColor,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun ComparisonBar(
+    formattedValue: String,
+    label: String,
+    fraction: Float,
+    color: Color,
+    trackColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        modifier = modifier.fillMaxHeight(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(formattedValue, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = NeutralBlack, maxLines = 1)
+        Spacer(Modifier.height(8.dp))
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(160.dp)
+                .weight(1f)
+                .width(48.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(trackColor),
+            contentAlignment = Alignment.BottomCenter,
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val maxVal = maxOf(income, expense, 100f)
-                val padding = 40.dp.toPx()
-                
-                val barWidth = 44.dp.toPx()
-                val spacing = 32.dp.toPx()
-                
-                val totalWidth = barWidth * 2 + spacing
-                val startX = (size.width - totalWidth) / 2
-                
-                // 1. Income Bar
-                val incomeHeight = (income / maxVal) * size.height
-                drawRoundRect(
-                    color = SemanticSuccess,
-                    topLeft = Offset(startX, size.height - incomeHeight),
-                    size = Size(barWidth, incomeHeight),
-                    cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
-                )
-
-                // 2. Expense Bar
-                val expenseHeight = (expense / maxVal) * size.height
-                drawRoundRect(
-                    color = SemanticError,
-                    topLeft = Offset(startX + barWidth + spacing, size.height - expenseHeight),
-                    size = Size(barWidth, expenseHeight),
-                    cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
-                )
-            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(fraction.coerceIn(0.04f, 1f))
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(color),
+            )
         }
-
-        Spacer(Modifier.height(12.dp))
-
-        // Chart Legends label
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(SemanticSuccess))
-                Spacer(Modifier.width(6.dp))
-                Text("Income", fontSize = 11.sp, color = NeutralMid, fontWeight = FontWeight.SemiBold)
-            }
-            Spacer(Modifier.width(24.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(SemanticError))
-                Spacer(Modifier.width(6.dp))
-                Text("Expenses", fontSize = 11.sp, color = NeutralMid, fontWeight = FontWeight.SemiBold)
-            }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
+            Spacer(Modifier.width(6.dp))
+            Text(label, fontSize = 11.sp, color = NeutralMid, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
@@ -955,12 +1024,10 @@ private fun InsightCard(
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-        border = BorderStroke(1.dp, NeutralLight),
-        elevation = CardDefaults.cardElevation(0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -1082,7 +1149,7 @@ private fun PlaceholderTab(
             Spacer(Modifier.height(16.dp))
             Text(
                 text       = title,
-                fontSize   = 20.sp,
+                fontSize   = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color      = NeutralMid,
             )
@@ -1102,6 +1169,7 @@ private fun PlaceholderTab(
 fun BudgetScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
+    currencyRepository: CurrencyRepository,
     dateFilterState: DateFilterState,
     onOpenSettings: () -> Unit = {},
     onViewTransaction: (TransactionDto) -> Unit = {},
@@ -1114,7 +1182,7 @@ fun BudgetScreen(
     val BrandBlue = MaterialTheme.colorScheme.primary
 
     val language by sessionDataStore.language.collectAsState(initial = "English")
-    val currencyCode by sessionDataStore.currency.collectAsState(initial = "USD")
+    val currencyCode by sessionDataStore.currency.collectAsState(initial = "INR")
     val currencySymbol = remember(currencyCode) {
         when (currencyCode) {
             "EUR" -> "€"
@@ -1124,6 +1192,7 @@ fun BudgetScreen(
             else  -> "$"
         }
     }
+    val ratesUnavailable by currencyRepository.ratesUnavailable.collectAsState()
 
     var summaryData by remember { mutableStateOf<DashboardSummaryDto?>(null) }
     var isBudgetLoading by remember { mutableStateOf(false) }
@@ -1199,12 +1268,35 @@ fun BudgetScreen(
                 onCalendarClick = { dateFilterState.showMonthPicker = true },
                 onSearchClick = { showGlobalSearch = true },
                 contentColor = NeutralBlack,
-                groupBackgroundColor = Color(0xFFF1F5F9),
+                groupBackgroundColor = MaterialTheme.colorScheme.surfaceVariant,
                 dateFormatPattern = "MMMM yyyy",
             )
         }
 
         // ── Main Body (pull-to-refresh) ──────────────────────────────────────
+        // Rates unavailable banner — shown when the last exchange-rate fetch failed.
+        if (ratesUnavailable) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = "Rates unavailable — amounts shown in INR",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
@@ -1246,14 +1338,14 @@ fun BudgetScreen(
                     Text(
                         text = "Total Monthly Budget Limit",
                         color = NeutralMid,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = "${currencySymbol}%,.2f".format(totalBudget),
+                        text = currencyRepository.formatAmount(totalBudget, currencyCode, currencySymbol),
                         color = NeutralBlack,
-                        fontSize = 32.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(16.dp))
@@ -1263,12 +1355,12 @@ fun BudgetScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Spent: ${currencySymbol}%,.2f".format(totalSpent),
+                            text = "Spent: ${currencyRepository.formatAmount(totalSpent, currencyCode, currencySymbol)}",
                             fontSize = 12.sp,
                             color = NeutralMid
                         )
                         Text(
-                            text = "Remaining: ${currencySymbol}%,.2f".format((totalBudget - totalSpent).coerceAtLeast(0.0)),
+                            text = "Remaining: ${currencyRepository.formatAmount((totalBudget - totalSpent).coerceAtLeast(0.0), currencyCode, currencySymbol)}",
                             fontSize = 12.sp,
                             color = if (totalSpent > totalBudget) Color.Red else BrandBlue
                         )
@@ -1304,7 +1396,7 @@ fun BudgetScreen(
                 Text(
                     text = "+ Set Category Budget",
                     color = NeutralWhite,
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -1371,9 +1463,9 @@ fun BudgetScreen(
                                       color = NeutralBlack
                                   )
                                   Text(
-                                      text = "${currencySymbol}%,.0f / ${currencySymbol}%,.0f".format(spent, limit),
+                                      text = "${currencyRepository.formatAmount(spent, currencyCode, currencySymbol)} / ${currencyRepository.formatAmount(limit, currencyCode, currencySymbol)}",
                                       fontWeight = FontWeight.SemiBold,
-                                      fontSize = 13.sp,
+                                      fontSize = 12.sp,
                                       color = NeutralBlack
                                   )
                             }
@@ -1432,6 +1524,7 @@ fun BudgetScreen(
     if (showGlobalSearch) {
         GlobalSearchDialog(
             financeRepository = financeRepository,
+            sessionDataStore = sessionDataStore,
             onDismiss = { showGlobalSearch = false },
             onTransactionSelected = { tx ->
                 showGlobalSearch = false
@@ -1497,7 +1590,7 @@ private fun CreateBudgetDialog(
                                 .clickable { category = cat }
                                 .padding(horizontal = 14.dp, vertical = 8.dp)
                         ) {
-                            Text(cat, color = if (isSelected) NeutralWhite else NeutralBlack, fontSize = 13.sp)
+                            Text(cat, color = if (isSelected) NeutralWhite else NeutralBlack, fontSize = 12.sp)
                         }
                     }
                 }

@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -21,11 +23,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -38,13 +38,13 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MovieFilter
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -64,10 +64,13 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -80,6 +83,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -95,17 +100,12 @@ import com.example.spendsync.data.remote.IconifyApiClient
 import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
+import com.example.spendsync.ui.components.rememberPressScale
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import androidx.compose.ui.window.DialogProperties
-import com.example.spendsync.ui.theme.BrandBlue
-import com.example.spendsync.ui.theme.NeutralBlack
-import com.example.spendsync.ui.theme.NeutralLight
-import com.example.spendsync.ui.theme.NeutralMid
-import com.example.spendsync.ui.theme.NeutralOffWhite
-import com.example.spendsync.ui.theme.NeutralWhite
 import com.example.spendsync.ui.theme.SemanticError
 import com.example.spendsync.ui.theme.SemanticSuccess
 import com.example.spendsync.ui.shared.MonthPickerDialog
@@ -119,7 +119,10 @@ import java.time.format.DateTimeFormatter
 
 enum class TransactionType { INCOME, EXPENSE }
 
-private data class Category(
+// internal (not private) — the default category → icon mapping is the single
+// source of truth other screens (HomeScreen's transaction rows, global search)
+// look up when rendering a transaction's category icon. See builtInCategoryIcon.
+internal data class Category(
     val label: String,
     val icon: ImageVector? = null,
     // Iconify "prefix:name" — set for categories picked via the icon search,
@@ -127,20 +130,19 @@ private data class Category(
     val iconId: String? = null,
 )
 
-private val incomeCategories = listOf(
+internal val incomeCategories = listOf(
     Category("Salary",     Icons.Default.Work),
     Category("Freelance",  Icons.Default.AttachMoney),
     Category("Business",   Icons.Default.Home),
     Category("Gift",       Icons.Default.CardGiftcard),
     Category("Investment", Icons.Default.AttachMoney),
-    Category("Other",      Icons.Default.MoreHoriz),
 )
 
 private fun toCategory(persisted: PersistedCategory): Category =
     if (persisted.iconId != null) Category(persisted.name, iconId = persisted.iconId)
     else Category(persisted.name, icon = Icons.Default.Star)
 
-private val expenseCategories = listOf(
+internal val expenseCategories = listOf(
     Category("Food",        Icons.Default.Fastfood),
     Category("Transport",   Icons.Default.DirectionsCar),
     Category("Shopping",    Icons.Default.ShoppingBag),
@@ -151,8 +153,15 @@ private val expenseCategories = listOf(
     Category("Bills",       Icons.Default.Wifi),
     Category("Fitness",     Icons.Default.FitnessCenter),
     Category("Movies",      Icons.Default.MovieFilter),
-    Category("Other",       Icons.Default.MoreHoriz),
 )
+
+/**
+ * The icon for one of the built-in default categories (income or expense),
+ * or null if [category] isn't a default — i.e. it's a custom category, whose
+ * icon lives in [PersistedCategory.iconId] instead and must be looked up there.
+ */
+internal fun builtInCategoryIcon(category: String): ImageVector? =
+    (incomeCategories + expenseCategories).firstOrNull { it.label == category }?.icon
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Screen
@@ -167,9 +176,13 @@ fun AddExpenseScreen(
     onBack: () -> Unit
 ) {
     val isEditing = editTransaction != null
+    val NeutralOffWhite = MaterialTheme.colorScheme.background
+    val NeutralWhite = MaterialTheme.colorScheme.surface
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     val scope = rememberCoroutineScope()
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
-    val currencyCode by sessionDataStore.currency.collectAsState(initial = "USD")
+    val currencyCode by sessionDataStore.currency.collectAsState(initial = "INR")
     val currencySymbol = remember(currencyCode) {
         when (currencyCode) {
             "EUR" -> "€"
@@ -203,47 +216,85 @@ fun AddExpenseScreen(
     }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    // Mutable pools of categories (built-ins + persisted custom ones) to allow
-    // adding new ones without waiting on a DataStore round-trip.
-    var poolIncomeCategories by remember { mutableStateOf(incomeCategories) }
-    var poolExpenseCategories by remember { mutableStateOf(expenseCategories) }
+    // Auto-focus the amount as soon as the screen opens — it's the first
+    // thing every transaction needs, so the keyboard should already be up.
+    val amountFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { amountFocusRequester.requestFocus() }
 
-    // If editing a transaction whose category isn't one of the built-ins,
-    // inject it so the grid can show it as an existing, selected chip.
+    // All-time balance — expenses are never allowed to push it negative.
+    // Best-effort (client-derived, not an authoritative ledger lock): if it
+    // hasn't loaded yet, the save guard fails open rather than blocking on a
+    // spinner, same tradeoff HomeScreen's balance card already makes.
+    var availableBalance by remember { mutableStateOf<Double?>(null) }
     LaunchedEffect(Unit) {
-        val editCategory = editTransaction?.category ?: return@LaunchedEffect
-        if (editTransaction.type == "credit") {
-            if (poolIncomeCategories.none { it.label == editCategory }) {
-                poolIncomeCategories = poolIncomeCategories + Category(editCategory, Icons.Default.Star)
-            }
-        } else {
-            if (poolExpenseCategories.none { it.label == editCategory }) {
-                poolExpenseCategories = poolExpenseCategories + Category(editCategory, Icons.Default.Star)
-            }
+        when (val res = financeRepository.getAllTimeBalance()) {
+            is AuthResult.Success -> availableBalance = res.data
+            is AuthResult.Error -> Unit
         }
     }
 
-    // Restore previously-added custom categories, icon included.
+    val amountVal = remember(amount) { amount.toDoubleOrNull() ?: 0.0 }
+
+    // Editing an expense shouldn't count its OWN old amount against the new
+    // one — put it back first, so only the delta is checked. Editing an
+    // income being switched to expense removes that income's contribution
+    // the same way.
+    val availableForThisTransaction = remember(availableBalance, editTransaction) {
+        val base = availableBalance ?: 0.0
+        if (editTransaction == null) {
+            base
+        } else {
+            val originalAmount = editTransaction.amount.toDoubleOrNull() ?: 0.0
+            if (editTransaction.type == "debit") base + originalAmount else base - originalAmount
+        }
+    }
+
+    val insufficientBalance = remember(type, amountVal, availableForThisTransaction, availableBalance) {
+        type == TransactionType.EXPENSE && availableBalance != null && amountVal > availableForThisTransaction
+    }
+
+    // Categories added THIS session, before the DataStore write round-trips —
+    // so a brand-new category shows up immediately without waiting on persistence.
+    var sessionIncomeCategories by remember { mutableStateOf<List<Category>>(emptyList()) }
+    var sessionExpenseCategories by remember { mutableStateOf<List<Category>>(emptyList()) }
+
+    // Persisted custom categories, icon included — the source of truth for
+    // anything the user has actually added via the icon picker.
     val savedIncome by sessionDataStore.customIncomeCategories.collectAsState(initial = emptyList())
     val savedExpense by sessionDataStore.customExpenseCategories.collectAsState(initial = emptyList())
-    LaunchedEffect(savedIncome) {
-        val missing = savedIncome.filter { p -> poolIncomeCategories.none { it.label == p.name } }
-        if (missing.isNotEmpty()) {
-            poolIncomeCategories = poolIncomeCategories + missing.map { toCategory(it) }
+
+    // Pool = persisted customs (real icon) → this-session additions → built-in
+    // defaults → the edited transaction's own category as a last-resort
+    // placeholder. Built as one pure merge, not staggered LaunchedEffects —
+    // with effects, the edit-category placeholder could load before the real
+    // persisted entry and permanently shadow it (its icon silently downgrading
+    // to a plain star). putIfAbsent means the richer entry always wins.
+    val poolIncomeCategories = remember(savedIncome, sessionIncomeCategories, editTransaction) {
+        val byLabel = LinkedHashMap<String, Category>()
+        savedIncome.forEach { byLabel.putIfAbsent(it.name, toCategory(it)) }
+        sessionIncomeCategories.forEach { byLabel.putIfAbsent(it.label, it) }
+        incomeCategories.forEach { byLabel.putIfAbsent(it.label, it) }
+        if (editTransaction?.type == "credit") {
+            byLabel.putIfAbsent(editTransaction.category, Category(editTransaction.category, Icons.Default.Star))
         }
+        byLabel.values.toList()
     }
-    LaunchedEffect(savedExpense) {
-        val missing = savedExpense.filter { p -> poolExpenseCategories.none { it.label == p.name } }
-        if (missing.isNotEmpty()) {
-            poolExpenseCategories = poolExpenseCategories + missing.map { toCategory(it) }
+    val poolExpenseCategories = remember(savedExpense, sessionExpenseCategories, editTransaction) {
+        val byLabel = LinkedHashMap<String, Category>()
+        savedExpense.forEach { byLabel.putIfAbsent(it.name, toCategory(it)) }
+        sessionExpenseCategories.forEach { byLabel.putIfAbsent(it.label, it) }
+        expenseCategories.forEach { byLabel.putIfAbsent(it.label, it) }
+        if (editTransaction != null && editTransaction.type != "credit") {
+            byLabel.putIfAbsent(editTransaction.category, Category(editTransaction.category, Icons.Default.Star))
         }
+        byLabel.values.toList()
     }
 
     val categoryPool = if (type == TransactionType.INCOME) poolIncomeCategories else poolExpenseCategories
     val defaultsForType = if (type == TransactionType.INCOME) incomeCategories else expenseCategories
 
     // A broad, cached fetch — reused across the session — to rank categories
-    // by how often this user actually picks them, so the 5 pinned up top are
+    // by how often this user actually picks them, so the 8 pinned up top are
     // personal rather than an arbitrary fixed list.
     var recentTransactions by remember { mutableStateOf<List<TransactionDto>>(emptyList()) }
     LaunchedEffect(Unit) {
@@ -253,9 +304,23 @@ fun AddExpenseScreen(
         }
     }
 
-    // Top 5 most-used categories for this type, falling back to the curated
-    // defaults (in order) when history is thin — never fewer than 5 pinned.
-    val categories = remember(categoryPool, recentTransactions, type) {
+    // Kept at the front of the list even if usage history wouldn't otherwise
+    // surface them near the top — the transaction being edited, and whatever
+    // the user just created — so neither is buried at the bottom of a scroll.
+    val originalEditCategory = remember { editTransaction?.category }
+    var justAddedCategory by remember { mutableStateOf<String?>(null) }
+
+    // A-Z filter — a shortcut for jumping straight to a letter once the pool
+    // is big enough that even scrolling the grid is slower than that.
+    // Multi-select: any letter in the set matches, applied live as you tap.
+    var selectedFilterLetters by remember { mutableStateOf<Set<Char>>(emptySet()) }
+    var showAlphabetFilter by remember { mutableStateOf(false) }
+    LaunchedEffect(type) { selectedFilterLetters = emptySet() }
+
+    // Every category for this type, most-used first (falling back to the
+    // curated default order), with no cap — the grid scrolls internally to
+    // reach the rest instead of hiding anything behind the alphabet filter.
+    val rankedCategories = remember(categoryPool, recentTransactions, type, justAddedCategory) {
         val apiType = if (type == TransactionType.INCOME) "credit" else "debit"
         val byLabel = categoryPool.associateBy { it.label }
         val mostUsed = recentTransactions
@@ -267,14 +332,34 @@ fun AddExpenseScreen(
             .map { it.first }
             .filter { it in byLabel }
 
-        val topLabels = LinkedHashSet<String>().apply {
+        val ordered = LinkedHashSet<String>().apply {
+            originalEditCategory?.let { if (it in byLabel) add(it) }
+            justAddedCategory?.let { if (it in byLabel) add(it) }
             addAll(mostUsed)
-            defaultsForType.forEach { if (size < 5) add(it.label) }
-        }.take(5)
+            defaultsForType.forEach { add(it.label) }
+            addAll(categoryPool.map { it.label })
+        }
 
-        val top = topLabels.mapNotNull { byLabel[it] }
-        val rest = categoryPool.filterNot { it.label in topLabels }
-        top + rest
+        ordered.mapNotNull { byLabel[it] }
+    }
+
+    // Categories currently shown in the grid: every category (scrollable) by
+    // default, or every category starting with any of the chosen letters once
+    // the filter is active — recomputed live as letters are toggled.
+    val displayedCategories = remember(rankedCategories, categoryPool, selectedFilterLetters) {
+        if (selectedFilterLetters.isEmpty()) {
+            rankedCategories
+        } else {
+            categoryPool
+                .filter { it.label.firstOrNull()?.uppercaseChar() in selectedFilterLetters }
+                .sortedBy { it.label }
+        }
+    }
+
+    // Which starting letters actually have a category — disables dead letters
+    // in the A-Z sheet instead of showing 26 options where most do nothing.
+    val availableFilterLetters = remember(categoryPool) {
+        categoryPool.mapNotNull { it.label.firstOrNull()?.uppercaseChar() }.toSet()
     }
 
     // Auto-suggest a category from what the user types, based on past picks
@@ -288,7 +373,7 @@ fun AddExpenseScreen(
                 is AuthResult.Success -> {
                     val suggested = res.data.suggestedCategory
                     if (suggested != null && selectedCat == null &&
-                        categories.any { it.label == suggested }
+                        displayedCategories.any { it.label == suggested }
                     ) {
                         selectedCat = suggested
                     }
@@ -308,9 +393,9 @@ fun AddExpenseScreen(
     var showAddCategory by remember { mutableStateOf(false) }
     val iconifyRepository = remember { IconifyRepository() }
 
-    // Combine current category list with a special "+" Add button item
-    val gridItems = remember(categories) {
-        categories + Category("+ Add", Icons.Default.Add)
+    // Combine the displayed category list with a special "+" Add button item
+    val gridItems = remember(displayedCategories) {
+        displayedCategories + Category("+ Add", Icons.Default.Add)
     }
 
     ToastHost(toast = toast, onDismiss = { toast = null }) {
@@ -341,7 +426,7 @@ fun AddExpenseScreen(
                 Text(
                     text       = if (isEditing) "Edit Transaction" else "Add Transaction",
                     color      = NeutralWhite,
-                    fontSize   = 20.sp,
+                    fontSize   = 18.sp,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -369,7 +454,7 @@ fun AddExpenseScreen(
                 Text(
                     text     = "Amount",
                     color    = NeutralWhite.copy(alpha = 0.80f),
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                 )
                 Spacer(Modifier.height(6.dp))
                 Row(
@@ -378,7 +463,7 @@ fun AddExpenseScreen(
                     Text(
                         text       = currencySymbol,
                         color      = NeutralWhite,
-                        fontSize   = 36.sp,
+                        fontSize   = 28.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.width(4.dp))
@@ -392,13 +477,13 @@ fun AddExpenseScreen(
                             Text(
                                 text     = "0.00",
                                 color    = NeutralWhite.copy(alpha = 0.45f),
-                                fontSize = 42.sp,
+                                fontSize = 28.sp,
                                 fontWeight = FontWeight.Bold,
                             )
                         },
                         textStyle     = androidx.compose.ui.text.TextStyle(
                             color      = NeutralWhite,
-                            fontSize   = 42.sp,
+                            fontSize   = 28.sp,
                             fontWeight = FontWeight.Bold,
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -408,8 +493,31 @@ fun AddExpenseScreen(
                             cursorColor          = NeutralWhite,
                         ),
                         singleLine    = true,
-                        modifier      = Modifier.weight(1f),
+                        modifier      = Modifier
+                            .weight(1f)
+                            .focusRequester(amountFocusRequester),
                     )
+                }
+
+                // Live insufficient-balance warning — updates as the user types,
+                // instead of only failing after they tap Save.
+                if (insufficientBalance) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = NeutralWhite,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "Insufficient balance — $currencySymbol${"%,.2f".format(availableForThisTransaction.coerceAtLeast(0.0))} available",
+                            color = NeutralWhite,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
 
                 // Conditionally show Note field directly under Amount if user has entered an amount
@@ -444,11 +552,12 @@ fun AddExpenseScreen(
             Spacer(Modifier.height(12.dp))
         }
 
-        // ── Scrollable body ───────────────────────────────────────────────────
+        // ── Body — Date fixed at top, Category grid fills the rest of the ────
+        // screen down to the pinned Save bar (not a page scroll — the grid
+        // has its own internal scroll for when categories overflow it).
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .weight(1f)
                 .padding(horizontal = 20.dp),
         ) {
             Spacer(Modifier.height(24.dp))
@@ -464,22 +573,69 @@ fun AddExpenseScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // ── Category label ────────────────────────────────────────────────
-            SectionLabel("Category")
-            Spacer(Modifier.height(12.dp))
+            // ── Category label + alphabet filter (once the pool earns it) ─────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SectionLabel("Category")
+                if (categoryPool.size > 10) {
+                    IconButton(
+                        onClick = { showAlphabetFilter = true },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = "Filter categories alphabetically",
+                            tint = accentColor,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
 
-            // Grid displaying existing categories + the special "+" Chip at the end
+            // Active-filter pill — lets the user clear it without reopening the sheet.
+            if (selectedFilterLetters.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(accentColor.copy(alpha = 0.12f))
+                        .clickable { selectedFilterLetters = emptySet() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Letters: ${selectedFilterLetters.sorted().joinToString(", ")}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accentColor,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear letter filter",
+                            tint = accentColor,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // Grid displaying the displayed categories + the special "+" Chip at the
+            // end — fills all remaining vertical space down to the Save bar
+            // (weight(1f), not a fixed height), and scrolls internally once
+            // there are more categories than fit in that space.
             LazyVerticalGrid(
                 columns             = GridCells.Fixed(4),
-                userScrollEnabled   = false,
                 contentPadding      = PaddingValues(0.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement   = Arrangement.spacedBy(12.dp),
                 modifier            = Modifier
                     .fillMaxWidth()
-                    .height(
-                        (((gridItems.size + 3) / 4) * 90).dp
-                    ),
+                    .weight(1f),
             ) {
                 items(gridItems) { cat ->
                     if (cat.label == "+ Add") {
@@ -501,28 +657,48 @@ fun AddExpenseScreen(
                 }
             }
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(24.dp))
+        }
 
-            // ── Save button ───────────────────────────────────────────────────
+        // ── Save button — always pinned to the bottom of the screen ──────────
+        // Same tactile press-scale PrimaryButton uses elsewhere in the app —
+        // this is the single most-used action in SpendSync, it should feel
+        // at least as considered as the login button does.
+        val (saveButtonScale, saveButtonInteractionSource) = rememberPressScale()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(NeutralWhite)
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(saveButtonScale)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(accentColor)
+                    .background(if (insufficientBalance) accentColor.copy(alpha = 0.5f) else accentColor)
                     .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
+                        interactionSource = saveButtonInteractionSource,
                         indication        = ripple(bounded = true, color = NeutralWhite),
                         onClick           = {
-                            val amountVal = amount.toDoubleOrNull() ?: 0.0
+                            if (transactionDate.isAfter(LocalDate.now())) {
+                                toast = ToastMessage("Transaction date cannot be in the future.", isError = true)
+                                return@clickable
+                            }
+                            if (insufficientBalance) {
+                                toast = ToastMessage(
+                                    "Insufficient balance. You have $currencySymbol${"%,.2f".format(availableForThisTransaction.coerceAtLeast(0.0))} available.",
+                                    isError = true,
+                                )
+                                return@clickable
+                            }
                             if (amountVal > 0.0 && !selectedCat.isNullOrBlank()) {
                                 scope.launch {
                                      val apiType = if (type == TransactionType.INCOME) "credit" else "debit"
                                      val merchantName = if (note.isNotBlank()) note else selectedCat ?: "Other"
                                      val chosenCategory = selectedCat ?: "Other"
-                                     // Noon UTC — ZonedDateTime.parse(...).toLocalDate() elsewhere in
-                                     // the app reads the date straight off the UTC string, so this
-                                     // keeps the picked calendar day stable regardless of device timezone.
-                                     val dateStr = "${transactionDate}T12:00:00.000Z"
+                                     val dateStr = "${transactionDate}T00:00:00.000Z"
                                      val res = if (isEditing) {
                                          financeRepository.updateTransaction(
                                              id = editTransaction.id,
@@ -581,8 +757,6 @@ fun AddExpenseScreen(
                     fontWeight = FontWeight.Bold,
                 )
             }
-
-            Spacer(Modifier.height(40.dp))
         }
     }
 
@@ -591,19 +765,45 @@ fun AddExpenseScreen(
         CategoryIconPickerScreen(
             iconifyRepository = iconifyRepository,
             accentColor = accentColor,
+            existingCategoryNames = categoryPool.map { it.label }.toSet(),
+            existingIconIds = categoryPool.mapNotNull { it.iconId }.toSet(),
             onDismiss = { showAddCategory = false },
             onCategoryCreated = { name, iconId ->
                 val newCat = Category(name, iconId = iconId)
                 if (type == TransactionType.INCOME) {
-                    poolIncomeCategories = poolIncomeCategories + newCat
+                    sessionIncomeCategories = sessionIncomeCategories + newCat
                     scope.launch { sessionDataStore.addCustomIncomeCategory(name, iconId) }
                 } else {
-                    poolExpenseCategories = poolExpenseCategories + newCat
+                    sessionExpenseCategories = sessionExpenseCategories + newCat
                     scope.launch { sessionDataStore.addCustomExpenseCategory(name, iconId) }
                 }
                 selectedCat = name // Automatically select the newly created category
+                justAddedCategory = name // ...and keep it pinned near the front of the list
+                selectedFilterLetters = emptySet() // back to the pinned view so it's visible
                 showAddCategory = false
             },
+        )
+    }
+
+    // A-Z category filter — only reachable once the category section's filter
+    // icon is shown (pool > 10), and only lists letters that have a match.
+    // Stays open while toggling letters — the grid behind filters live, and
+    // only closes on an outside tap/swipe (ModalBottomSheet's own dismiss).
+    if (showAlphabetFilter) {
+        CategoryAlphabetFilterSheet(
+            availableLetters = availableFilterLetters,
+            selectedLetters = selectedFilterLetters,
+            matchCount = displayedCategories.size,
+            accentColor = accentColor,
+            onToggle = { letter ->
+                selectedFilterLetters = if (letter in selectedFilterLetters) {
+                    selectedFilterLetters - letter
+                } else {
+                    selectedFilterLetters + letter
+                }
+            },
+            onClearAll = { selectedFilterLetters = emptySet() },
+            onDismiss = { showAlphabetFilter = false },
         )
     }
 
@@ -629,6 +829,7 @@ private fun TypeToggle(
     onSelect: (TransactionType) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val NeutralWhite = MaterialTheme.colorScheme.surface
     Row(
         modifier  = modifier
             .clip(RoundedCornerShape(40.dp))
@@ -682,8 +883,12 @@ private fun CategoryChip(
     color: Color,
     onClick: () -> Unit,
 ) {
+    val NeutralWhite = MaterialTheme.colorScheme.surface
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    val NeutralSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
     val bgColor by animateColorAsState(
-        targetValue   = if (isSelected) color else NeutralLight,
+        targetValue   = if (isSelected) color else NeutralSurfaceVariant,
         animationSpec = tween(200),
         label         = "cat_bg",
     )
@@ -733,7 +938,7 @@ private fun CategoryChip(
         Spacer(Modifier.height(5.dp))
         Text(
             text      = category.label,
-            fontSize  = 10.sp,
+            fontSize  = 11.sp,
             color     = if (isSelected) NeutralBlack else NeutralMid,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines  = 1,
@@ -744,9 +949,10 @@ private fun CategoryChip(
 // ── Small helpers ─────────────────────────────────────────────────────────────
 @Composable
 private fun SectionLabel(text: String) {
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     Text(
         text       = text,
-        fontSize   = 13.sp,
+        fontSize   = 12.sp,
         fontWeight = FontWeight.SemiBold,
         color      = NeutralMid,
     )
@@ -759,6 +965,7 @@ private fun DateSelectorRow(
     accentColor: Color,
     onClick: () -> Unit,
 ) {
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val today = remember { LocalDate.now() }
     val label = remember(date) {
         when (date) {
@@ -793,5 +1000,140 @@ private fun DateSelectorRow(
             fontWeight = FontWeight.SemiBold,
             color      = NeutralBlack,
         )
+    }
+}
+
+// ── A-Z category filter sheet ────────────────────────────────────────────────
+// A shortcut alongside the scrollable grid — lets the user jump straight to
+// one or more letters instead of scrolling through a long list. Letters with
+// no matching category are shown but disabled,
+// not hidden, so the alphabet always reads as a complete, stable reference.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryAlphabetFilterSheet(
+    availableLetters: Set<Char>,
+    selectedLetters: Set<Char>,
+    matchCount: Int,
+    accentColor: Color,
+    onToggle: (Char) -> Unit,
+    onClearAll: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val NeutralWhite = MaterialTheme.colorScheme.surface
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    val NeutralSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
+    val sheetState = rememberModalBottomSheetState()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = NeutralWhite,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+            Text(
+                text = "Filter by letter",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = NeutralBlack,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Pick one or more letters — the category list updates as you go",
+                fontSize = 12.sp,
+                color = NeutralMid,
+            )
+            Spacer(Modifier.height(20.dp))
+
+            // Rows of equal-width cells (via weight) so the grid always spans
+            // the sheet's full width edge to edge — no leftover gap on the
+            // right like a fixed-size FlowRow leaves on rows that don't
+            // divide evenly. The trailing row is padded with blank weighted
+            // spacers (not stretched letters) so every circle stays the same size.
+            val lettersPerRow = 6
+            val letterRows = remember { ('A'..'Z').toList().chunked(lettersPerRow) }
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                letterRows.forEach { rowLetters ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        rowLetters.forEach { letter ->
+                            val hasMatches = letter in availableLetters
+                            val isSelected = letter in selectedLetters
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                                    .clip(CircleShape)
+                                    .background(
+                                        when {
+                                            isSelected -> accentColor
+                                            hasMatches -> NeutralSurfaceVariant
+                                            else -> Color.Transparent
+                                        }
+                                    )
+                                    .clickable(enabled = hasMatches) { onToggle(letter) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = letter.toString(),
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = when {
+                                        isSelected -> NeutralWhite
+                                        hasMatches -> NeutralBlack
+                                        else -> NeutralMid.copy(alpha = 0.35f)
+                                    },
+                                )
+                            }
+                        }
+                        repeat(lettersPerRow - rowLetters.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            // Live feedback — updates the instant a letter is toggled, without
+            // needing to close the sheet to see the effect.
+            Text(
+                text = if (selectedLetters.isEmpty()) {
+                    "Showing your top categories"
+                } else {
+                    "$matchCount ${if (matchCount == 1) "category matches" else "categories match"}"
+                },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = NeutralMid,
+            )
+
+            if (selectedLetters.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(NeutralSurfaceVariant)
+                        .clickable(onClick = onClearAll)
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "Clear letters",
+                        color = NeutralBlack,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+        }
     }
 }

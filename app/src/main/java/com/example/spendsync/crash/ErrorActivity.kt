@@ -89,7 +89,7 @@ private fun ErrorScreen(
         Spacer(Modifier.height(20.dp))
         Text(
             text       = "Something went wrong",
-            fontSize   = 22.sp,
+            fontSize   = 18.sp,
             fontWeight = FontWeight.Bold,
             color      = BrandBlue,
             textAlign  = TextAlign.Center,

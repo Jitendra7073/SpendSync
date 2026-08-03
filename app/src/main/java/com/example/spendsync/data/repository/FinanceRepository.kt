@@ -86,6 +86,23 @@ class FinanceRepository(
         }
     }
 
+    /** Returns the user's all-time net balance (credits minus debits) across all transactions. */
+    suspend fun getAllTimeBalance(forceRefresh: Boolean = false): AuthResult<Double> {
+        val key = "transactions:alltime"
+        if (!forceRefresh) cached<Double>(key)?.let { return AuthResult.Success(it) }
+        return when (val result = getTransactions(limit = 2000, forceRefresh = forceRefresh)) {
+            is AuthResult.Success -> {
+                val balance = result.data.sumOf { tx ->
+                    val amount = tx.amount.toDoubleOrNull() ?: 0.0
+                    if (tx.type == "credit") amount else -amount
+                }
+                cache[key] = balance
+                AuthResult.Success(balance)
+            }
+            is AuthResult.Error -> result
+        }
+    }
+
     suspend fun createTransaction(
         amount: Double,
         type: String,

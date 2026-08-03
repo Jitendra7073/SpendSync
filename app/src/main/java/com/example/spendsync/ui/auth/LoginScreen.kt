@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,10 +49,6 @@ import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
 import com.example.spendsync.ui.theme.BrandBlue
 import com.example.spendsync.ui.theme.BrandYellow
-import com.example.spendsync.ui.theme.NeutralDark
-import com.example.spendsync.ui.theme.NeutralLight
-import com.example.spendsync.ui.theme.NeutralMid
-import com.example.spendsync.ui.theme.NeutralWhite
 
 @Composable
 fun LoginScreen(
@@ -102,7 +97,7 @@ fun LoginScreen(
                     Text(
                         text          = "SpendSync",
                         color         = NeutralWhite,
-                        fontSize      = 36.sp,
+                        fontSize      = 28.sp,
                         fontWeight    = FontWeight.Bold,
                         letterSpacing = 1.sp,
                     )
@@ -135,14 +130,14 @@ fun LoginScreen(
                     Text(
                         text       = "WELCOME BACK",
                         color      = BrandBlue,
-                        fontSize   = 22.sp,
+                        fontSize   = 18.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text     = "Login to your SpendSync account",
                         color    = NeutralMid,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                     )
 
                     Spacer(Modifier.height(28.dp))
@@ -240,29 +235,7 @@ fun LoginScreen(
                         )
                     }
 
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider(color = NeutralLight, thickness = 1.dp)
-                    Spacer(Modifier.height(8.dp))
 
-                    // Overview link — bypasses auth and goes straight to app
-                    Row(
-                        modifier              = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment     = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text     = "Just browsing?",
-                            color    = NeutralMid,
-                            fontSize = 13.sp,
-                        )
-                        TextLinkButton(
-                            text       = "Overview",
-                            onClick    = onNavigateToHome,
-                            color      = NeutralDark,
-                            fontWeight = FontWeight.Medium,
-                            fontSize   = 13,
-                        )
-                    }
                 }
             }
         }

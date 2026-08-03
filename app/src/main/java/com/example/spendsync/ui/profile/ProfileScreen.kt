@@ -1,11 +1,9 @@
 package com.example.spendsync.ui.profile
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -21,31 +19,36 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -55,7 +58,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,12 +65,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.repository.AuthRepository
+import com.example.spendsync.data.repository.CurrencyRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.remote.model.DashboardSummaryDto
@@ -83,57 +88,23 @@ import com.example.spendsync.ui.theme.NeutralMid
 import com.example.spendsync.ui.theme.NeutralOffWhite
 import com.example.spendsync.ui.theme.NeutralWhite
 import com.example.spendsync.ui.theme.SemanticError
+import com.example.spendsync.utils.LocalizationUtils
+import com.example.spendsync.utils.TransactionExporter
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-private enum class ProfileRoute { PROFILE, SETTINGS }
-
+/**
+ * Single flat scrolling screen — account info, preferences, data controls and
+ * support are all shown inline here instead of behind separate nav targets,
+ * so nothing is a tap away in a nested screen.
+ */
 @Composable
 fun ProfileScreen(
     sessionDataStore: SessionDataStore,
     repository: AuthRepository,
     financeRepository: FinanceRepository,
+    currencyRepository: CurrencyRepository,
     openSettingsRequestId: Int = 0,
-    onSignOut: () -> Unit,
-) {
-    var route by rememberSaveable { mutableStateOf(ProfileRoute.PROFILE) }
-
-    // Each increment (from Home's global search) is a distinct value, so this
-    // fires even if Settings was already the current route.
-    LaunchedEffect(openSettingsRequestId) {
-        if (openSettingsRequestId > 0) route = ProfileRoute.SETTINGS
-    }
-
-    AnimatedContent(
-        targetState   = route,
-        transitionSpec = { fadeIn() togetherWith fadeOut() },
-        label          = "profile_route",
-    ) { current ->
-        when (current) {
-            ProfileRoute.PROFILE  -> ProfileContent(
-                sessionDataStore  = sessionDataStore,
-                repository        = repository,
-                financeRepository = financeRepository,
-                onOpenSettings    = { route = ProfileRoute.SETTINGS },
-                onSignOut         = onSignOut,
-            )
-            ProfileRoute.SETTINGS -> SettingsScreen(
-                sessionDataStore = sessionDataStore,
-                repository = repository,
-                financeRepository = financeRepository,
-                onBack = { route = ProfileRoute.PROFILE },
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ProfileContent(
-    sessionDataStore: SessionDataStore,
-    repository: AuthRepository,
-    financeRepository: FinanceRepository,
-    onOpenSettings: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
@@ -147,7 +118,12 @@ private fun ProfileContent(
     val userCreatedAt by sessionDataStore.userCreatedAt.collectAsState(initial = "")
     val scope     = rememberCoroutineScope()
 
-    val currencyCode by sessionDataStore.currency.collectAsState(initial = "USD")
+    // Signed-in users sync these prefs to the backend; guests stay local-only.
+    var isSignedIn by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { isSignedIn = repository.hasLocalSession() }
+
+    val language by sessionDataStore.language.collectAsState(initial = "English")
+    val currencyCode by sessionDataStore.currency.collectAsState(initial = "INR")
     val currencySymbol = remember(currencyCode) {
         when (currencyCode) {
             "EUR" -> "€"
@@ -157,6 +133,12 @@ private fun ProfileContent(
             else  -> "$"
         }
     }
+
+    // Read reactive preference flows from DataStore
+    val darkMode by sessionDataStore.darkMode.collectAsState(initial = false)
+    val notifications by sessionDataStore.notificationsEnabled.collectAsState(initial = true)
+    val autoBackup by sessionDataStore.autoBackup.collectAsState(initial = true)
+    val dateFormat by sessionDataStore.dateFormat.collectAsState(initial = "DD / MM / YYYY")
 
     val today = remember { LocalDate.now() }
 
@@ -181,10 +163,20 @@ private fun ProfileContent(
         isStatsLoading = false
     }
 
-    // Dialog state controllers
+    // Dialog / overlay state controllers
     var showEditProfile by remember { mutableStateOf(false) }
-    var showAccountDetails by remember { mutableStateOf(false) }
-    var showSupport by remember { mutableStateOf(false) }
+    var showDateFormatDialog by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
+    var showClearDataDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
+
+    // Global search's "open settings" jump scrolls straight to Preferences —
+    // there's no separate screen to navigate to any more.
+    val preferencesAnchor = remember { BringIntoViewRequester() }
+    LaunchedEffect(openSettingsRequestId) {
+        if (openSettingsRequestId > 0) preferencesAnchor.bringIntoView()
+    }
 
     Column(
         modifier = Modifier
@@ -219,7 +211,7 @@ private fun ProfileContent(
                         text       = (userName?.firstOrNull() ?: "?")
                             .toString().uppercase(),
                         color      = NeutralWhite,
-                        fontSize   = 36.sp,
+                        fontSize   = 28.sp,
                         fontWeight = FontWeight.Bold,
                     )
                 }
@@ -229,14 +221,14 @@ private fun ProfileContent(
                 Text(
                     text       = userName?.ifBlank { "Guest" } ?: "Guest",
                     color      = NeutralWhite,
-                    fontSize   = 20.sp,
+                    fontSize   = 18.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text     = userEmail ?: "",
                     color    = NeutralWhite.copy(alpha = 0.78f),
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                 )
 
                 Spacer(Modifier.height(16.dp))
@@ -328,7 +320,7 @@ private fun ProfileContent(
             )
             StatItem(
                 label  = "This Month",
-                value  = "${currencySymbol}%,.2f".format(currentMonthSpent),
+                value  = currencyRepository.formatAmount(currentMonthSpent, currencyCode, currencySymbol),
                 modifier = Modifier.weight(1f),
             )
             Box(
@@ -340,7 +332,7 @@ private fun ProfileContent(
             )
             StatItem(
                 label  = "Savings",
-                value  = "${currencySymbol}%,.2f".format(savingsAccumulated),
+                value  = currencyRepository.formatAmount(savingsAccumulated, currencyCode, currencySymbol),
                 modifier = Modifier.weight(1f),
             )
             }
@@ -348,7 +340,7 @@ private fun ProfileContent(
 
         HorizontalDivider(color = NeutralLight, thickness = 1.dp)
 
-        // ── Menu list (pull-to-refresh) ──────────────────────────────────────
+        // ── Everything else (pull-to-refresh) ────────────────────────────────
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
@@ -368,27 +360,154 @@ private fun ProfileContent(
         ) {
             Spacer(Modifier.height(20.dp))
 
+            // ── Account ──────────────────────────────────────────────────────
+            SectionHeader("Account")
+            val formattedJoinedDate = remember(userCreatedAt) {
+                try {
+                    val parsed = java.time.ZonedDateTime.parse(userCreatedAt)
+                    val formatter = java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy")
+                    parsed.format(formatter)
+                } catch (e: Exception) {
+                    if (userCreatedAt.isNullOrBlank()) "Just now" else userCreatedAt.orEmpty()
+                }
+            }
             ProfileMenuCard {
-                ProfileMenuItem(
-                    icon    = Icons.Default.AccountCircle,
-                    label   = "Account",
-                    sub     = "Manage your personal information",
-                    onClick = { showAccountDetails = true },
+                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    AccountInfoRow(label = "User ID", value = (userId ?: "").ifBlank { "Guest Mode" })
+                    AccountInfoRow(label = "Profile Name", value = userName?.ifBlank { "Guest" } ?: "Guest")
+                    AccountInfoRow(label = "Email", value = userEmail ?: "guest@example.com")
+                    AccountInfoRow(label = "Joined SpendSync", value = formattedJoinedDate)
+                    AccountInfoRow(label = "Subscription Tier", value = if (isSignedIn) "Premium Account" else "Free Basic Plan")
+                    AccountInfoRow(label = "Cloud Sync Status", value = if (isSignedIn) "Active / Secured" else "Offline / Not Synced")
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Preferences ──────────────────────────────────────────────────
+            Column(modifier = Modifier.bringIntoViewRequester(preferencesAnchor)) {
+                SectionHeader("Preferences")
+            }
+            ProfileMenuCard {
+                SettingsToggleRow(
+                    icon    = Icons.Default.DarkMode,
+                    label   = LocalizationUtils.getTranslation("dark_mode", language),
+                    sub     = "Switch to a dark colour theme",
+                    checked = darkMode,
+                    onToggle = {
+                        scope.launch {
+                            sessionDataStore.updateDarkMode(it)
+                            if (isSignedIn) financeRepository.updateSettings(darkMode = it)
+                        }
+                    },
                 )
-                MenuDivider()
-                ProfileMenuItem(
-                    icon    = Icons.Default.Settings,
-                    label   = "Settings",
-                    sub     = "Preferences, appearance & security",
-                    onClick = onOpenSettings,
+                SettingsDivider()
+                SettingsToggleRow(
+                    icon    = Icons.Default.NotificationsActive,
+                    label   = LocalizationUtils.getTranslation("push_notifications", language),
+                    sub     = "Reminders and alerts",
+                    checked = notifications,
+                    onToggle = {
+                        scope.launch {
+                            sessionDataStore.updateNotifications(it)
+                            if (isSignedIn) financeRepository.updateSettings(pushNotifications = it)
+                        }
+                    },
                 )
-                MenuDivider()
-                ProfileMenuItem(
-                    icon    = Icons.AutoMirrored.Filled.HelpOutline,
-                    label   = "Support",
-                    sub     = "Help centre, contact us, FAQs",
-                    onClick = { showSupport = true },
+                SettingsDivider()
+                SettingsNavigationRow(
+                    icon  = Icons.Default.Tune,
+                    label = LocalizationUtils.getTranslation("date_format", language),
+                    sub   = dateFormat,
+                    onClick = { showDateFormatDialog = true }
                 )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Data ──────────────────────────────────────────────────────────
+            SectionHeader("Data")
+            ProfileMenuCard {
+                SettingsToggleRow(
+                    icon    = Icons.Default.Backup,
+                    label   = LocalizationUtils.getTranslation("auto_backup", language),
+                    sub     = "Back up data to the cloud daily",
+                    checked = autoBackup,
+                    onToggle = {
+                        scope.launch {
+                            sessionDataStore.updateAutoBackup(it)
+                            if (isSignedIn) financeRepository.updateSettings(autoBackup = it)
+                        }
+                    },
+                )
+                SettingsDivider()
+                SettingsNavigationRow(
+                    icon  = Icons.Default.DataUsage,
+                    label = LocalizationUtils.getTranslation("export_data", language),
+                    sub   = "Download as CSV or PDF",
+                    onClick = { showExportDialog = true }
+                )
+                SettingsDivider()
+                SettingsNavigationRow(
+                    icon      = Icons.Default.DeleteSweep,
+                    label     = LocalizationUtils.getTranslation("clear_data", language),
+                    sub       = "Clear cached data and local categories",
+                    textColor = SemanticError,
+                    iconTint  = SemanticError,
+                    onClick = { showClearDataDialog = true }
+                )
+                SettingsDivider()
+                SettingsNavigationRow(
+                    icon  = Icons.Default.PrivacyTip,
+                    label = LocalizationUtils.getTranslation("privacy_policy", language),
+                    onClick = { showPrivacyDialog = true }
+                )
+                SettingsDivider()
+                SettingsNavigationRow(
+                    icon      = Icons.Default.DeleteForever,
+                    label     = LocalizationUtils.getTranslation("delete_account", language),
+                    sub       = "Permanently remove all data",
+                    textColor = SemanticError,
+                    iconTint  = SemanticError,
+                    onClick = { showDeleteAccountDialog = true }
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Support ───────────────────────────────────────────────────────
+            SectionHeader("Support")
+            ProfileMenuCard {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FAQItem(
+                        question = "How do I back up my transactions?",
+                        answer = "Auto Backup is enabled by default above. Your data is synced automatically to our secure cloud daily."
+                    )
+                    FAQItem(
+                        question = "Is my financial data secure?",
+                        answer = "Absolutely. We encrypt all transactions on-device and transit data to ensure your info stays private."
+                    )
+                    FAQItem(
+                        question = "How to delete my account permanently?",
+                        answer = "Use Delete Account under Data above. This wipes all your data permanently off our cloud databases."
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(BrandBlue)
+                            .clickable { /* Simulate email support launch */ }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Contact Email Support",
+                            color = NeutralWhite,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(16.dp))
@@ -437,21 +556,63 @@ private fun ProfileContent(
         )
     }
 
-    // ── Dialog 2: Account Details Info Dialog ───────────────────────────────
-    if (showAccountDetails) {
-        AccountDetailsDialog(
-            userId = userId ?: "",
-            name = userName ?: "Guest",
-            email = userEmail ?: "guest@example.com",
-            createdAt = userCreatedAt ?: "",
-            onDismiss = { showAccountDetails = false }
+    // ── Dialog 2: Date Format Dialog ────────────────────────────────────────
+    if (showDateFormatDialog) {
+        OptionSelectionDialog(
+            title = "Select Date Format",
+            options = listOf("DD / MM / YYYY", "MM / DD / YYYY", "YYYY - MM - DD"),
+            selectedOption = dateFormat,
+            onDismiss = { showDateFormatDialog = false },
+            onSelect = {
+                scope.launch {
+                    sessionDataStore.updateDateFormat(it)
+                    if (isSignedIn) financeRepository.updateSettings(dateFormat = it)
+                    showDateFormatDialog = false
+                }
+            }
         )
     }
 
-    // ── Dialog 3: Support Center FAQ Dialog ─────────────────────────────────
-    if (showSupport) {
-        SupportCenterDialog(
-            onDismiss = { showSupport = false }
+    // ── Dialog 3: Export Data Dialog ────────────────────────────────────────
+    if (showExportDialog) {
+        ExportDataDialog(
+            financeRepository = financeRepository,
+            onDismiss = { showExportDialog = false }
+        )
+    }
+
+    // ── Dialog 4: Clear Data Confirmation Dialog ────────────────────────────
+    if (showClearDataDialog) {
+        ClearDataConfirmationDialog(
+            onDismiss = { showClearDataDialog = false },
+            onConfirm = {
+                scope.launch {
+                    sessionDataStore.clearLocalData()
+                    financeRepository.clearCache()
+                    showClearDataDialog = false
+                }
+            }
+        )
+    }
+
+    // ── Dialog 5: Privacy Policy Dialog ─────────────────────────────────────
+    if (showPrivacyDialog) {
+        PrivacyPolicyDialog(
+            onDismiss = { showPrivacyDialog = false }
+        )
+    }
+
+    // ── Dialog 6: Delete Account Warning Dialog ──────────────────────────────
+    if (showDeleteAccountDialog) {
+        DeleteAccountWarningDialog(
+            onDismiss = { showDeleteAccountDialog = false },
+            onDelete = {
+                scope.launch {
+                    sessionDataStore.clearSession()
+                    showDeleteAccountDialog = false
+                    onSignOut()
+                }
+            }
         )
     }
 }
@@ -486,6 +647,19 @@ private fun StatItem(
 }
 
 @Composable
+private fun SectionHeader(title: String) {
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    Text(
+        text      = title.uppercase(),
+        fontSize  = 11.sp,
+        fontWeight = FontWeight.Bold,
+        color     = NeutralMid,
+        modifier  = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
+    )
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
 private fun ProfileMenuCard(content: @Composable () -> Unit) {
     val NeutralWhite = MaterialTheme.colorScheme.surface
     Column(
@@ -507,6 +681,9 @@ private fun MenuDivider() {
         thickness = 0.8.dp,
     )
 }
+
+@Composable
+private fun SettingsDivider() = MenuDivider()
 
 @Composable
 private fun ProfileMenuItem(
@@ -549,7 +726,7 @@ private fun ProfileMenuItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text       = label,
-                fontSize   = 15.sp,
+                fontSize   = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color      = textColor,
             )
@@ -563,6 +740,169 @@ private fun ProfileMenuItem(
                 contentDescription = null,
                 tint               = NeutralMid,
                 modifier           = Modifier.size(14.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsNavigationRow(
+    icon: ImageVector,
+    label: String,
+    sub: String? = null,
+    textColor: Color = Color.Unspecified,
+    iconTint: Color = BrandBlue,
+    onClick: () -> Unit
+) {
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    val actualTextColor = if (textColor == Color.Unspecified) NeutralBlack else textColor
+    Row(
+        modifier          = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication        = ripple(bounded = true),
+                onClick           = onClick,
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(iconTint.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector        = icon,
+                contentDescription = label,
+                tint               = iconTint,
+                modifier           = Modifier.size(20.dp),
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text       = label,
+                fontSize   = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color      = actualTextColor,
+            )
+            if (sub != null) {
+                Text(text = sub, fontSize = 12.sp, color = NeutralMid)
+            }
+        }
+        Icon(
+            imageVector        = Icons.AutoMirrored.Filled.ArrowForwardIos,
+            contentDescription = null,
+            tint               = NeutralMid,
+            modifier           = Modifier.size(14.dp),
+        )
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    icon: ImageVector,
+    label: String,
+    sub: String? = null,
+    checked: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
+    val NeutralWhite = MaterialTheme.colorScheme.surface
+    val BrandBlue = MaterialTheme.colorScheme.primary
+    Row(
+        modifier          = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier         = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(BrandBlue.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector        = icon,
+                contentDescription = label,
+                tint               = BrandBlue,
+                modifier           = Modifier.size(20.dp),
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text       = label,
+                fontSize   = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color      = NeutralBlack,
+            )
+            if (sub != null) {
+                Text(text = sub, fontSize = 12.sp, color = NeutralMid)
+            }
+        }
+        Switch(
+            checked         = checked,
+            onCheckedChange = onToggle,
+            colors          = SwitchDefaults.colors(
+                checkedThumbColor       = NeutralWhite,
+                checkedTrackColor       = BrandBlue,
+                uncheckedThumbColor     = NeutralWhite,
+                uncheckedTrackColor     = NeutralLight,
+                uncheckedBorderColor    = NeutralLight,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun AccountInfoRow(label: String, value: String) {
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, color = NeutralMid, fontSize = 12.sp)
+        Text(text = value, color = NeutralBlack, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun FAQItem(question: String, answer: String) {
+    val NeutralOffWhite = MaterialTheme.colorScheme.background
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    var expanded by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(NeutralOffWhite)
+            .clickable { expanded = !expanded }
+            .padding(12.dp)
+    ) {
+        Text(
+            text = question,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = NeutralBlack
+        )
+        if (expanded) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = answer,
+                fontSize = 12.sp,
+                color = NeutralMid
             )
         }
     }
@@ -605,7 +945,7 @@ private fun EditProfileDialog(
                     fontWeight = FontWeight.Bold,
                     color = NeutralBlack
                 )
-                
+
                 Spacer(Modifier.height(16.dp))
 
                 // Name Input
@@ -681,16 +1021,16 @@ private fun EditProfileDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountDetailsDialog(
-    userId: String,
-    name: String,
-    email: String,
-    createdAt: String,
-    onDismiss: () -> Unit
+private fun OptionSelectionDialog(
+    title: String,
+    options: List<String>,
+    selectedOption: String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit
 ) {
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    val BrandBlue = MaterialTheme.colorScheme.primary
     BasicAlertDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -702,74 +1042,350 @@ private fun AccountDetailsDialog(
                 .padding(horizontal = 24.dp)
                 .fillMaxWidth()
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Account Details",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = NeutralBlack
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = NeutralMid)
-                    }
-                }
-                
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = title,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = NeutralBlack
+                )
                 Spacer(Modifier.height(16.dp))
 
-                val formattedJoinedDate = remember(createdAt) {
-                    try {
-                        val parsed = java.time.ZonedDateTime.parse(createdAt)
-                        val formatter = java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy")
-                        parsed.format(formatter)
-                    } catch (e: Exception) {
-                        if (createdAt.isNullOrBlank()) "Just now" else createdAt
+                options.forEach { option ->
+                    val isSelected = option == selectedOption
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) BrandBlue.copy(alpha = 0.10f) else Color.Transparent)
+                            .clickable { onSelect(option) }
+                            .padding(vertical = 14.dp, horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = option,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) BrandBlue else NeutralBlack
+                        )
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(BrandBlue)
+                            )
+                        }
                     }
                 }
-
-                AccountInfoRow(label = "User ID", value = userId.ifBlank { "Guest Mode" })
-                AccountInfoRow(label = "Profile Name", value = name)
-                AccountInfoRow(label = "Email", value = email)
-                AccountInfoRow(label = "Joined SpendSync", value = formattedJoinedDate)
-                AccountInfoRow(label = "Subscription Tier", value = if (userId.isNotBlank()) "Premium Account" else "Free Basic Plan")
-                AccountInfoRow(label = "Cloud Sync Status", value = if (userId.isNotBlank()) "Active / Secured" else "Offline / Not Synced")
-
-                Spacer(Modifier.height(16.dp))
             }
         }
     }
 }
 
-@Composable
-private fun AccountInfoRow(label: String, value: String) {
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = label, color = NeutralMid, fontSize = 13.sp)
-        Text(text = value, color = NeutralBlack, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SupportCenterDialog(
+private fun ExportDataDialog(
+    financeRepository: FinanceRepository,
     onDismiss: () -> Unit
 ) {
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val NeutralOffWhite = MaterialTheme.colorScheme.background
+    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
+    val BrandBlue = MaterialTheme.colorScheme.primary
+    var format by remember { mutableStateOf("CSV") }
+    var isExporting by remember { mutableStateOf(false) }
+    var isSuccess by remember { mutableStateOf(false) }
+    var exportError by remember { mutableStateOf<String?>(null) }
+
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    BasicAlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "Export Transaction Data",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = NeutralBlack
+                )
+                Spacer(Modifier.height(16.dp))
+
+                if (!isExporting && !isSuccess && exportError == null) {
+                    Text(
+                        text = "Choose your preferred layout format below:",
+                        fontSize = 12.sp,
+                        color = NeutralMid
+                    )
+                    Spacer(Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        listOf("CSV", "PDF").forEach { fmt ->
+                            val isSelected = format == fmt
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) BrandBlue.copy(alpha = 0.10f) else Color.Transparent)
+                                    .border(
+                                        BorderStroke(1.dp, if (isSelected) BrandBlue else NeutralLight),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { format = fmt }
+                                    .padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = fmt,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) BrandBlue else NeutralBlack
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            color = NeutralMid,
+                            modifier = Modifier
+                                .clickable { onDismiss() }
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Export Now",
+                            color = NeutralWhite,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(BrandBlue)
+                                .clickable {
+                                    isExporting = true
+                                    scope.launch {
+                                        when (val res = financeRepository.getTransactions(limit = 2000)) {
+                                            is AuthResult.Success -> {
+                                                val intent = if (format == "CSV") {
+                                                    TransactionExporter.exportCsv(context, res.data)
+                                                } else {
+                                                    TransactionExporter.exportPdf(context, res.data)
+                                                }
+                                                context.startActivity(Intent.createChooser(intent, "Export transactions"))
+                                                isExporting = false
+                                                isSuccess = true
+                                            }
+                                            is AuthResult.Error -> {
+                                                isExporting = false
+                                                exportError = res.message
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(horizontal = 20.dp, vertical = 8.dp)
+                        )
+                    }
+                } else if (isExporting) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Compiling layout data...", color = NeutralBlack, fontSize = 14.sp)
+                        Spacer(Modifier.height(16.dp))
+                        LinearProgressIndicator(color = BrandBlue, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(16.dp))
+                    }
+                } else if (exportError != null) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Export failed",
+                            fontWeight = FontWeight.Bold,
+                            color = SemanticError,
+                            fontSize = 14.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = exportError.orEmpty(),
+                            color = NeutralMid,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(24.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(BrandBlue)
+                                .clickable { exportError = null }
+                                .padding(horizontal = 24.dp, vertical = 10.dp)
+                        ) {
+                            Text("Try Again", color = NeutralWhite, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Data Export Successful!",
+                            fontWeight = FontWeight.Bold,
+                            color = NeutralBlack,
+                            fontSize = 14.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Your $format file is ready — choose where to save or send it.",
+                            color = NeutralMid,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(24.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(BrandBlue)
+                                .clickable { onDismiss() }
+                                .padding(horizontal = 24.dp, vertical = 10.dp)
+                        ) {
+                            Text("Done", color = NeutralWhite, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ClearDataConfirmationDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val NeutralWhite = MaterialTheme.colorScheme.surface
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    var cleared by remember { mutableStateOf(false) }
+
+    BasicAlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                if (!cleared) {
+                    Text(
+                        text = "Clear Local Data?",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SemanticError
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "This clears cached data and custom categories saved on this device. " +
+                            "Your account and cloud-synced data won't be affected.",
+                        fontSize = 12.sp,
+                        color = NeutralMid
+                    )
+                    Spacer(Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            color = NeutralMid,
+                            modifier = Modifier
+                                .clickable { onDismiss() }
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Clear Data",
+                            color = NeutralWhite,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SemanticError)
+                                .clickable {
+                                    onConfirm()
+                                    cleared = true
+                                }
+                                .padding(horizontal = 20.dp, vertical = 8.dp)
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Local Data Cleared",
+                            fontWeight = FontWeight.Bold,
+                            color = NeutralBlack,
+                            fontSize = 14.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Cached data and custom categories have been removed from this device.",
+                            color = NeutralMid,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(24.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SemanticError)
+                                .clickable { onDismiss() }
+                                .padding(horizontal = 24.dp, vertical = 10.dp)
+                        ) {
+                            Text("Done", color = NeutralWhite, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PrivacyPolicyDialog(
+    onDismiss: () -> Unit
+) {
+    val NeutralWhite = MaterialTheme.colorScheme.surface
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     BasicAlertDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -784,25 +1400,16 @@ private fun SupportCenterDialog(
             Column(
                 modifier = Modifier
                     .padding(24.dp)
-                    .heightIn(max = 380.dp)
+                    .heightIn(max = 320.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Support & FAQs",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = NeutralBlack
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = NeutralMid)
-                    }
-                }
+                Text(
+                    text = "Privacy Policy",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = NeutralBlack
+                )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
 
                 Column(
                     modifier = Modifier
@@ -810,74 +1417,125 @@ private fun SupportCenterDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    FAQItem(
-                        question = "How do I back up my transactions?",
-                        answer = "Auto Backup is enabled by default in Settings. Your data is synced automatically to our secure cloud daily."
+                    Text(
+                        text = "1. Information Collection\nWe encrypt and store all transaction data locally on your device. Selected settings and sync preferences are backed up to secure DataStore directories.",
+                        fontSize = 12.sp,
+                        color = NeutralMid
                     )
-                    FAQItem(
-                        question = "Can I change my default currency?",
-                        answer = "Yes. Go to Profile > Settings > Personalisation > Currency to choose USD, EUR, GBP, or INR."
+                    Text(
+                        text = "2. Data Protection\nYour transaction statistics are completely private and never shared with third parties. Authentication sessions are managed using safe tokens.",
+                        fontSize = 12.sp,
+                        color = NeutralMid
                     )
-                    FAQItem(
-                        question = "Is my financial data secure?",
-                        answer = "Absolutely. We encrypt all transactions on-device and transit data to ensure your info stays private."
-                    )
-                    FAQItem(
-                        question = "How to delete my account permanently?",
-                        answer = "Go to Settings > Data > Delete Account. This wipes all your data permanently off our cloud databases."
+                    Text(
+                        text = "3. Local Storage\nCached data and custom categories can be cleared at any time from the Data section, independent of your account and cloud-synced records.",
+                        fontSize = 12.sp,
+                        color = NeutralMid
                     )
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(16.dp))
 
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(BrandBlue)
-                        .clickable { /* Simulate email support launch */ }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
+                        .align(Alignment.End)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onDismiss() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Text(
-                        text = "Contact Email Support",
-                        color = NeutralWhite,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Close", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FAQItem(question: String, answer: String) {
-    val NeutralOffWhite = MaterialTheme.colorScheme.background
+private fun DeleteAccountWarningDialog(
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    var expanded by remember { mutableStateOf(false) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(NeutralOffWhite)
-            .clickable { expanded = !expanded }
-            .padding(12.dp)
+    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
+    var confirmationText by remember { mutableStateOf("") }
+    val isValid = confirmationText.trim().equals("DELETE", ignoreCase = false)
+
+    BasicAlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Text(
-            text = question,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = NeutralBlack
-        )
-        if (expanded) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = answer,
-                fontSize = 12.sp,
-                color = NeutralMid
-            )
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "Delete Account Permanently?",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SemanticError
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "WARNING: This deletes your credentials and database logs permanently. This action cannot be undone.",
+                    fontSize = 12.sp,
+                    color = NeutralMid
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "To confirm, type \"DELETE\" below:",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = NeutralBlack
+                )
+                Spacer(Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = confirmationText,
+                    onValueChange = { confirmationText = it },
+                    placeholder = { Text("Type DELETE here", color = NeutralMid, fontSize = 12.sp) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = SemanticError,
+                        unfocusedBorderColor = NeutralLight,
+                        cursorColor = SemanticError
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = "Cancel",
+                        color = NeutralMid,
+                        modifier = Modifier
+                            .clickable { onDismiss() }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Delete Account",
+                        color = if (isValid) NeutralWhite else NeutralMid,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isValid) SemanticError else NeutralLight)
+                            .clickable(enabled = isValid) { onDelete() }
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
+                    )
+                }
+            }
         }
     }
 }

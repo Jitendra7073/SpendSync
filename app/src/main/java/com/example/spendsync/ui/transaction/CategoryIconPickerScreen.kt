@@ -1,6 +1,7 @@
 package com.example.spendsync.ui.transaction
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -41,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,6 +67,10 @@ import kotlinx.coroutines.delay
 fun CategoryIconPickerScreen(
     iconifyRepository: IconifyRepository,
     accentColor: Color,
+    // The user's current categories for this transaction type — checked
+    // against, never guessed at, so "already exists" is always a real match.
+    existingCategoryNames: Set<String> = emptySet(),
+    existingIconIds: Set<String> = emptySet(),
     onDismiss: () -> Unit,
     onCategoryCreated: (name: String, iconId: String) -> Unit,
 ) {
@@ -72,6 +79,10 @@ fun CategoryIconPickerScreen(
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     val NeutralLight = MaterialTheme.colorScheme.outlineVariant
+    val errorColor = MaterialTheme.colorScheme.error
+    // Icons are recolored server-side by Iconify — needs a real theme-matching
+    // hex, not a fixed dark tint that would vanish against a dark card.
+    val iconColorHex = remember(NeutralBlack) { "#%06X".format(0xFFFFFF and NeutralBlack.toArgb()) }
 
     var name by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
@@ -80,6 +91,13 @@ fun CategoryIconPickerScreen(
     var results by remember { mutableStateOf<List<String>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchError by remember { mutableStateOf<String?>(null) }
+
+    // Contextual duplicate check — a real match against this user's existing
+    // categories, not a heuristic guess.
+    val nameAlreadyExists = remember(name, existingCategoryNames) {
+        val trimmed = name.trim()
+        trimmed.isNotEmpty() && existingCategoryNames.any { it.equals(trimmed, ignoreCase = true) }
+    }
 
     // Convenience: search follows the name field until the user edits search
     // directly, so typing "Pizza" once already surfaces pizza icons — but
@@ -147,12 +165,17 @@ fun CategoryIconPickerScreen(
                     onValueChange = { name = it },
                     placeholder = { Text("e.g. Friday Takeout", color = NeutralMid, fontSize = 14.sp) },
                     singleLine = true,
+                    isError = nameAlreadyExists,
+                    supportingText = if (nameAlreadyExists) {
+                        { Text("\"${name.trim()}\" already exists", color = errorColor, fontSize = 12.sp) }
+                    } else null,
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = NeutralWhite,
                         unfocusedContainerColor = NeutralWhite,
                         focusedBorderColor = accentColor,
-                        unfocusedBorderColor = Color(0xFFE2E8F0),
+                        unfocusedBorderColor = NeutralLight,
+                        errorContainerColor = NeutralWhite,
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -179,7 +202,7 @@ fun CategoryIconPickerScreen(
                         focusedContainerColor = NeutralWhite,
                         unfocusedContainerColor = NeutralWhite,
                         focusedBorderColor = accentColor,
-                        unfocusedBorderColor = Color(0xFFE2E8F0),
+                        unfocusedBorderColor = NeutralLight,
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -206,20 +229,46 @@ fun CategoryIconPickerScreen(
                     ) {
                         items(results) { iconId ->
                             val isSelected = iconId == selectedIcon
+                            // Contextual, not guessed: this icon is flagged only when
+                            // it's the exact icon a category the user already has uses.
+                            val alreadyUsed = iconId in existingIconIds
                             Box(
                                 modifier = Modifier
                                     .aspectRatio(1f)
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(if (isSelected) accentColor.copy(alpha = 0.15f) else NeutralWhite)
+                                    .then(
+                                        if (alreadyUsed && !isSelected) {
+                                            Modifier.border(1.dp, accentColor.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                                        } else Modifier
+                                    )
                                     .clickable { selectedIcon = iconId },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 AsyncImage(
-                                    model = IconifyApiClient.iconUrl(iconId, colorHex = "#111827"),
+                                    model = IconifyApiClient.iconUrl(iconId, colorHex = iconColorHex),
                                     contentDescription = iconId,
                                     contentScale = ContentScale.Fit,
                                     modifier = Modifier.padding(10.dp),
                                 )
+                                if (alreadyUsed && !isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp))
+                                            .background(NeutralBlack.copy(alpha = 0.55f))
+                                            .padding(vertical = 2.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = "In use",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                    }
+                                }
                                 if (isSelected) {
                                     Box(
                                         modifier = Modifier
@@ -243,10 +292,11 @@ fun CategoryIconPickerScreen(
             }
 
             // ── Confirm button — always visible, fixed at the bottom ──────────
-            val canConfirm = name.trim().isNotBlank() && selectedIcon != null
+            val canConfirm = name.trim().isNotBlank() && selectedIcon != null && !nameAlreadyExists
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
                     .padding(20.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(if (canConfirm) accentColor else NeutralLight)
@@ -270,6 +320,6 @@ fun CategoryIconPickerScreen(
 @Composable
 private fun CenteredHint(text: String, color: Color) {
     Box(modifier = Modifier.fillMaxSize().padding(top = 48.dp), contentAlignment = Alignment.TopCenter) {
-        Text(text = text, fontSize = 13.sp, color = color)
+        Text(text = text, fontSize = 12.sp, color = color)
     }
 }
