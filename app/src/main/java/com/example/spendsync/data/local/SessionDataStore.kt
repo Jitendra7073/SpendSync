@@ -7,6 +7,9 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.spendsync.notifications.PendingCapture
+import com.example.spendsync.notifications.parsePendingCaptures
+import com.example.spendsync.notifications.serializePendingCaptures
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -70,6 +73,8 @@ class SessionDataStore(private val context: Context) {
 
         private val KEY_AUTO_CAPTURE_ENABLED  = booleanPreferencesKey("auto_capture_enabled")
         private val KEY_AUTO_CAPTURE_PACKAGES = stringPreferencesKey("auto_capture_packages")
+
+        private val KEY_PENDING_CAPTURES = stringPreferencesKey("pending_captures")
     }
 
     // ── Read ──────────────────────────────────────────────────────────────────
@@ -137,6 +142,10 @@ class SessionDataStore(private val context: Context) {
 
     val autoCapturePackages: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         parseAutoCapturePackages(prefs[KEY_AUTO_CAPTURE_PACKAGES])
+    }
+
+    val pendingCaptures: Flow<List<PendingCapture>> = context.dataStore.data.map { prefs ->
+        parsePendingCaptures(prefs[KEY_PENDING_CAPTURES])
     }
 
     // ── Write ─────────────────────────────────────────────────────────────────
@@ -246,6 +255,20 @@ class SessionDataStore(private val context: Context) {
 
     suspend fun updateAutoCapturePackages(packages: Set<String>) {
         context.dataStore.edit { prefs -> prefs[KEY_AUTO_CAPTURE_PACKAGES] = serializeAutoCapturePackages(packages) }
+    }
+
+    suspend fun addPendingCapture(capture: PendingCapture) {
+        context.dataStore.edit { prefs ->
+            val current = parsePendingCaptures(prefs[KEY_PENDING_CAPTURES])
+            prefs[KEY_PENDING_CAPTURES] = serializePendingCaptures(current + capture)
+        }
+    }
+
+    suspend fun removePendingCapture(capture: PendingCapture) {
+        context.dataStore.edit { prefs ->
+            val current = parsePendingCaptures(prefs[KEY_PENDING_CAPTURES])
+            prefs[KEY_PENDING_CAPTURES] = serializePendingCaptures(current - capture)
+        }
     }
 
     /** Wipes locally cached/added data (custom categories) without touching the session or preferences. */
