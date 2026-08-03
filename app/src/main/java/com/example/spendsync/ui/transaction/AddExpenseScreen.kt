@@ -182,16 +182,7 @@ fun AddExpenseScreen(
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     val scope = rememberCoroutineScope()
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
-    val currencyCode by sessionDataStore.currency.collectAsState(initial = "INR")
-    val currencySymbol = remember(currencyCode) {
-        when (currencyCode) {
-            "EUR" -> "€"
-            "GBP" -> "£"
-            "INR" -> "₹"
-            "JPY" -> "¥"
-            else  -> "$"
-        }
-    }
+    val currencySymbol = "₹"
 
     var type        by rememberSaveable {
         mutableStateOf(

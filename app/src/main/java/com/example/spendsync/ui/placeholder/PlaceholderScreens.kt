@@ -51,9 +51,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
-import com.example.spendsync.data.repository.CurrencyRepository
 import com.example.spendsync.data.remote.model.*
 import com.example.spendsync.utils.LocalizationUtils
+import com.example.spendsync.utils.formatInr
 import com.example.spendsync.ui.components.SkeletonBox
 import com.example.spendsync.ui.components.SkeletonLine
 import com.example.spendsync.ui.components.ToastHost
@@ -164,7 +164,6 @@ private fun buildTrendPoints(
 fun AnalyticsScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
-    currencyRepository: CurrencyRepository,
     dateFilterState: DateFilterState,
     onOpenSettings: () -> Unit = {},
     onViewTransaction: (TransactionDto) -> Unit = {},
@@ -180,17 +179,6 @@ fun AnalyticsScreen(
     val BrandBlue = MaterialTheme.colorScheme.primary
 
     val language by sessionDataStore.language.collectAsState(initial = "English")
-    val currencyCode by sessionDataStore.currency.collectAsState(initial = "INR")
-    val currencySymbol = remember(currencyCode) {
-        when (currencyCode) {
-            "EUR" -> "€"
-            "GBP" -> "£"
-            "INR" -> "₹"
-            "JPY" -> "¥"
-            else  -> "$"
-        }
-    }
-    val ratesUnavailable by currencyRepository.ratesUnavailable.collectAsState()
     val today = remember { LocalDate.now() }
 
     var selectedRange by remember { mutableStateOf(DateRange.THIS_MONTH) }
@@ -353,29 +341,6 @@ fun AnalyticsScreen(
         }
 
         // ── Scrollable Body Content (pull-to-refresh) ─────────────────────────
-        // Rates unavailable banner — shown when the last exchange-rate fetch failed.
-        if (ratesUnavailable) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(
-                    text = "Rates unavailable — amounts shown in INR",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-        }
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
@@ -478,7 +443,7 @@ fun AnalyticsScreen(
                 ) {
                     OverviewStat(
                         label = LocalizationUtils.getTranslation("income", language),
-                        amount = currencyRepository.formatAmount(totalIncome, currencyCode, currencySymbol),
+                        amount = formatInr(totalIncome),
                         color = SemanticSuccess,
                         modifier = Modifier.weight(1f),
                     )
@@ -491,7 +456,7 @@ fun AnalyticsScreen(
                     )
                     OverviewStat(
                         label = LocalizationUtils.getTranslation("expenses", language),
-                        amount = currencyRepository.formatAmount(totalExpenses, currencyCode, currencySymbol),
+                        amount = formatInr(totalExpenses),
                         color = SemanticError,
                         modifier = Modifier.weight(1f),
                     )
@@ -504,7 +469,7 @@ fun AnalyticsScreen(
                     )
                     OverviewStat(
                         label = "Net Balance",
-                        amount = "${if (totalBalance >= 0) "+" else "-"}${currencyRepository.formatAmount(kotlin.math.abs(totalBalance), currencyCode, currencySymbol)}",
+                        amount = "${if (totalBalance >= 0) "+" else "-"}${formatInr(kotlin.math.abs(totalBalance))}",
                         color = if (totalBalance >= 0) SemanticSuccess else SemanticError,
                         modifier = Modifier.weight(1f),
                     )
@@ -528,9 +493,6 @@ fun AnalyticsScreen(
                 Column(modifier = Modifier.padding(20.dp)) {
                     SpendingTrendChart(
                         points = trendPoints,
-                        currencySymbol = currencySymbol,
-                        currencyCode = currencyCode,
-                        currencyRepository = currencyRepository,
                         lineColor = BrandBlue,
                     )
                 }
@@ -554,9 +516,6 @@ fun AnalyticsScreen(
                     CategoryBarChart(
                         items = chartCategoryData,
                         totalExpenseSum = totalExpenses,
-                        currencySymbol = currencySymbol,
-                        currencyCode = currencyCode,
-                        currencyRepository = currencyRepository,
                     )
                 }
             }
@@ -579,9 +538,6 @@ fun AnalyticsScreen(
                     DoubleBarChart(
                         income = totalIncome.toFloat(),
                         expense = totalExpenses.toFloat(),
-                        currencySymbol = currencySymbol,
-                        currencyCode = currencyCode,
-                        currencyRepository = currencyRepository,
                     )
                 }
             }
@@ -615,7 +571,7 @@ fun AnalyticsScreen(
                 val avgDaily = totalExpenses / daysCount
                 InsightCard(
                     title = "Average Daily Spend",
-                    value = currencyRepository.formatAmount(avgDaily, currencyCode, currencySymbol),
+                    value = formatInr(avgDaily),
                     desc = "Calculated over a range of $daysCount day(s).",
                     icon = Icons.Default.Wallet,
                     accentColor = BrandBlue
@@ -738,9 +694,6 @@ private fun OverviewStat(
 @Composable
 private fun SpendingTrendChart(
     points: List<TrendPoint>,
-    currencySymbol: String,
-    currencyCode: String,
-    currencyRepository: CurrencyRepository,
     lineColor: Color,
 ) {
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
@@ -770,7 +723,7 @@ private fun SpendingTrendChart(
 
     Column {
         Text(
-            text = "Peak: ${currencyRepository.formatAmount(points[peakIndex].spent, currencyCode, currencySymbol)}" + " · ${points[peakIndex].label}",
+            text = "Peak: ${formatInr(points[peakIndex].spent)}" + " · ${points[peakIndex].label}",
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = NeutralBlack,
@@ -865,9 +818,6 @@ private fun SpendingTrendChart(
 private fun CategoryBarChart(
     items: List<Triple<String, Double, Color>>,
     totalExpenseSum: Double,
-    currencySymbol: String,
-    currencyCode: String,
-    currencyRepository: CurrencyRepository,
 ) {
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
@@ -905,7 +855,7 @@ private fun CategoryBarChart(
                 ) {
                     Text(text = category, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NeutralBlack)
                     Text(
-                        text = "${currencyRepository.formatAmount(amount, currencyCode, currencySymbol)}  ·  %,.1f%%".format(pct),
+                        text = "${formatInr(amount)}  ·  %,.1f%%".format(pct),
                         fontSize = 12.sp,
                         color = NeutralMid,
                     )
@@ -938,9 +888,6 @@ private fun CategoryBarChart(
 private fun DoubleBarChart(
     income: Float,
     expense: Float,
-    currencySymbol: String,
-    currencyCode: String,
-    currencyRepository: CurrencyRepository,
 ) {
     val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
     val maxVal = maxOf(income, expense, 1f)
@@ -952,7 +899,7 @@ private fun DoubleBarChart(
         horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
     ) {
         ComparisonBar(
-            formattedValue = currencyRepository.formatAmount(income.toDouble(), currencyCode, currencySymbol),
+            formattedValue = formatInr(income.toDouble()),
             label = "Income",
             fraction = income / maxVal,
             color = SemanticSuccess,
@@ -960,7 +907,7 @@ private fun DoubleBarChart(
             modifier = Modifier.weight(1f),
         )
         ComparisonBar(
-            formattedValue = currencyRepository.formatAmount(expense.toDouble(), currencyCode, currencySymbol),
+            formattedValue = formatInr(expense.toDouble()),
             label = "Expenses",
             fraction = expense / maxVal,
             color = SemanticError,
@@ -1169,7 +1116,6 @@ private fun PlaceholderTab(
 fun BudgetScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
-    currencyRepository: CurrencyRepository,
     dateFilterState: DateFilterState,
     onOpenSettings: () -> Unit = {},
     onViewTransaction: (TransactionDto) -> Unit = {},
@@ -1182,17 +1128,6 @@ fun BudgetScreen(
     val BrandBlue = MaterialTheme.colorScheme.primary
 
     val language by sessionDataStore.language.collectAsState(initial = "English")
-    val currencyCode by sessionDataStore.currency.collectAsState(initial = "INR")
-    val currencySymbol = remember(currencyCode) {
-        when (currencyCode) {
-            "EUR" -> "€"
-            "GBP" -> "£"
-            "INR" -> "₹"
-            "JPY" -> "¥"
-            else  -> "$"
-        }
-    }
-    val ratesUnavailable by currencyRepository.ratesUnavailable.collectAsState()
 
     var summaryData by remember { mutableStateOf<DashboardSummaryDto?>(null) }
     var isBudgetLoading by remember { mutableStateOf(false) }
@@ -1274,29 +1209,6 @@ fun BudgetScreen(
         }
 
         // ── Main Body (pull-to-refresh) ──────────────────────────────────────
-        // Rates unavailable banner — shown when the last exchange-rate fetch failed.
-        if (ratesUnavailable) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(
-                    text = "Rates unavailable — amounts shown in INR",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-        }
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
@@ -1343,7 +1255,7 @@ fun BudgetScreen(
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = currencyRepository.formatAmount(totalBudget, currencyCode, currencySymbol),
+                        text = formatInr(totalBudget),
                         color = NeutralBlack,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold
@@ -1355,12 +1267,12 @@ fun BudgetScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Spent: ${currencyRepository.formatAmount(totalSpent, currencyCode, currencySymbol)}",
+                            text = "Spent: ${formatInr(totalSpent)}",
                             fontSize = 12.sp,
                             color = NeutralMid
                         )
                         Text(
-                            text = "Remaining: ${currencyRepository.formatAmount((totalBudget - totalSpent).coerceAtLeast(0.0), currencyCode, currencySymbol)}",
+                            text = "Remaining: ${formatInr((totalBudget - totalSpent).coerceAtLeast(0.0))}",
                             fontSize = 12.sp,
                             color = if (totalSpent > totalBudget) Color.Red else BrandBlue
                         )
@@ -1463,7 +1375,7 @@ fun BudgetScreen(
                                       color = NeutralBlack
                                   )
                                   Text(
-                                      text = "${currencyRepository.formatAmount(spent, currencyCode, currencySymbol)} / ${currencyRepository.formatAmount(limit, currencyCode, currencySymbol)}",
+                                      text = "${formatInr(spent)} / ${formatInr(limit)}",
                                       fontWeight = FontWeight.SemiBold,
                                       fontSize = 12.sp,
                                       color = NeutralBlack
@@ -1498,7 +1410,6 @@ fun BudgetScreen(
 
     if (showCreateBudgetDialog) {
         CreateBudgetDialog(
-            currencySymbol = currencySymbol,
             onDismiss = { showCreateBudgetDialog = false },
             onConfirm = { category, limit ->
                 scope.launch {
@@ -1542,7 +1453,6 @@ fun BudgetScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CreateBudgetDialog(
-    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (String, Double) -> Unit
 ) {
@@ -1601,7 +1511,7 @@ private fun CreateBudgetDialog(
                 OutlinedTextField(
                     value = limitAmount,
                     onValueChange = { limitAmount = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Budget Limit ($currencySymbol)", fontSize = 14.sp) },
+                    label = { Text("Budget Limit (₹)", fontSize = 14.sp) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = BrandBlue,

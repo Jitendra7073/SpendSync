@@ -69,7 +69,6 @@ import coil3.compose.AsyncImage
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.remote.IconifyApiClient
 import com.example.spendsync.data.repository.AuthRepository
-import com.example.spendsync.data.repository.CurrencyRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.data.repository.AuthResult
@@ -82,6 +81,7 @@ import com.example.spendsync.ui.components.ToastMessage
 import com.example.spendsync.ui.search.GlobalSearchDialog
 import com.example.spendsync.ui.transaction.builtInCategoryIcon
 import com.example.spendsync.utils.LocalizationUtils
+import com.example.spendsync.utils.formatInr
 import com.example.spendsync.ui.shared.DateFilterState
 import com.example.spendsync.ui.shared.TopBarDateSearchGroup
 import com.example.spendsync.ui.theme.BrandBlue
@@ -124,7 +124,6 @@ fun LocalDate.toRelativeLabel(): String = when (this) {
 fun HomeScreen(
     repository: AuthRepository,
     financeRepository: FinanceRepository,
-    currencyRepository: CurrencyRepository,
     sessionDataStore: SessionDataStore,
     dateFilterState: DateFilterState,
     refreshKey: Int = 0,
@@ -144,17 +143,6 @@ fun HomeScreen(
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralLight = MaterialTheme.colorScheme.outlineVariant
 
-    val currencyCode by sessionDataStore.currency.collectAsState(initial = "INR")
-    val currencySymbol = remember(currencyCode) {
-        when (currencyCode) {
-            "EUR" -> "€"
-            "GBP" -> "£"
-            "INR" -> "₹"
-            "JPY" -> "¥"
-            else  -> "$"
-        }
-    }
-    val ratesUnavailable by currencyRepository.ratesUnavailable.collectAsState()
     val language by sessionDataStore.language.collectAsState(initial = "English")
 
     // Custom categories' icons live only in local storage (iconId, from the
@@ -348,7 +336,7 @@ fun HomeScreen(
                         SkeletonLine(modifier = Modifier.width(160.dp), height = 32.dp)
                     } else {
                         Text(
-                            text       = currencyRepository.formatAmount(allTimeBalance ?: 0.0, currencyCode, currencySymbol),
+                            text       = formatInr(allTimeBalance ?: 0.0),
                             color      = NeutralWhite,
                             fontSize   = 28.sp,
                             fontWeight = FontWeight.Bold,
@@ -365,32 +353,6 @@ fun HomeScreen(
                 }
             }
         }
-        }
-
-        // ── Rates unavailable banner ──────────────────────────────────────────
-        if (ratesUnavailable) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.errorContainer)
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = "Rates unavailable — amounts shown in INR",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
-            }
         }
 
         item { Spacer(Modifier.height(16.dp)) }
@@ -412,7 +374,7 @@ fun HomeScreen(
             // Premium Income Card
             SummaryTile(
                 label = LocalizationUtils.getTranslation("income", language),
-                amount = currencyRepository.formatAmount(totalIncome, currencyCode, currencySymbol),
+                amount = formatInr(totalIncome),
                 icon = Icons.Default.ArrowUpward,
                 cardColor = Color(0xFFF0FDF4),       // Soft light green tint
                 borderColor = Color(0xFFDCFCE7),     // Soft green border
@@ -425,7 +387,7 @@ fun HomeScreen(
             // Premium Expenses Card
             SummaryTile(
                 label = LocalizationUtils.getTranslation("expenses", language),
-                amount = currencyRepository.formatAmount(totalExpenses, currencyCode, currencySymbol),
+                amount = formatInr(totalExpenses),
                 icon = Icons.Default.ArrowDownward,
                 cardColor = Color(0xFFFEF2F2),       // Soft light red tint
                 borderColor = Color(0xFFFEE2E2),     // Soft red border
@@ -477,9 +439,6 @@ fun HomeScreen(
                         label = group.date.toRelativeLabel(),
                         creditTotal = group.transactions.filter { it.type == "credit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 },
                         debitTotal = group.transactions.filter { it.type == "debit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 },
-                        currencyRepository = currencyRepository,
-                        currencyCode = currencyCode,
-                        currencySymbol = currencySymbol,
                     )
                     // No spacer here — the header sits flush against the card.
                     // One card per day — all its transactions grouped together
@@ -497,9 +456,6 @@ fun HomeScreen(
                             group.transactions.forEachIndexed { index, transaction ->
                                 TransactionRow(
                                     transaction = transaction,
-                                    currencyRepository = currencyRepository,
-                                    currencyCode = currencyCode,
-                                    currencySymbol = currencySymbol,
                                     customCategoryIcons = customCategoryIcons,
                                     onDelete = { transactionToDelete = transaction },
                                     onEdit = { onEditTransaction(transaction) },
@@ -525,9 +481,6 @@ fun HomeScreen(
     transactionToDelete?.let { tx ->
         DeleteTransactionDialog(
             transaction = tx,
-            currencyRepository = currencyRepository,
-            currencyCode = currencyCode,
-            currencySymbol = currencySymbol,
             onDismiss = { transactionToDelete = null },
             onConfirm = {
                 scope.launch {
@@ -549,9 +502,6 @@ fun HomeScreen(
     transactionToView?.let { tx ->
         TransactionInfoDialog(
             transaction = tx,
-            currencyRepository = currencyRepository,
-            currencyCode = currencyCode,
-            currencySymbol = currencySymbol,
             onDismiss = { transactionToView = null },
         )
     }
@@ -584,9 +534,6 @@ private fun DayHeader(
     label: String,
     creditTotal: Double,
     debitTotal: Double,
-    currencyRepository: CurrencyRepository,
-    currencyCode: String,
-    currencySymbol: String,
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
@@ -607,7 +554,7 @@ private fun DayHeader(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (creditTotal > 0.0) {
                 Text(
-                    text = "+${currencyRepository.formatAmount(creditTotal, currencyCode, currencySymbol)}",
+                    text = "+${formatInr(creditTotal)}",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF16A34A),
@@ -615,7 +562,7 @@ private fun DayHeader(
             }
             if (debitTotal > 0.0) {
                 Text(
-                    text = "-${currencyRepository.formatAmount(debitTotal, currencyCode, currencySymbol)}",
+                    text = "-${formatInr(debitTotal)}",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFDC2626),
@@ -727,9 +674,6 @@ private fun TransactionRowSkeleton() {
 @Composable
 private fun TransactionRow(
     transaction: TransactionDto,
-    currencyRepository: CurrencyRepository,
-    currencyCode: String,
-    currencySymbol: String,
     customCategoryIcons: Map<String, String>,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
@@ -864,9 +808,9 @@ private fun TransactionRow(
             }
 
             val amountText = if (isCredit) {
-                "+ ${currencyRepository.formatAmount(amountVal, currencyCode, currencySymbol)}"
+                "+ ${formatInr(amountVal)}"
             } else {
-                "- ${currencyRepository.formatAmount(amountVal, currencyCode, currencySymbol)}"
+                "- ${formatInr(amountVal)}"
             }
             val amountColor = if (isCredit) Color(0xFF16A34A) else Color(0xFFDC2626)
 
@@ -888,9 +832,6 @@ private fun TransactionRow(
 @Composable
 private fun DeleteTransactionDialog(
     transaction: TransactionDto,
-    currencyRepository: CurrencyRepository,
-    currencyCode: String,
-    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
@@ -929,7 +870,7 @@ private fun DeleteTransactionDialog(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "${transaction.merchant.ifBlank { transaction.category }} — ${currencyRepository.formatAmount(amountVal, currencyCode, currencySymbol)}",
+                    text = "${transaction.merchant.ifBlank { transaction.category }} — ${formatInr(amountVal)}",
                     fontSize = 12.sp,
                     color = NeutralMid,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -978,9 +919,6 @@ private fun DeleteTransactionDialog(
 @Composable
 private fun TransactionInfoDialog(
     transaction: TransactionDto,
-    currencyRepository: CurrencyRepository,
-    currencyCode: String,
-    currencySymbol: String,
     onDismiss: () -> Unit,
 ) {
     val NeutralWhite = MaterialTheme.colorScheme.surface
@@ -1027,7 +965,7 @@ private fun TransactionInfoDialog(
                 }
                 Spacer(Modifier.height(12.dp))
 
-                InfoRow("Amount", "${if (isCredit) "+" else "-"} ${currencyRepository.formatAmount(amountVal, currencyCode, currencySymbol)}")
+                InfoRow("Amount", "${if (isCredit) "+" else "-"} ${formatInr(amountVal)}")
                 InfoRow("Type", if (isCredit) "Income" else "Expense")
                 InfoRow("Merchant / Note", transaction.merchant.ifBlank { "—" })
                 InfoRow("Category", transaction.category)

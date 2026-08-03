@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.Color
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.data.repository.AuthRepository
-import com.example.spendsync.data.repository.CurrencyRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.navigation.BottomNavItem
 import com.example.spendsync.navigation.SpendSyncBottomBar
@@ -54,7 +53,6 @@ import kotlinx.coroutines.launch
 fun MainScreen(
     repository: AuthRepository,
     financeRepository: FinanceRepository,
-    currencyRepository: CurrencyRepository,
     sessionDataStore: SessionDataStore,
     onSignOut: () -> Unit,
 ) {
@@ -158,7 +156,6 @@ fun MainScreen(
                     BottomNavItem.Analytics.route -> AnalyticsScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
-                        currencyRepository = currencyRepository,
                         dateFilterState = dateFilterState,
                         onOpenSettings = ::requestOpenSettings,
                         onViewTransaction = ::requestViewTransaction,
@@ -166,7 +163,6 @@ fun MainScreen(
                     BottomNavItem.Budget.route    -> BudgetScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
-                        currencyRepository = currencyRepository,
                         dateFilterState = dateFilterState,
                         onOpenSettings = ::requestOpenSettings,
                         onViewTransaction = ::requestViewTransaction,
@@ -175,14 +171,12 @@ fun MainScreen(
                         sessionDataStore = sessionDataStore,
                         repository       = repository,
                         financeRepository = financeRepository,
-                        currencyRepository = currencyRepository,
                         openSettingsRequestId = openSettingsRequestId,
                         onSignOut        = onSignOut,
                     )
                     else -> HomeScreen(
                         repository       = repository,
                         financeRepository = financeRepository,
-                        currencyRepository = currencyRepository,
                         sessionDataStore = sessionDataStore,
                         dateFilterState  = dateFilterState,
                         refreshKey       = homeRefreshKey,

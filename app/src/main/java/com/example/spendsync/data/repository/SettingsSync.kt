@@ -24,7 +24,6 @@ suspend fun hydrateSettingsFromBackend(
         sessionDataStore.updateAutoBackup(settings.autoBackup)
         sessionDataStore.updateAccentColor(settings.accentColor)
         sessionDataStore.updateLanguage(settings.language)
-        sessionDataStore.updateCurrency(settings.currency)
         sessionDataStore.updateDateFormat(settings.dateFormat)
     }
 }

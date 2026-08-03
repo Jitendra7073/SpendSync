@@ -252,7 +252,6 @@ class FinanceRepository(
         autoBackup: Boolean? = null,
         accentColor: String? = null,
         language: String? = null,
-        currency: String? = null,
         dateFormat: String? = null,
     ): AuthResult<SettingsDto> {
         return try {
@@ -262,7 +261,6 @@ class FinanceRepository(
                 autoBackup = autoBackup,
                 accentColor = accentColor,
                 language = language,
-                currency = currency,
                 dateFormat = dateFormat,
             )
             val response = api.updateSettings(getAuthHeader(), request)

@@ -131,7 +131,6 @@ data class SettingsDto(
     @SerializedName("autoBackup")         val autoBackup: Boolean,
     @SerializedName("accentColor")        val accentColor: String,
     @SerializedName("language")           val language: String,
-    @SerializedName("currency")           val currency: String,
     @SerializedName("dateFormat")         val dateFormat: String,
 )
 
@@ -141,7 +140,6 @@ data class UpdateSettingsRequest(
     @SerializedName("autoBackup")        val autoBackup: Boolean? = null,
     @SerializedName("accentColor")       val accentColor: String? = null,
     @SerializedName("language")          val language: String? = null,
-    @SerializedName("currency")          val currency: String? = null,
     @SerializedName("dateFormat")        val dateFormat: String? = null,
 )
 

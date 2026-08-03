@@ -21,7 +21,6 @@ import androidx.navigation.compose.rememberNavController
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.remote.AuthEvents
 import com.example.spendsync.data.repository.AuthRepository
-import com.example.spendsync.data.repository.CurrencyRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.ui.auth.AuthViewModel
 import com.example.spendsync.ui.auth.AuthViewModelFactory
@@ -52,7 +51,6 @@ fun AppNavigation(
     val context          = LocalContext.current
     val repository       = authRepository
     val financeRepository = remember { FinanceRepository(sessionDataStore) }
-    val currencyRepository = remember { CurrencyRepository() }
     val scope            = rememberCoroutineScope()
 
     val authViewModel: AuthViewModel = viewModel(
@@ -81,12 +79,6 @@ fun AppNavigation(
         }
     }
 
-    // Reactively fetch exchange rates whenever the user's preferred currency changes.
-    LaunchedEffect(Unit) {
-        sessionDataStore.currency.collect { currency ->
-            currencyRepository.fetchRates(currency)
-        }
-    }
 
     // Guard against returning to the app with an expired/cleared local session.
     // On every ON_RESUME, check whether a local token still exists — if not,
@@ -184,7 +176,6 @@ fun AppNavigation(
             MainScreen(
                 repository        = repository,
                 financeRepository = financeRepository,
-                currencyRepository = currencyRepository,
                 sessionDataStore  = sessionDataStore,
                 onSignOut         = {
                     // Drop cached data so the next signed-in user never sees it.

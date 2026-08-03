@@ -79,7 +79,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.repository.AuthRepository
-import com.example.spendsync.data.repository.CurrencyRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.remote.model.DashboardSummaryDto
@@ -97,6 +96,7 @@ import com.example.spendsync.ui.theme.NeutralWhite
 import com.example.spendsync.ui.theme.SemanticError
 import com.example.spendsync.utils.LocalizationUtils
 import com.example.spendsync.utils.TransactionExporter
+import com.example.spendsync.utils.formatInr
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -111,7 +111,6 @@ fun ProfileScreen(
     sessionDataStore: SessionDataStore,
     repository: AuthRepository,
     financeRepository: FinanceRepository,
-    currencyRepository: CurrencyRepository,
     openSettingsRequestId: Int = 0,
     onSignOut: () -> Unit,
 ) {
@@ -132,16 +131,6 @@ fun ProfileScreen(
     LaunchedEffect(Unit) { isSignedIn = repository.hasLocalSession() }
 
     val language by sessionDataStore.language.collectAsState(initial = "English")
-    val currencyCode by sessionDataStore.currency.collectAsState(initial = "INR")
-    val currencySymbol = remember(currencyCode) {
-        when (currencyCode) {
-            "EUR" -> "€"
-            "GBP" -> "£"
-            "INR" -> "₹"
-            "JPY" -> "¥"
-            else  -> "$"
-        }
-    }
 
     // Read reactive preference flows from DataStore
     val darkMode by sessionDataStore.darkMode.collectAsState(initial = false)
@@ -340,7 +329,7 @@ fun ProfileScreen(
             )
             StatItem(
                 label  = "This Month",
-                value  = currencyRepository.formatAmount(currentMonthSpent, currencyCode, currencySymbol),
+                value  = formatInr(currentMonthSpent),
                 modifier = Modifier.weight(1f),
             )
             Box(
@@ -352,7 +341,7 @@ fun ProfileScreen(
             )
             StatItem(
                 label  = "Savings",
-                value  = currencyRepository.formatAmount(savingsAccumulated, currencyCode, currencySymbol),
+                value  = formatInr(savingsAccumulated),
                 modifier = Modifier.weight(1f),
             )
             }

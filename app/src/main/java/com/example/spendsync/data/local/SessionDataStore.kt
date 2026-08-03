@@ -63,7 +63,6 @@ class SessionDataStore(private val context: Context) {
         private val KEY_AUTO_BACKUP         = booleanPreferencesKey("settings_auto_backup")
         private val KEY_ACCENT_COLOR        = stringPreferencesKey("settings_accent_color")
         private val KEY_LANGUAGE            = stringPreferencesKey("settings_language")
-        private val KEY_CURRENCY            = stringPreferencesKey("settings_currency")
         private val KEY_DATE_FORMAT         = stringPreferencesKey("settings_date_format")
 
         // Custom transaction categories added via the icon picker — comma-joined
@@ -118,10 +117,6 @@ class SessionDataStore(private val context: Context) {
 
     val language: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_LANGUAGE] ?: "English"
-    }
-
-    val currency: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_CURRENCY] ?: "INR"
     }
 
     val dateFormat: Flow<String> = context.dataStore.data.map { prefs ->
@@ -221,12 +216,6 @@ class SessionDataStore(private val context: Context) {
     suspend fun updateLanguage(lang: String) {
         context.dataStore.edit { prefs ->
             prefs[KEY_LANGUAGE] = lang
-        }
-    }
-
-    suspend fun updateCurrency(curr: String) {
-        context.dataStore.edit { prefs ->
-            prefs[KEY_CURRENCY] = curr
         }
     }
 
