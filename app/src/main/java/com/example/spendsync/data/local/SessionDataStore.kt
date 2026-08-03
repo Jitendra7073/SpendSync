@@ -34,6 +34,12 @@ private fun serializePersistedCategories(categories: List<PersistedCategory>): S
         if (cat.iconId != null) "${cat.name}||${cat.iconId}" else cat.name
     }
 
+internal fun parseAutoCapturePackages(raw: String?): Set<String> =
+    raw?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+
+internal fun serializeAutoCapturePackages(packages: Set<String>): String =
+    packages.joinToString(",")
+
 /**
  * Persists the Better Auth session token to DataStore so the app can
  * restore the session after a cold start without forcing the user to
@@ -61,6 +67,9 @@ class SessionDataStore(private val context: Context) {
         // "name" or "name||iconId" entries (see PersistedCategory).
         private val KEY_CUSTOM_INCOME_CATEGORIES  = stringPreferencesKey("custom_income_categories")
         private val KEY_CUSTOM_EXPENSE_CATEGORIES = stringPreferencesKey("custom_expense_categories")
+
+        private val KEY_AUTO_CAPTURE_ENABLED  = booleanPreferencesKey("auto_capture_enabled")
+        private val KEY_AUTO_CAPTURE_PACKAGES = stringPreferencesKey("auto_capture_packages")
     }
 
     // ── Read ──────────────────────────────────────────────────────────────────
@@ -120,6 +129,14 @@ class SessionDataStore(private val context: Context) {
 
     val customExpenseCategories: Flow<List<PersistedCategory>> = context.dataStore.data.map { prefs ->
         parsePersistedCategories(prefs[KEY_CUSTOM_EXPENSE_CATEGORIES])
+    }
+
+    val autoCaptureEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AUTO_CAPTURE_ENABLED] ?: false
+    }
+
+    val autoCapturePackages: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        parseAutoCapturePackages(prefs[KEY_AUTO_CAPTURE_PACKAGES])
     }
 
     // ── Write ─────────────────────────────────────────────────────────────────
@@ -221,6 +238,14 @@ class SessionDataStore(private val context: Context) {
                 prefs[KEY_CUSTOM_EXPENSE_CATEGORIES] = serializePersistedCategories(current + PersistedCategory(name, iconId))
             }
         }
+    }
+
+    suspend fun updateAutoCaptureEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[KEY_AUTO_CAPTURE_ENABLED] = enabled }
+    }
+
+    suspend fun updateAutoCapturePackages(packages: Set<String>) {
+        context.dataStore.edit { prefs -> prefs[KEY_AUTO_CAPTURE_PACKAGES] = serializeAutoCapturePackages(packages) }
     }
 
     /** Wipes locally cached/added data (custom categories) without touching the session or preferences. */
