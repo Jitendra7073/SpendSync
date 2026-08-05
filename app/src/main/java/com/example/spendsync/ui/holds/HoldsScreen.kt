@@ -40,6 +40,8 @@ import com.example.spendsync.data.remote.model.HoldDto
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.notifications.HoldReminderWorker
+import com.example.spendsync.ui.components.ToastHost
+import com.example.spendsync.ui.components.ToastMessage
 import com.example.spendsync.utils.formatInr
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
@@ -59,24 +61,30 @@ fun HoldsScreen(
 
     var holds by remember { mutableStateOf<List<HoldDto>>(emptyList()) }
     var refreshKey by remember { mutableStateOf(0) }
+    var toast by remember { mutableStateOf<ToastMessage?>(null) }
 
     LaunchedEffect(refreshKey) {
         when (val res = financeRepository.getHolds()) {
             is AuthResult.Success -> holds = res.data
-            is AuthResult.Error -> Unit
+            // Otherwise an empty list reads as "you have no holds", which is a
+            // very different thing from "we couldn't load your holds".
+            is AuthResult.Error -> toast = ToastMessage(res.message, isError = true)
         }
     }
 
     fun markSettled(hold: HoldDto) {
         scope.launch {
-            val res = financeRepository.updateHold(id = hold.id, status = "settled")
-            if (res is AuthResult.Success) {
-                HoldReminderWorker.cancel(context, hold.id)
-                refreshKey++
+            when (val res = financeRepository.updateHold(id = hold.id, status = "settled")) {
+                is AuthResult.Success -> {
+                    HoldReminderWorker.cancel(context, hold.id)
+                    refreshKey++
+                }
+                is AuthResult.Error -> toast = ToastMessage(res.message, isError = true)
             }
         }
     }
 
+    ToastHost(toast = toast, onDismiss = { toast = null }) {
     Column(modifier = Modifier.fillMaxSize().background(NeutralOffWhite)) {
         Row(
             modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(16.dp),
@@ -127,5 +135,6 @@ fun HoldsScreen(
                 }
             }
         }
+    }
     }
 }

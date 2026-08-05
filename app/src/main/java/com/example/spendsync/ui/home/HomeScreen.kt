@@ -206,6 +206,11 @@ fun HomeScreen(
                     if (hold.direction == "owed_to_me") amt else -amt
                 }
             }
+            // holdMoney intentionally left at its last known value rather than
+            // reset to 0 — a transient fetch failure shouldn't make Hold Money
+            // appear to vanish, just go stale. Silent like loadAllTimeBalance's
+            // own failure branch above, deliberately: these two numbers sit side
+            // by side in the balance card and should degrade the same way.
             is AuthResult.Error -> Unit
         }
     }

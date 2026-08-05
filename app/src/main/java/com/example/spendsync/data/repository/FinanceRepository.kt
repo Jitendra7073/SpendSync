@@ -154,7 +154,9 @@ class FinanceRepository(
         return try {
             val response = api.deleteTransaction(getAuthHeader(), id)
             if (response.isSuccessful) {
-                cacheInvalidate("transactions", "dashboard")
+                // "holds" too — the backend cascade-deletes the linked hold with
+                // its transaction, so a cached holds list would keep counting it.
+                cacheInvalidate("transactions", "dashboard", "holds")
                 AuthResult.Success(Unit)
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))

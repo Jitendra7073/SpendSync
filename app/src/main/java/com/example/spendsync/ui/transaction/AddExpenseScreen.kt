@@ -1,5 +1,11 @@
 package com.example.spendsync.ui.transaction
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -215,6 +221,13 @@ fun AddExpenseScreen(
     var holdPersonName by remember { mutableStateOf("") }
     var holdReturnDate by remember { mutableStateOf(today) }
     var showHoldDatePicker by remember { mutableStateOf(false) }
+
+    // Hold reminders post a notification; on API 33+ that's silently dropped
+    // unless POST_NOTIFICATIONS was granted. Nothing else in this flow asks
+    // for it — the auto-capture opt-in in ProfileScreen is unrelated.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* no-op: denial just means the reminder won't show, same as elsewhere */ }
 
     // Auto-focus the amount as soon as the screen opens — it's the first
     // thing every transaction needs, so the keyboard should already be up.
@@ -741,6 +754,13 @@ fun AddExpenseScreen(
                                 )
                                 return@clickable
                             }
+                            if (!isEditing && expectReturn && holdPersonName.isBlank()) {
+                                toast = ToastMessage(
+                                    "Enter who this is with, or turn off \"Expect this back?\"",
+                                    isError = true,
+                                )
+                                return@clickable
+                            }
                             if (amountVal > 0.0 && !selectedCat.isNullOrBlank()) {
                                 scope.launch {
                                      val apiType = if (type == TransactionType.INCOME) "credit" else "debit"
@@ -786,6 +806,14 @@ fun AddExpenseScreen(
                                                  expectedReturnDate = "${holdReturnDate}T00:00:00.000Z",
                                              )
                                              if (holdRes is AuthResult.Success) {
+                                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                                     ContextCompat.checkSelfPermission(
+                                                         context,
+                                                         Manifest.permission.POST_NOTIFICATIONS,
+                                                     ) != PackageManager.PERMISSION_GRANTED
+                                                 ) {
+                                                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                                 }
                                                  HoldReminderWorker.schedule(
                                                      context = context,
                                                      holdId = holdRes.data.id,

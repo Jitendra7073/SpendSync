@@ -243,7 +243,10 @@ fun MainScreen(
                 if (visible) {
                     HoldsScreen(
                         financeRepository = financeRepository,
-                        onBack = { showHolds = false },
+                        // Home stays composed underneath this overlay, so settling
+                        // a hold here leaves its balance card stale unless we bump
+                        // the same key closeExpenseOverlay() uses.
+                        onBack = { showHolds = false; homeRefreshKey++ },
                     )
                 }
             }
