@@ -119,11 +119,41 @@ the transaction still stands — the user sees a distinct "saved, but
 couldn't track the hold" error toast rather than the save appearing to
 fail outright. The transaction is always the primary, protected outcome.
 
+## Android — Home balance card
+
+The existing Home balance card (`HomeScreen.kt` — currently a single
+`Column` with the label "Total Balance" and one big number, `allTimeBalance`,
+leaving the row's right half blank) is restructured to show three figures:
+
+```
+┌───────────────────────────────────┐
+│ Total Balance                      │
+│ ₹12,450.00                         │
+│                                     │
+│  Net Balance        Hold Money  →  │
+│  ₹10,200.00         ₹2,250.00      │
+└───────────────────────────────────┘
+```
+
+- **Net Balance** — the value already computed today (`allTimeBalance`,
+  i.e. all-time credits minus debits), relabeled and demoted from
+  headline to sub-stat.
+- **Hold Money** — the net effect of open holds:
+  `sum(pending owed_to_me amounts) − sum(pending owed_by_me amounts)`.
+  Computed client-side from `GET /api/holds?status=pending` — no new
+  backend aggregate endpoint, the pending-holds list is small enough per
+  user that summing on the client is simplest. Tapping this stat
+  navigates to the Holds list screen.
+- **Total Balance** — the new headline number, `Net Balance + Hold Money`.
+  This is the number that matters most (what you actually have once
+  money owed to you and by you is accounted for), so it takes the
+  card's primary position; Net Balance and Hold Money become the
+  explanatory sub-stats underneath.
+
 ## Android — Holds screen
 
-A summary card on Home ("You're owed ₹X · You owe ₹Y") — computed from
-pending holds — links to a full Holds list screen. The list is
-filterable by direction, each row shows person / amount / due date /
+The full Holds list screen, reached by tapping "Hold Money" on Home.
+Filterable by direction, each row shows person / amount / due date /
 status, with a "Mark as settled" action per row.
 
 ## Android — Reminders
