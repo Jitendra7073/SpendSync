@@ -81,8 +81,9 @@ import com.example.spendsync.ui.components.ToastMessage
 import com.example.spendsync.ui.search.GlobalSearchDialog
 import com.example.spendsync.ui.transaction.builtInCategoryIcon
 import com.example.spendsync.utils.LocalizationUtils
-import com.example.spendsync.utils.formatInr
+import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.DateFilterState
+import com.example.spendsync.ui.shared.MaskableAmountText
 import com.example.spendsync.ui.shared.TopBarDateSearchGroup
 import com.example.spendsync.ui.theme.BrandBlue
 import com.example.spendsync.ui.theme.BrandYellow
@@ -130,6 +131,7 @@ fun HomeScreen(
     onEditTransaction: (TransactionDto) -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenHolds: () -> Unit = {},
+    amountVisibility: AmountVisibilityState,
     // Set when a search result is picked from a different tab (Analytics/
     // Budget) — each request uses a distinct id so repeat-selecting the same
     // transaction still reopens the dialog.
@@ -342,8 +344,9 @@ fun HomeScreen(
                     if (isBalanceLoading) {
                         SkeletonLine(modifier = Modifier.width(160.dp), height = 32.dp)
                     } else {
-                        Text(
-                            text       = formatInr(allTimeBalance ?: 0.0),
+                        MaskableAmountText(
+                            amount     = allTimeBalance ?: 0.0,
+                            visibility = amountVisibility,
                             color      = NeutralWhite,
                             fontSize   = 28.sp,
                             fontWeight = FontWeight.Bold,
@@ -369,8 +372,9 @@ fun HomeScreen(
                                     color = NeutralWhite.copy(alpha = 0.70f),
                                     fontSize = 11.sp,
                                 )
-                                Text(
-                                    text = formatInr((allTimeBalance ?: 0.0) + holdMoney),
+                                MaskableAmountText(
+                                    amount = (allTimeBalance ?: 0.0) + holdMoney,
+                                    visibility = amountVisibility,
                                     color = NeutralWhite,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -381,8 +385,9 @@ fun HomeScreen(
                                 horizontalAlignment = Alignment.End,
                             ) {
                                 Text("Hold Money →", color = NeutralWhite.copy(alpha = 0.70f), fontSize = 11.sp)
-                                Text(
-                                    text = formatInr(holdMoney),
+                                MaskableAmountText(
+                                    amount = holdMoney,
+                                    visibility = amountVisibility,
                                     color = NeutralWhite,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -414,7 +419,8 @@ fun HomeScreen(
             // Premium Income Card
             SummaryTile(
                 label = LocalizationUtils.getTranslation("income", language),
-                amount = formatInr(totalIncome),
+                amount = totalIncome,
+                amountVisibility = amountVisibility,
                 icon = Icons.Default.ArrowUpward,
                 cardColor = Color(0xFFF0FDF4),       // Soft light green tint
                 borderColor = Color(0xFFDCFCE7),     // Soft green border
@@ -427,7 +433,8 @@ fun HomeScreen(
             // Premium Expenses Card
             SummaryTile(
                 label = LocalizationUtils.getTranslation("expenses", language),
-                amount = formatInr(totalExpenses),
+                amount = totalExpenses,
+                amountVisibility = amountVisibility,
                 icon = Icons.Default.ArrowDownward,
                 cardColor = Color(0xFFFEF2F2),       // Soft light red tint
                 borderColor = Color(0xFFFEE2E2),     // Soft red border
@@ -479,6 +486,7 @@ fun HomeScreen(
                         label = group.date.toRelativeLabel(),
                         creditTotal = group.transactions.filter { it.type == "credit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 },
                         debitTotal = group.transactions.filter { it.type == "debit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 },
+                        amountVisibility = amountVisibility,
                     )
                     // No spacer here — the header sits flush against the card.
                     // One card per day — all its transactions grouped together
@@ -497,6 +505,7 @@ fun HomeScreen(
                                 TransactionRow(
                                     transaction = transaction,
                                     customCategoryIcons = customCategoryIcons,
+                                    amountVisibility = amountVisibility,
                                     onDelete = { transactionToDelete = transaction },
                                     onEdit = { onEditTransaction(transaction) },
                                     onInfo = { transactionToView = transaction },
@@ -521,6 +530,7 @@ fun HomeScreen(
     transactionToDelete?.let { tx ->
         DeleteTransactionDialog(
             transaction = tx,
+            amountVisibility = amountVisibility,
             onDismiss = { transactionToDelete = null },
             onConfirm = {
                 scope.launch {
@@ -542,6 +552,7 @@ fun HomeScreen(
     transactionToView?.let { tx ->
         TransactionInfoDialog(
             transaction = tx,
+            amountVisibility = amountVisibility,
             onDismiss = { transactionToView = null },
         )
     }
@@ -574,6 +585,7 @@ private fun DayHeader(
     label: String,
     creditTotal: Double,
     debitTotal: Double,
+    amountVisibility: AmountVisibilityState,
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
@@ -593,16 +605,20 @@ private fun DayHeader(
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (creditTotal > 0.0) {
-                Text(
-                    text = "+${formatInr(creditTotal)}",
+                MaskableAmountText(
+                    amount = creditTotal,
+                    visibility = amountVisibility,
+                    prefix = "+",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF16A34A),
                 )
             }
             if (debitTotal > 0.0) {
-                Text(
-                    text = "-${formatInr(debitTotal)}",
+                MaskableAmountText(
+                    amount = debitTotal,
+                    visibility = amountVisibility,
+                    prefix = "-",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFDC2626),
@@ -616,7 +632,8 @@ private fun DayHeader(
 @Composable
 private fun SummaryTile(
     label: String,
-    amount: String,
+    amount: Double,
+    amountVisibility: AmountVisibilityState,
     icon: ImageVector,
     cardColor: Color,
     borderColor: Color,
@@ -665,8 +682,9 @@ private fun SummaryTile(
                 )
             }
             Spacer(Modifier.height(10.dp))
-            Text(
-                text = amount,
+            MaskableAmountText(
+                amount = amount,
+                visibility = amountVisibility,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = accentColor,
@@ -715,6 +733,7 @@ private fun TransactionRowSkeleton() {
 private fun TransactionRow(
     transaction: TransactionDto,
     customCategoryIcons: Map<String, String>,
+    amountVisibility: AmountVisibilityState,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
     onInfo: () -> Unit,
@@ -847,20 +866,17 @@ private fun TransactionRow(
                 }
             }
 
-            val amountText = if (isCredit) {
-                "+ ${formatInr(amountVal)}"
-            } else {
-                "- ${formatInr(amountVal)}"
-            }
             val amountColor = if (isCredit) Color(0xFF16A34A) else Color(0xFFDC2626)
 
             // Deliberately not bold/large — the card shouldn't shout the
             // amount, the category + icon already carry the row's identity.
-            Text(
-                text = amountText,
+            MaskableAmountText(
+                amount = amountVal,
+                visibility = amountVisibility,
+                prefix = if (isCredit) "+ " else "- ",
                 color = amountColor,
                 fontWeight = FontWeight.Medium,
-                fontSize = 12.sp
+                fontSize = 12.sp,
             )
         }
         }
@@ -872,6 +888,7 @@ private fun TransactionRow(
 @Composable
 private fun DeleteTransactionDialog(
     transaction: TransactionDto,
+    amountVisibility: AmountVisibilityState,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
@@ -909,12 +926,19 @@ private fun DeleteTransactionDialog(
                     color = NeutralBlack,
                 )
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "${transaction.merchant.ifBlank { transaction.category }} — ${formatInr(amountVal)}",
-                    fontSize = 12.sp,
-                    color = NeutralMid,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
+                Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "${transaction.merchant.ifBlank { transaction.category }} — ",
+                        fontSize = 12.sp,
+                        color = NeutralMid,
+                    )
+                    MaskableAmountText(
+                        amount = amountVal,
+                        visibility = amountVisibility,
+                        fontSize = 12.sp,
+                        color = NeutralMid,
+                    )
+                }
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = "This can't be undone.",
@@ -959,6 +983,7 @@ private fun DeleteTransactionDialog(
 @Composable
 private fun TransactionInfoDialog(
     transaction: TransactionDto,
+    amountVisibility: AmountVisibilityState,
     onDismiss: () -> Unit,
 ) {
     val NeutralWhite = MaterialTheme.colorScheme.surface
@@ -1005,7 +1030,24 @@ private fun TransactionInfoDialog(
                 }
                 Spacer(Modifier.height(12.dp))
 
-                InfoRow("Amount", "${if (isCredit) "+" else "-"} ${formatInr(amountVal)}")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(text = "Amount", fontSize = 12.sp, color = NeutralMid)
+                    Spacer(Modifier.width(12.dp))
+                    MaskableAmountText(
+                        amount = amountVal,
+                        visibility = amountVisibility,
+                        prefix = if (isCredit) "+ " else "- ",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = NeutralBlack,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    )
+                }
                 InfoRow("Type", if (isCredit) "Income" else "Expense")
                 InfoRow("Merchant / Note", transaction.merchant.ifBlank { "—" })
                 InfoRow("Category", transaction.category)
