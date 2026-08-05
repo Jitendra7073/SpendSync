@@ -238,7 +238,7 @@ fun HomeScreen(
     }
 
     // 2. Full month, grouped by day and sorted newest-first — the type filter
-    // (tapping the Income/Expense tile above) applies here, not to dailyTransactions.
+    // (tapping the Income/Expense tile above) applies here, not to the summary tiles.
     val groupedByDay = remember(monthlyTransactions, selectedTypeFilter) {
         monthlyTransactions
             .filter { transaction ->
