@@ -48,8 +48,9 @@ import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.notifications.HoldReminderWorker
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
+import com.example.spendsync.ui.shared.AmountVisibilityState
+import com.example.spendsync.ui.shared.MaskableAmountText
 import com.example.spendsync.ui.shared.MonthPickerDialog
-import com.example.spendsync.utils.formatInr
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -59,6 +60,7 @@ fun HoldDetailScreen(
     personName: String,
     holds: List<HoldDto>,
     financeRepository: FinanceRepository,
+    amountVisibility: AmountVisibilityState,
     onBack: () -> Unit,
     onHoldsChanged: () -> Unit,
 ) {
@@ -161,8 +163,9 @@ fun HoldDetailScreen(
                                     fontSize = 13.sp,
                                     color = NeutralMid,
                                 )
-                                Text(
-                                    formatInr(hold.amount.toDoubleOrNull() ?: 0.0),
+                                MaskableAmountText(
+                                    amount = hold.amount.toDoubleOrNull() ?: 0.0,
+                                    visibility = amountVisibility,
                                     fontSize = 16.sp,
                                     color = NeutralBlack,
                                 )
@@ -218,11 +221,16 @@ fun HoldDetailScreen(
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text("Delete this hold?", fontSize = 18.sp, color = NeutralBlack)
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        "This removes tracking for ${formatInr(hold.amount.toDoubleOrNull() ?: 0.0)} with $personName. This can't be undone.",
-                        fontSize = 13.sp,
-                        color = NeutralMid,
-                    )
+                    Row {
+                        Text("This removes tracking for ", fontSize = 13.sp, color = NeutralMid)
+                        MaskableAmountText(
+                            amount = hold.amount.toDoubleOrNull() ?: 0.0,
+                            visibility = amountVisibility,
+                            fontSize = 13.sp,
+                            color = NeutralMid,
+                        )
+                        Text(" with $personName. This can't be undone.", fontSize = 13.sp, color = NeutralMid)
+                    }
                     Spacer(Modifier.height(20.dp))
                     Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                         TextButton(onClick = { holdToDelete = null }) { Text("Cancel") }

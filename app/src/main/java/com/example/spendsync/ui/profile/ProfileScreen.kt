@@ -39,8 +39,10 @@ import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
@@ -85,6 +87,9 @@ import com.example.spendsync.data.remote.model.DashboardSummaryDto
 import androidx.compose.runtime.LaunchedEffect
 import com.example.spendsync.notifications.NotificationAppAllowlist
 import com.example.spendsync.ui.components.SkeletonLine
+import com.example.spendsync.ui.shared.AmountVisibilityState
+import com.example.spendsync.ui.shared.MaskableAmountText
+import com.example.spendsync.ui.shared.PinSetupDialog
 import com.example.spendsync.ui.theme.BrandBlue
 import com.example.spendsync.ui.theme.BrandBlueDark
 import com.example.spendsync.ui.theme.BrandYellow
@@ -96,7 +101,6 @@ import com.example.spendsync.ui.theme.NeutralWhite
 import com.example.spendsync.ui.theme.SemanticError
 import com.example.spendsync.utils.LocalizationUtils
 import com.example.spendsync.utils.TransactionExporter
-import com.example.spendsync.utils.formatInr
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -111,6 +115,7 @@ fun ProfileScreen(
     sessionDataStore: SessionDataStore,
     repository: AuthRepository,
     financeRepository: FinanceRepository,
+    amountVisibility: AmountVisibilityState,
     openSettingsRequestId: Int = 0,
     onSignOut: () -> Unit,
 ) {
@@ -139,6 +144,8 @@ fun ProfileScreen(
     val dateFormat by sessionDataStore.dateFormat.collectAsState(initial = "DD / MM / YYYY")
     val autoCaptureEnabled by sessionDataStore.autoCaptureEnabled.collectAsState(initial = false)
     val autoCapturePackages by sessionDataStore.autoCapturePackages.collectAsState(initial = emptySet())
+    val amountMaskingEnabled by sessionDataStore.amountMaskingEnabled.collectAsState(initial = false)
+    val amountVisibilityDurationSeconds by sessionDataStore.amountVisibilityDurationSeconds.collectAsState(initial = 60)
 
     val today = remember { LocalDate.now() }
 
@@ -168,6 +175,9 @@ fun ProfileScreen(
     var showDateFormatDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showAutoCaptureExplainer by remember { mutableStateOf(false) }
+    var showPinSetupDialog by remember { mutableStateOf(false) }
+    var showChangePinDialog by remember { mutableStateOf(false) }
+    var showVisibilityDurationDialog by remember { mutableStateOf(false) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
@@ -329,7 +339,8 @@ fun ProfileScreen(
             )
             StatItem(
                 label  = "This Month",
-                value  = formatInr(currentMonthSpent),
+                value  = currentMonthSpent,
+                amountVisibility = amountVisibility,
                 modifier = Modifier.weight(1f),
             )
             Box(
@@ -341,7 +352,8 @@ fun ProfileScreen(
             )
             StatItem(
                 label  = "Savings",
-                value  = formatInr(savingsAccumulated),
+                value  = savingsAccumulated,
+                amountVisibility = amountVisibility,
                 modifier = Modifier.weight(1f),
             )
             }
@@ -430,6 +442,46 @@ fun ProfileScreen(
                     sub   = dateFormat,
                     onClick = { showDateFormatDialog = true }
                 )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Privacy ──────────────────────────────────────────────────────
+            SectionHeader("Privacy")
+            ProfileMenuCard {
+                SettingsToggleRow(
+                    icon    = Icons.Default.Lock,
+                    label   = "Hide large amounts",
+                    sub     = "Mask amounts over ₹1,000 behind a PIN",
+                    checked = amountMaskingEnabled,
+                    onToggle = { turningOn ->
+                        if (turningOn) {
+                            showPinSetupDialog = true
+                        } else {
+                            scope.launch { sessionDataStore.updateAmountMaskingEnabled(false) }
+                        }
+                    },
+                )
+                if (amountMaskingEnabled) {
+                    SettingsDivider()
+                    SettingsNavigationRow(
+                        icon = Icons.Default.Lock,
+                        label = "Change PIN",
+                        onClick = { showChangePinDialog = true }
+                    )
+                    SettingsDivider()
+                    SettingsNavigationRow(
+                        icon = Icons.Default.Timer,
+                        label = "Visibility duration",
+                        sub = when (amountVisibilityDurationSeconds) {
+                            30 -> "30 seconds"
+                            300 -> "5 minutes"
+                            900 -> "15 minutes"
+                            else -> "1 minute"
+                        },
+                        onClick = { showVisibilityDurationDialog = true }
+                    )
+                }
             }
 
             Spacer(Modifier.height(20.dp))
@@ -705,6 +757,56 @@ fun ProfileScreen(
             }
         )
     }
+
+    // ── Dialog 7: PIN Setup Dialog (enabling masking) ────────────────────────
+    if (showPinSetupDialog) {
+        PinSetupDialog(
+            sessionDataStore = sessionDataStore,
+            requireCurrentPin = false,
+            onDone = {
+                showPinSetupDialog = false
+                scope.launch { sessionDataStore.updateAmountMaskingEnabled(true) }
+            },
+            onDismiss = { showPinSetupDialog = false },
+        )
+    }
+
+    // ── Dialog 8: Change PIN Dialog ───────────────────────────────────────────
+    if (showChangePinDialog) {
+        PinSetupDialog(
+            sessionDataStore = sessionDataStore,
+            requireCurrentPin = true,
+            onDone = { showChangePinDialog = false },
+            onDismiss = { showChangePinDialog = false },
+        )
+    }
+
+    // ── Dialog 9: Visibility Duration Dialog ─────────────────────────────────
+    if (showVisibilityDurationDialog) {
+        OptionSelectionDialog(
+            title = "Visibility duration",
+            options = listOf("30 seconds", "1 minute", "5 minutes", "15 minutes"),
+            selectedOption = when (amountVisibilityDurationSeconds) {
+                30 -> "30 seconds"
+                300 -> "5 minutes"
+                900 -> "15 minutes"
+                else -> "1 minute"
+            },
+            onDismiss = { showVisibilityDurationDialog = false },
+            onSelect = { picked ->
+                val seconds = when (picked) {
+                    "30 seconds" -> 30
+                    "5 minutes" -> 300
+                    "15 minutes" -> 900
+                    else -> 60
+                }
+                scope.launch {
+                    sessionDataStore.updateAmountVisibilityDurationSeconds(seconds)
+                    showVisibilityDurationDialog = false
+                }
+            }
+        )
+    }
 }
 
 // ── Building blocks ─────────────────────────────────────────────────────────────
@@ -723,6 +825,35 @@ private fun StatItem(
     ) {
         Text(
             text       = value,
+            fontSize   = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color      = NeutralBlack,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text     = label,
+            fontSize = 11.sp,
+            color    = NeutralMid,
+        )
+    }
+}
+
+@Composable
+private fun StatItem(
+    label: String,
+    value: Double,
+    amountVisibility: AmountVisibilityState,
+    modifier: Modifier = Modifier,
+) {
+    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        modifier            = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        MaskableAmountText(
+            amount     = value,
+            visibility = amountVisibility,
             fontSize   = 18.sp,
             fontWeight = FontWeight.Bold,
             color      = NeutralBlack,

@@ -39,11 +39,13 @@ import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
-import com.example.spendsync.utils.formatInr
+import com.example.spendsync.ui.shared.AmountVisibilityState
+import com.example.spendsync.ui.shared.MaskableAmountText
 
 @Composable
 fun HoldsScreen(
     financeRepository: FinanceRepository,
+    amountVisibility: AmountVisibilityState,
     onBack: () -> Unit,
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
@@ -69,6 +71,7 @@ fun HoldsScreen(
             personName = currentSelectedPerson,
             holds = holds.filter { it.personName == currentSelectedPerson },
             financeRepository = financeRepository,
+            amountVisibility = amountVisibility,
             onBack = { selectedPerson = null },
             onHoldsChanged = { refreshKey++ },
         )
@@ -121,8 +124,9 @@ fun HoldsScreen(
                                         fontSize = 11.sp,
                                         color = NeutralMid,
                                     )
-                                    Text(
-                                        formatInr(kotlin.math.abs(person.netAmount)),
+                                    MaskableAmountText(
+                                        amount = kotlin.math.abs(person.netAmount),
+                                        visibility = amountVisibility,
                                         fontSize = 16.sp,
                                         color = NeutralBlack,
                                     )
