@@ -65,6 +65,8 @@ import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.ui.transaction.builtInCategoryIcon
+import com.example.spendsync.ui.shared.AmountVisibilityState
+import com.example.spendsync.ui.shared.MaskableAmountText
 import com.example.spendsync.ui.theme.BrandBlue
 
 private data class SettingsSearchItem(
@@ -93,6 +95,7 @@ private val SETTINGS_ITEMS = listOf(
 fun GlobalSearchDialog(
     financeRepository: FinanceRepository,
     sessionDataStore: SessionDataStore,
+    amountVisibility: AmountVisibilityState,
     onDismiss: () -> Unit,
     onTransactionSelected: (TransactionDto) -> Unit,
     onOpenSettings: () -> Unit,
@@ -230,7 +233,7 @@ fun GlobalSearchDialog(
                     if (matchingTransactions.isNotEmpty()) {
                         item { SectionHeader("Transactions") }
                         items(matchingTransactions) { tx ->
-                            TransactionResultRow(tx, customCategoryIcons) { onTransactionSelected(tx) }
+                            TransactionResultRow(tx, customCategoryIcons, amountVisibility) { onTransactionSelected(tx) }
                         }
                     }
                     item { Spacer(Modifier.height(24.dp)) }
@@ -280,6 +283,7 @@ private fun SettingsResultRow(item: SettingsSearchItem, onClick: () -> Unit) {
 private fun TransactionResultRow(
     transaction: TransactionDto,
     customCategoryIcons: Map<String, String>,
+    amountVisibility: AmountVisibilityState,
     onClick: () -> Unit,
 ) {
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
@@ -331,8 +335,10 @@ private fun TransactionResultRow(
             )
             Text(text = transaction.category, fontSize = 12.sp, color = NeutralMid)
         }
-        Text(
-            text = "${if (isCredit) "+" else "-"} ${transaction.amount.toDoubleOrNull() ?: 0.0}",
+        MaskableAmountText(
+            amount = transaction.amount.toDoubleOrNull() ?: 0.0,
+            visibility = amountVisibility,
+            prefix = if (isCredit) "+ " else "- ",
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = if (isCredit) Color(0xFF16A34A) else Color(0xFFDC2626),

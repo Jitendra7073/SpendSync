@@ -19,6 +19,19 @@ class AmountVisibilityState {
     var showUnlockPrompt by mutableStateOf(false)
         private set
 
+    // Opt-in toggle from SessionDataStore.amountMaskingEnabled — masking
+    // (and the whole unlock flow) is only in effect when this is true.
+    // Backed by a private var + read-only property (rather than the usual
+    // `var ... private set`) because Kotlin's auto-generated setter for an
+    // `isX` boolean property is named `setX` on the JVM, which would clash
+    // with this explicit setMaskingEnabled function.
+    private var maskingEnabledState by mutableStateOf(false)
+    val isMaskingEnabled: Boolean get() = maskingEnabledState
+
+    fun setMaskingEnabled(enabled: Boolean) {
+        maskingEnabledState = enabled
+    }
+
     fun requestUnlock() {
         if (!isVisible) showUnlockPrompt = true
     }

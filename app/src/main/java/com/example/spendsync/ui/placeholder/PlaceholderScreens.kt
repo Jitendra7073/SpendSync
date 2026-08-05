@@ -600,6 +600,7 @@ fun AnalyticsScreen(
         GlobalSearchDialog(
             financeRepository = financeRepository,
             sessionDataStore = sessionDataStore,
+            amountVisibility = amountVisibility,
             onDismiss = { showGlobalSearch = false },
             onTransactionSelected = { tx ->
                 showGlobalSearch = false
@@ -697,6 +698,7 @@ private fun OverviewStat(
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = color,
+            maxLines = 1,
         )
         Spacer(Modifier.height(4.dp))
         Text(text = label, fontSize = 11.sp, color = NeutralMid, maxLines = 1)
@@ -968,6 +970,7 @@ private fun ComparisonBar(
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = NeutralBlack,
+            maxLines = 1,
         )
         Spacer(Modifier.height(8.dp))
         Box(
@@ -1494,6 +1497,7 @@ fun BudgetScreen(
         GlobalSearchDialog(
             financeRepository = financeRepository,
             sessionDataStore = sessionDataStore,
+            amountVisibility = amountVisibility,
             onDismiss = { showGlobalSearch = false },
             onTransactionSelected = { tx ->
                 showGlobalSearch = false

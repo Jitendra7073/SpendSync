@@ -562,6 +562,7 @@ fun HomeScreen(
         GlobalSearchDialog(
             financeRepository = financeRepository,
             sessionDataStore = sessionDataStore,
+            amountVisibility = amountVisibility,
             onDismiss = { showGlobalSearch = false },
             onTransactionSelected = { tx ->
                 showGlobalSearch = false

@@ -37,8 +37,9 @@ fun MaskableAmountText(
     fontWeight: FontWeight? = null,
     prefix: String = "",
     textAlign: TextAlign? = null,
+    maxLines: Int = Int.MAX_VALUE,
 ) {
-    if (shouldMaskAmount(amount, visibility.isVisible)) {
+    if (visibility.isMaskingEnabled && shouldMaskAmount(amount, visibility.isVisible)) {
         Row(
             modifier = modifier.clickable { visibility.requestUnlock() },
             verticalAlignment = Alignment.CenterVertically,
@@ -49,6 +50,7 @@ fun MaskableAmountText(
                 fontSize = fontSize,
                 fontWeight = fontWeight,
                 textAlign = textAlign,
+                maxLines = maxLines,
             )
             Spacer(Modifier.width(4.dp))
             Icon(
@@ -65,6 +67,7 @@ fun MaskableAmountText(
             fontSize = fontSize,
             fontWeight = fontWeight,
             textAlign = textAlign,
+            maxLines = maxLines,
             modifier = modifier,
         )
     }

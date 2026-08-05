@@ -17,6 +17,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +40,7 @@ import com.example.spendsync.ui.profile.ProfileScreen
 import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.DateFilterState
 import com.example.spendsync.ui.shared.MonthPickerDialog
+import com.example.spendsync.ui.shared.PinSetupDialog
 import com.example.spendsync.ui.shared.PinUnlockDialog
 import com.example.spendsync.ui.transaction.AddExpenseScreen
 import com.example.spendsync.ui.transaction.AddTransactionTypeSheet
@@ -65,6 +67,18 @@ fun MainScreen(
 
     // ── Shared amount-visibility session — one unlock, every tab reflects it ──
     val amountVisibility = remember { AmountVisibilityState() }
+
+    // The masking feature is opt-in (Settings toggle) — keep the shared
+    // session's isMaskingEnabled in sync with the persisted preference so
+    // masking never applies before the user has actually turned it on.
+    val amountMaskingEnabled by sessionDataStore.amountMaskingEnabled.collectAsState(initial = false)
+    LaunchedEffect(amountMaskingEnabled) {
+        amountVisibility.setMaskingEnabled(amountMaskingEnabled)
+    }
+
+    // Shown when PinUnlockDialog detects masking is on but no PIN exists
+    // (post sign-out) and the user opts to set one up from there.
+    var showPinSetupFallback by remember { mutableStateOf(false) }
 
     LaunchedEffect(amountVisibility.unlockedUntil) {
         val until = amountVisibility.unlockedUntil ?: return@LaunchedEffect
@@ -239,6 +253,7 @@ fun MainScreen(
                     AddExpenseScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
+                        amountVisibility = amountVisibility,
                         editTransaction = editingTransaction,
                         initialType = presetType,
                         onBack = { closeExpenseOverlay() },
@@ -303,6 +318,24 @@ fun MainScreen(
                     sessionDataStore = sessionDataStore,
                     onUnlock = { durationSeconds -> amountVisibility.unlock(durationSeconds) },
                     onDismiss = { amountVisibility.dismissUnlockPrompt() },
+                    onNeedsSetup = {
+                        amountVisibility.dismissUnlockPrompt()
+                        showPinSetupFallback = true
+                    },
+                )
+            }
+
+            // ── PIN-setup fallback — reached when masking is on but sign-out
+            // wiped the PIN (SessionDataStore.clearSession keeps the masking
+            // preference but clears pinHash/pinSalt as an account-scoped
+            // secret). No auto-unlock after this; the user just taps the eye
+            // icon again to unlock with the new PIN. ─────────────────────────
+            if (showPinSetupFallback) {
+                PinSetupDialog(
+                    sessionDataStore = sessionDataStore,
+                    requireCurrentPin = false,
+                    onDone = { showPinSetupFallback = false },
+                    onDismiss = { showPinSetupFallback = false },
                 )
             }
         }

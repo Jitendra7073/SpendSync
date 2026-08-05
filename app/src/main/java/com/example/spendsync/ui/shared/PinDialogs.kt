@@ -43,6 +43,7 @@ fun PinUnlockDialog(
     sessionDataStore: SessionDataStore,
     onUnlock: (durationSeconds: Int) -> Unit,
     onDismiss: () -> Unit,
+    onNeedsSetup: () -> Unit = {},
 ) {
     val pinHash by sessionDataStore.pinHash.collectAsState(initial = null)
     val pinSalt by sessionDataStore.pinSalt.collectAsState(initial = null)
@@ -50,6 +51,11 @@ fun PinUnlockDialog(
 
     var enteredPin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+
+    // Sign-out clears pinHash/pinSalt but leaves the masking preference on —
+    // there's no PIN to verify against, so offer setup instead of a dialog
+    // that can never succeed.
+    val noPinSet = pinHash == null && pinSalt == null
 
     BasicAlertDialog(
         onDismissRequest = onDismiss,
@@ -61,37 +67,46 @@ fun PinUnlockDialog(
             modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text("Enter PIN", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = enteredPin,
-                    onValueChange = { if (it.length <= 4 && it.all(Char::isDigit)) { enteredPin = it; error = null } },
-                    label = { Text("4-digit PIN") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                error?.let {
+                if (noPinSet) {
+                    Text("No PIN is set up yet.", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(12.dp))
-                    Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
-                    TextButton(
-                        enabled = enteredPin.length == 4,
-                        onClick = {
-                            val hash = pinHash
-                            val salt = pinSalt
-                            if (hash != null && salt != null && verifyPin(enteredPin, salt, hash)) {
-                                onUnlock(durationSeconds)
-                            } else {
-                                error = "Incorrect PIN"
-                                enteredPin = ""
-                            }
-                        },
-                    ) { Text("Unlock") }
+                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = onDismiss) { Text("Cancel") }
+                        TextButton(onClick = onNeedsSetup) { Text("Set up PIN") }
+                    }
+                } else {
+                    Text("Enter PIN", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = enteredPin,
+                        onValueChange = { if (it.length <= 4 && it.all(Char::isDigit)) { enteredPin = it; error = null } },
+                        label = { Text("4-digit PIN") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    error?.let {
+                        Spacer(Modifier.height(12.dp))
+                        Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = onDismiss) { Text("Cancel") }
+                        TextButton(
+                            enabled = enteredPin.length == 4,
+                            onClick = {
+                                val hash = pinHash
+                                val salt = pinSalt
+                                if (hash != null && salt != null && verifyPin(enteredPin, salt, hash)) {
+                                    onUnlock(durationSeconds)
+                                } else {
+                                    error = "Incorrect PIN"
+                                    enteredPin = ""
+                                }
+                            },
+                        ) { Text("Unlock") }
+                    }
                 }
             }
         }

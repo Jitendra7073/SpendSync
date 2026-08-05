@@ -109,6 +109,8 @@ import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
 import com.example.spendsync.ui.components.rememberPressScale
+import com.example.spendsync.ui.shared.AmountVisibilityState
+import com.example.spendsync.ui.shared.MaskableAmountText
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.launch
@@ -180,6 +182,7 @@ internal fun builtInCategoryIcon(category: String): ImageVector? =
 fun AddExpenseScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
+    amountVisibility: AmountVisibilityState,
     editTransaction: TransactionDto? = null,
     initialType: TransactionType? = null,
     onBack: () -> Unit
@@ -525,7 +528,20 @@ fun AddExpenseScreen(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            text = "Insufficient balance — $currencySymbol${"%,.2f".format(availableForThisTransaction.coerceAtLeast(0.0))} available",
+                            text = "Insufficient balance — ",
+                            color = NeutralWhite,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        MaskableAmountText(
+                            amount = availableForThisTransaction.coerceAtLeast(0.0),
+                            visibility = amountVisibility,
+                            color = NeutralWhite,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = " available",
                             color = NeutralWhite,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -748,6 +764,11 @@ fun AddExpenseScreen(
                                 return@clickable
                             }
                             if (insufficientBalance) {
+                                // ToastMessage.message is a plain String rendered by
+                                // ToastBanner outside a Composable eye-icon affordance —
+                                // same reasoning as HoldReminderNotifier's system
+                                // notification text: no tap target is possible here,
+                                // so this figure is left unmasked deliberately.
                                 toast = ToastMessage(
                                     "Insufficient balance. You have $currencySymbol${"%,.2f".format(availableForThisTransaction.coerceAtLeast(0.0))} available.",
                                     isError = true,
