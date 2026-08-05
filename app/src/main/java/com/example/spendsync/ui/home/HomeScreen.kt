@@ -227,25 +227,14 @@ fun HomeScreen(
         if (externalViewTransactionId > 0) externalViewTransaction?.let { transactionToView = it }
     }
 
-    // 1. Filter by EXACT Selected Date from Top Bar — powers the Income/Expense
-    // summary tiles only; the type filter below does not affect this.
-    val dailyTransactions = remember(monthlyTransactions, dateFilterState.selectedDate) {
-        monthlyTransactions.filter {
-            try {
-                val parsedDate = java.time.ZonedDateTime.parse(it.createdAt).toLocalDate()
-                parsedDate.isEqual(dateFilterState.selectedDate)
-            } catch (e: Exception) {
-                false
-            }
-        }
+    // Summary tiles now cover the whole selected month — monthlyTransactions
+    // is already fetched scoped to dateFilterState.selectedDate's month
+    // (see loadTransactions above), so no further date filtering is needed.
+    val totalIncome = remember(monthlyTransactions) {
+        monthlyTransactions.filter { it.type == "credit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
     }
-
-    // Calculate Summary Stats from daily data
-    val totalIncome = remember(dailyTransactions) {
-        dailyTransactions.filter { it.type == "credit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-    }
-    val totalExpenses = remember(dailyTransactions) {
-        dailyTransactions.filter { it.type == "debit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+    val totalExpenses = remember(monthlyTransactions) {
+        monthlyTransactions.filter { it.type == "debit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
     }
 
     // 2. Full month, grouped by day and sorted newest-first — the type filter
@@ -345,7 +334,7 @@ fun HomeScreen(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
                 ) {
                     Text(
-                        text     = LocalizationUtils.getTranslation("total_balance", language),
+                        text     = "Net Balance",
                         color    = NeutralWhite.copy(alpha = 0.80f),
                         fontSize = 12.sp,
                     )
@@ -354,7 +343,7 @@ fun HomeScreen(
                         SkeletonLine(modifier = Modifier.width(160.dp), height = 32.dp)
                     } else {
                         Text(
-                            text       = formatInr((allTimeBalance ?: 0.0) + holdMoney),
+                            text       = formatInr(allTimeBalance ?: 0.0),
                             color      = NeutralWhite,
                             fontSize   = 28.sp,
                             fontWeight = FontWeight.Bold,
@@ -375,9 +364,13 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Column {
-                                Text("Net Balance", color = NeutralWhite.copy(alpha = 0.70f), fontSize = 11.sp)
                                 Text(
-                                    text = formatInr(allTimeBalance ?: 0.0),
+                                    text = LocalizationUtils.getTranslation("total_balance", language),
+                                    color = NeutralWhite.copy(alpha = 0.70f),
+                                    fontSize = 11.sp,
+                                )
+                                Text(
+                                    text = formatInr((allTimeBalance ?: 0.0) + holdMoney),
                                     color = NeutralWhite,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
