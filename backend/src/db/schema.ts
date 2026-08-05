@@ -97,6 +97,24 @@ export const budgets = pgTable('budgets', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+export const holds = pgTable('holds', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  transactionId: uuid('transaction_id')
+    .notNull()
+    .references(() => transactions.id, { onDelete: 'cascade' }),
+  direction: text('direction', { enum: ['owed_to_me', 'owed_by_me'] }).notNull(),
+  personName: text('person_name').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  expectedReturnDate: timestamp('expected_return_date').notNull(),
+  status: text('status', { enum: ['pending', 'settled'] }).notNull().default('pending'),
+  settledAt: timestamp('settled_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
 // ============================================================================
 // USER SETTINGS TABLE
 // ============================================================================
