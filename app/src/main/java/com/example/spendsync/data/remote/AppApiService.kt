@@ -44,6 +44,34 @@ interface AppApiService {
         @Path("id") id: String
     ): Response<SuccessResponse<Unit>>
 
+    // ── Holds ─────────────────────────────────────────────────────────────────
+
+    @POST("api/holds")
+    suspend fun createHold(
+        @Header("Authorization") token: String,
+        @Body body: CreateHoldRequest
+    ): Response<SuccessResponse<HoldDto>>
+
+    @GET("api/holds")
+    suspend fun getHolds(
+        @Header("Authorization") token: String,
+        @Query("status") status: String?,
+        @Query("direction") direction: String?
+    ): Response<SuccessResponseList<HoldDto>>
+
+    @PATCH("api/holds/{id}")
+    suspend fun updateHold(
+        @Header("Authorization") token: String,
+        @Path("id") id: String,
+        @Body body: UpdateHoldRequest
+    ): Response<SuccessResponse<HoldDto>>
+
+    @DELETE("api/holds/{id}")
+    suspend fun deleteHold(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<SuccessResponse<Unit>>
+
     // ── Budgets ───────────────────────────────────────────────────────────────
 
     @POST("api/budgets")

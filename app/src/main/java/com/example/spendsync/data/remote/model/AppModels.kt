@@ -57,6 +57,36 @@ data class UpdateTransactionRequest(
     @SerializedName("transactionDate") val transactionDate: String? = null,
 )
 
+// ── Holds ─────────────────────────────────────────────────────────────────────
+
+data class HoldDto(
+    @SerializedName("id")                 val id: String,
+    @SerializedName("userId")             val userId: String,
+    @SerializedName("transactionId")      val transactionId: String,
+    @SerializedName("direction")          val direction: String, // "owed_to_me" or "owed_by_me"
+    @SerializedName("personName")         val personName: String,
+    @SerializedName("amount")             val amount: String, // decimal string
+    @SerializedName("expectedReturnDate") val expectedReturnDate: String,
+    @SerializedName("status")             val status: String, // "pending" or "settled"
+    @SerializedName("settledAt")          val settledAt: String?,
+    @SerializedName("createdAt")          val createdAt: String,
+    @SerializedName("updatedAt")          val updatedAt: String?,
+)
+
+data class CreateHoldRequest(
+    @SerializedName("transactionId")      val transactionId: String,
+    @SerializedName("direction")          val direction: String,
+    @SerializedName("personName")         val personName: String,
+    @SerializedName("amount")             val amount: Double,
+    @SerializedName("expectedReturnDate") val expectedReturnDate: String,
+)
+
+data class UpdateHoldRequest(
+    @SerializedName("personName")         val personName: String? = null,
+    @SerializedName("expectedReturnDate") val expectedReturnDate: String? = null,
+    @SerializedName("status")             val status: String? = null,
+)
+
 // ── Budgets ───────────────────────────────────────────────────────────────────
 
 data class BudgetDto(
