@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.spendsync.notifications.PendingCapture
@@ -74,6 +75,11 @@ class SessionDataStore(private val context: Context) {
         private val KEY_AUTO_CAPTURE_PACKAGES = stringPreferencesKey("auto_capture_packages")
 
         private val KEY_PENDING_CAPTURES = stringPreferencesKey("pending_captures")
+
+        private val KEY_AMOUNT_MASKING_ENABLED = booleanPreferencesKey("amount_masking_enabled")
+        private val KEY_AMOUNT_VISIBILITY_DURATION_SECONDS = intPreferencesKey("amount_visibility_duration_seconds")
+        private val KEY_PIN_HASH = stringPreferencesKey("pin_hash")
+        private val KEY_PIN_SALT = stringPreferencesKey("pin_salt")
     }
 
     // ── Read ──────────────────────────────────────────────────────────────────
@@ -143,6 +149,22 @@ class SessionDataStore(private val context: Context) {
         parsePendingCaptures(prefs[KEY_PENDING_CAPTURES])
     }
 
+    val amountMaskingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AMOUNT_MASKING_ENABLED] ?: false
+    }
+
+    val amountVisibilityDurationSeconds: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AMOUNT_VISIBILITY_DURATION_SECONDS] ?: 60
+    }
+
+    val pinHash: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_PIN_HASH]
+    }
+
+    val pinSalt: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_PIN_SALT]
+    }
+
     // ── Write ─────────────────────────────────────────────────────────────────
 
     suspend fun saveSession(
@@ -173,6 +195,8 @@ class SessionDataStore(private val context: Context) {
             prefs.remove(KEY_PENDING_CAPTURES)
             prefs.remove(KEY_AUTO_CAPTURE_ENABLED)
             prefs.remove(KEY_AUTO_CAPTURE_PACKAGES)
+            prefs.remove(KEY_PIN_HASH)
+            prefs.remove(KEY_PIN_SALT)
         }
     }
 
@@ -262,6 +286,21 @@ class SessionDataStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             val current = parsePendingCaptures(prefs[KEY_PENDING_CAPTURES])
             prefs[KEY_PENDING_CAPTURES] = serializePendingCaptures(current - capture)
+        }
+    }
+
+    suspend fun updateAmountMaskingEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[KEY_AMOUNT_MASKING_ENABLED] = enabled }
+    }
+
+    suspend fun updateAmountVisibilityDurationSeconds(seconds: Int) {
+        context.dataStore.edit { prefs -> prefs[KEY_AMOUNT_VISIBILITY_DURATION_SECONDS] = seconds }
+    }
+
+    suspend fun setPin(hash: String, salt: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_PIN_HASH] = hash
+            prefs[KEY_PIN_SALT] = salt
         }
     }
 
