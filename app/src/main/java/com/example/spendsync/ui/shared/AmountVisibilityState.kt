@@ -14,7 +14,7 @@ import java.time.Instant
 class AmountVisibilityState {
     var isVisible by mutableStateOf(false)
         private set
-    var unlockedUntil: Instant? = null
+    var unlockedUntil: Instant? by mutableStateOf(null)
         private set
     var showUnlockPrompt by mutableStateOf(false)
         private set
