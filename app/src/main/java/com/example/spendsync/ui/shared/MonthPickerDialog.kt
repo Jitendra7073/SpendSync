@@ -51,13 +51,15 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 
+private enum class PickerMode { YEAR, MONTH, DAY }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MonthPickerDialog(
     current: LocalDate,
     onConfirm: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
-    // When set, days (and months) after this are shown but disabled — used by
+    // When set, days/months/years after this are shown but disabled — used by
     // the add-transaction date field so a transaction can never be backdated
     // into the future.
     maxDate: LocalDate? = null,
@@ -70,6 +72,11 @@ fun MonthPickerDialog(
     var viewYear  by rememberSaveable { mutableIntStateOf(current.year) }
     var viewMonth by rememberSaveable { mutableIntStateOf(current.monthValue) }
     var selected  by remember { mutableStateOf(current) }
+    // Always opens in Day mode, exactly like before — Year/Month are reached
+    // by tapping the header label to drill up, and exited by tapping a cell
+    // to drill back down to Day mode.
+    var mode by rememberSaveable { mutableStateOf(PickerMode.DAY) }
+    var yearWindowStart by rememberSaveable { mutableIntStateOf(current.year - 5) }
 
     BasicAlertDialog(
         onDismissRequest = onDismiss,
@@ -90,132 +97,115 @@ fun MonthPickerDialog(
             )
             Spacer(Modifier.height(16.dp))
 
-            // Month / Year navigation row
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
+                val atMaxMonth = maxDate != null &&
+                    YearMonth.of(viewYear, viewMonth) >= YearMonth.from(maxDate)
+                val atMaxYear = maxDate != null && viewYear >= maxDate.year
+                val atMaxYearWindow = maxDate != null && yearWindowStart + 11 >= maxDate.year
+
                 IconButton(onClick = {
-                    if (viewMonth == 1) { viewMonth = 12; viewYear-- } else viewMonth--
+                    when (mode) {
+                        PickerMode.DAY -> if (viewMonth == 1) { viewMonth = 12; viewYear-- } else viewMonth--
+                        PickerMode.MONTH -> viewYear--
+                        PickerMode.YEAR -> yearWindowStart -= 12
+                    }
                 }) {
                     Icon(
                         Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "Prev month",
+                        contentDescription = "Previous",
                         tint               = BrandBlue,
                     )
                 }
 
-                val monthName = java.time.Month.of(viewMonth)
-                    .getDisplayName(TextStyle.FULL, Locale.getDefault())
-                    .replaceFirstChar { it.uppercase() }
-
+                val headerLabel = when (mode) {
+                    PickerMode.DAY -> java.time.Month.of(viewMonth)
+                        .getDisplayName(TextStyle.FULL, Locale.getDefault())
+                        .replaceFirstChar { it.uppercase() } + " $viewYear"
+                    PickerMode.MONTH -> "$viewYear"
+                    PickerMode.YEAR -> "$yearWindowStart–${yearWindowStart + 11}"
+                }
                 Text(
-                    text       = "$monthName $viewYear",
+                    text       = headerLabel,
                     fontSize   = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color      = NeutralBlack,
+                    color      = BrandBlue,
+                    modifier   = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .then(
+                            if (mode != PickerMode.YEAR) Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication        = ripple(bounded = true, color = BrandBlue),
+                            ) {
+                                mode = if (mode == PickerMode.DAY) PickerMode.MONTH else PickerMode.YEAR
+                                yearWindowStart = viewYear - 5
+                            } else Modifier
+                        )
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
                 )
 
-                val atMaxMonth = maxDate != null &&
-                    YearMonth.of(viewYear, viewMonth) >= YearMonth.from(maxDate)
+                val nextDisabled = when (mode) {
+                    PickerMode.DAY -> atMaxMonth
+                    PickerMode.MONTH -> atMaxYear
+                    PickerMode.YEAR -> atMaxYearWindow
+                }
                 IconButton(
-                    enabled = !atMaxMonth,
+                    enabled = !nextDisabled,
                     onClick = {
-                        if (viewMonth == 12) { viewMonth = 1; viewYear++ } else viewMonth++
+                        when (mode) {
+                            PickerMode.DAY -> if (viewMonth == 12) { viewMonth = 1; viewYear++ } else viewMonth++
+                            PickerMode.MONTH -> viewYear++
+                            PickerMode.YEAR -> yearWindowStart += 12
+                        }
                     },
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Next month",
-                        tint               = if (atMaxMonth) NeutralLight else BrandBlue,
+                        contentDescription = "Next",
+                        tint               = if (nextDisabled) NeutralLight else BrandBlue,
                     )
                 }
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // Day-of-week headers (Mon..Sun)
-            val dowOrder = listOf(
-                DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
-                DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY,
-            )
-            Row(modifier = Modifier.fillMaxWidth()) {
-                dowOrder.forEach { dow ->
-                    Box(
-                        modifier         = Modifier.weight(1f),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text       = dow.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
-                            fontSize   = 11.sp,
-                            color      = NeutralMid,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(6.dp))
-
-            // Day grid
-            val ym          = YearMonth.of(viewYear, viewMonth)
-            val firstDay    = ym.atDay(1)
-            val startOffset = firstDay.dayOfWeek.value - 1 // Mon=1 -> offset 0
-            val daysInMonth = ym.lengthOfMonth()
-            val totalCells  = startOffset + daysInMonth
-            val rows        = (totalCells + 6) / 7
-
-            repeat(rows) { row ->
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    repeat(7) { col ->
-                        val cellIndex = row * 7 + col
-                        val day       = cellIndex - startOffset + 1
-                        val isValid   = day in 1..daysInMonth
-                        val date      = if (isValid) LocalDate.of(viewYear, viewMonth, day) else null
-                        val isSelected = date == selected
-                        val isToday    = date == LocalDate.now()
-                        val isDisabled = date != null && maxDate != null && date.isAfter(maxDate)
-                        val isSelectable = isValid && !isDisabled
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(2.dp)
-                                .height(36.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    when {
-                                        isSelected -> BrandBlue
-                                        isToday    -> BrandYellow.copy(alpha = 0.25f)
-                                        else       -> Color.Transparent
-                                    }
-                                )
-                                .then(
-                                    if (isSelectable) Modifier.clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication        = ripple(bounded = true, color = BrandBlue),
-                                    ) { selected = date!! }
-                                    else Modifier
-                                ),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (isValid) {
-                                Text(
-                                    text       = day.toString(),
-                                    fontSize   = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color      = when {
-                                        isDisabled -> NeutralLight
-                                        isSelected -> NeutralWhite
-                                        isToday    -> BrandBlue
-                                        else       -> NeutralBlack
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
+            when (mode) {
+                PickerMode.YEAR -> YearGrid(
+                    yearWindowStart = yearWindowStart,
+                    selectedYear    = viewYear,
+                    maxDate         = maxDate,
+                    brandBlue       = BrandBlue,
+                    neutralWhite    = NeutralWhite,
+                    neutralBlack    = NeutralBlack,
+                    neutralLight    = NeutralLight,
+                    onSelectYear    = { year -> viewYear = year; mode = PickerMode.MONTH },
+                )
+                PickerMode.MONTH -> MonthGrid(
+                    viewYear      = viewYear,
+                    selectedMonth = viewMonth,
+                    maxDate       = maxDate,
+                    brandBlue     = BrandBlue,
+                    neutralWhite  = NeutralWhite,
+                    neutralBlack  = NeutralBlack,
+                    neutralLight  = NeutralLight,
+                    onSelectMonth = { month -> viewMonth = month; mode = PickerMode.DAY },
+                )
+                PickerMode.DAY -> DayGrid(
+                    viewYear     = viewYear,
+                    viewMonth    = viewMonth,
+                    selected     = selected,
+                    maxDate      = maxDate,
+                    brandBlue    = BrandBlue,
+                    brandYellow  = BrandYellow,
+                    neutralWhite = NeutralWhite,
+                    neutralBlack = NeutralBlack,
+                    neutralMid   = NeutralMid,
+                    neutralLight = NeutralLight,
+                    onSelectDay  = { date -> selected = date },
+                )
             }
 
             Spacer(Modifier.height(16.dp))
@@ -229,7 +219,6 @@ fun MonthPickerDialog(
 
             Spacer(Modifier.height(12.dp))
 
-            // Action row
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
@@ -273,6 +262,211 @@ fun MonthPickerDialog(
                         fontSize   = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayGrid(
+    viewYear: Int,
+    viewMonth: Int,
+    selected: LocalDate,
+    maxDate: LocalDate?,
+    brandBlue: Color,
+    brandYellow: Color,
+    neutralWhite: Color,
+    neutralBlack: Color,
+    neutralMid: Color,
+    neutralLight: Color,
+    onSelectDay: (LocalDate) -> Unit,
+) {
+    Column {
+        val dowOrder = listOf(
+            DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+            DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY,
+        )
+        Row(modifier = Modifier.fillMaxWidth()) {
+            dowOrder.forEach { dow ->
+                Box(
+                    modifier         = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text       = dow.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                        fontSize   = 11.sp,
+                        color      = neutralMid,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        val ym          = YearMonth.of(viewYear, viewMonth)
+        val firstDay    = ym.atDay(1)
+        val startOffset = firstDay.dayOfWeek.value - 1
+        val daysInMonth = ym.lengthOfMonth()
+        val totalCells  = startOffset + daysInMonth
+        val rows        = (totalCells + 6) / 7
+
+        repeat(rows) { row ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                repeat(7) { col ->
+                    val cellIndex = row * 7 + col
+                    val day       = cellIndex - startOffset + 1
+                    val isValid   = day in 1..daysInMonth
+                    val date      = if (isValid) LocalDate.of(viewYear, viewMonth, day) else null
+                    val isSelected = date == selected
+                    val isToday    = date == LocalDate.now()
+                    val isDisabled = date != null && maxDate != null && date.isAfter(maxDate)
+                    val isSelectable = isValid && !isDisabled
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(2.dp)
+                            .height(36.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    isSelected -> brandBlue
+                                    isToday    -> brandYellow.copy(alpha = 0.25f)
+                                    else       -> Color.Transparent
+                                }
+                            )
+                            .then(
+                                if (isSelectable) Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication        = ripple(bounded = true, color = brandBlue),
+                                ) { onSelectDay(date!!) }
+                                else Modifier
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (isValid) {
+                            Text(
+                                text       = day.toString(),
+                                fontSize   = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color      = when {
+                                    isDisabled -> neutralLight
+                                    isSelected -> neutralWhite
+                                    isToday    -> brandBlue
+                                    else       -> neutralBlack
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthGrid(
+    viewYear: Int,
+    selectedMonth: Int,
+    maxDate: LocalDate?,
+    brandBlue: Color,
+    neutralWhite: Color,
+    neutralBlack: Color,
+    neutralLight: Color,
+    onSelectMonth: (Int) -> Unit,
+) {
+    Column {
+        repeat(4) { row ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                repeat(3) { col ->
+                    val month = row * 3 + col + 1
+                    val isSelected = month == selectedMonth
+                    val isDisabled = maxDate != null &&
+                        YearMonth.of(viewYear, month) > YearMonth.from(maxDate)
+                    val monthLabel = java.time.Month.of(month)
+                        .getDisplayName(TextStyle.SHORT, Locale.getDefault())
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(4.dp)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) brandBlue else Color.Transparent)
+                            .then(
+                                if (!isDisabled) Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication        = ripple(bounded = true, color = brandBlue),
+                                ) { onSelectMonth(month) }
+                                else Modifier
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text       = monthLabel,
+                            fontSize   = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color      = when {
+                                isDisabled -> neutralLight
+                                isSelected -> neutralWhite
+                                else       -> neutralBlack
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun YearGrid(
+    yearWindowStart: Int,
+    selectedYear: Int,
+    maxDate: LocalDate?,
+    brandBlue: Color,
+    neutralWhite: Color,
+    neutralBlack: Color,
+    neutralLight: Color,
+    onSelectYear: (Int) -> Unit,
+) {
+    Column {
+        repeat(4) { row ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                repeat(3) { col ->
+                    val year = yearWindowStart + row * 3 + col
+                    val isSelected = year == selectedYear
+                    val isDisabled = maxDate != null && year > maxDate.year
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(4.dp)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) brandBlue else Color.Transparent)
+                            .then(
+                                if (!isDisabled) Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication        = ripple(bounded = true, color = brandBlue),
+                                ) { onSelectYear(year) }
+                                else Modifier
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text       = year.toString(),
+                            fontSize   = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color      = when {
+                                isDisabled -> neutralLight
+                                isSelected -> neutralWhite
+                                else       -> neutralBlack
+                            },
+                        )
+                    }
                 }
             }
         }
