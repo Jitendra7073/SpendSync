@@ -71,6 +71,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -87,6 +88,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -109,6 +111,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.spendsync.ui.theme.SemanticError
 import com.example.spendsync.ui.theme.SemanticSuccess
 import com.example.spendsync.ui.shared.MonthPickerDialog
+import com.example.spendsync.notifications.HoldReminderWorker
 import androidx.compose.material.icons.filled.CalendarMonth
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -181,6 +184,7 @@ fun AddExpenseScreen(
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     val currencySymbol = "₹"
 
@@ -206,6 +210,11 @@ fun AddExpenseScreen(
         )
     }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    var expectReturn by remember { mutableStateOf(false) }
+    var holdPersonName by remember { mutableStateOf("") }
+    var holdReturnDate by remember { mutableStateOf(today) }
+    var showHoldDatePicker by remember { mutableStateOf(false) }
 
     // Auto-focus the amount as soon as the screen opens — it's the first
     // thing every transaction needs, so the keyboard should already be up.
@@ -538,6 +547,54 @@ fun AddExpenseScreen(
                             .padding(bottom = 8.dp)
                     )
                 }
+
+                // Inline "expect this back?" toggle — only for NEW transactions,
+                // a hold can't be attached retroactively while editing.
+                if (!isEditing && amount.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = if (type == TransactionType.EXPENSE) "Expect this back?" else "Need to pay this back?",
+                            color = NeutralWhite,
+                            fontSize = 14.sp,
+                        )
+                        Switch(checked = expectReturn, onCheckedChange = { expectReturn = it })
+                    }
+                    if (expectReturn) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = holdPersonName,
+                            onValueChange = { holdPersonName = it },
+                            placeholder = { Text("Who's this with?", color = NeutralWhite.copy(alpha = 0.60f), fontSize = 14.sp) },
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(color = NeutralWhite, fontSize = 14.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NeutralWhite,
+                                unfocusedBorderColor = NeutralWhite.copy(alpha = 0.40f),
+                                cursorColor = NeutralWhite,
+                                focusedLabelColor = NeutralWhite
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showHoldDatePicker = true }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = NeutralWhite)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Expected return: $holdReturnDate", color = NeutralWhite, fontSize = 14.sp)
+                        }
+                    }
+                }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -719,6 +776,34 @@ fun AddExpenseScreen(
                                          scope.launch { financeRepository.createCategory(keyword, chosenCategory) }
                                      }
                                      if (res is AuthResult.Success) {
+                                         if (!isEditing && expectReturn && holdPersonName.isNotBlank()) {
+                                             val direction = if (type == TransactionType.EXPENSE) "owed_to_me" else "owed_by_me"
+                                             val holdRes = financeRepository.createHold(
+                                                 transactionId = res.data.id,
+                                                 direction = direction,
+                                                 personName = holdPersonName,
+                                                 amount = amountVal,
+                                                 expectedReturnDate = "${holdReturnDate}T00:00:00.000Z",
+                                             )
+                                             if (holdRes is AuthResult.Success) {
+                                                 HoldReminderWorker.schedule(
+                                                     context = context,
+                                                     holdId = holdRes.data.id,
+                                                     personName = holdPersonName,
+                                                     amount = amountVal,
+                                                     direction = direction,
+                                                     expectedReturnDate = holdReturnDate,
+                                                 )
+                                             } else {
+                                                 toast = ToastMessage(
+                                                     "Transaction saved, but couldn't track the hold: ${(holdRes as AuthResult.Error).message}",
+                                                     isError = true,
+                                                 )
+                                                 delay(1500)
+                                                 onBack()
+                                                 return@launch
+                                             }
+                                         }
                                          toast = ToastMessage(
                                              if (isEditing) "Transaction updated" else "Transaction added",
                                              isError = false
@@ -808,6 +893,16 @@ fun AddExpenseScreen(
                 showDatePicker = false
             },
             onDismiss = { showDatePicker = false },
+        )
+    }
+
+    // Hold return-date picker — unlike the transaction date, this is meant to
+    // be in the future, so no maxDate cap is passed.
+    if (showHoldDatePicker) {
+        MonthPickerDialog(
+            current = holdReturnDate,
+            onConfirm = { picked -> holdReturnDate = picked; showHoldDatePicker = false },
+            onDismiss = { showHoldDatePicker = false },
         )
     }
     }
