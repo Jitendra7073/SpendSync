@@ -129,6 +129,7 @@ fun HomeScreen(
     refreshKey: Int = 0,
     onEditTransaction: (TransactionDto) -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenHolds: () -> Unit = {},
     // Set when a search result is picked from a different tab (Analytics/
     // Budget) — each request uses a distinct id so repeat-selecting the same
     // transaction still reopens the dialog.
@@ -191,10 +192,22 @@ fun HomeScreen(
         }
     }
 
+    var holdMoney by remember { mutableStateOf(0.0) }
+
     LaunchedEffect(refreshKey, balanceRefreshKey) {
         isBalanceLoading = true
         loadAllTimeBalance(forceRefresh = false)
         isBalanceLoading = false
+
+        when (val res = financeRepository.getHolds(status = "pending")) {
+            is AuthResult.Success -> {
+                holdMoney = res.data.sumOf { hold ->
+                    val amt = hold.amount.toDoubleOrNull() ?: 0.0
+                    if (hold.direction == "owed_to_me") amt else -amt
+                }
+            }
+            is AuthResult.Error -> Unit
+        }
     }
 
     // Dynamic Filter State
@@ -336,7 +349,7 @@ fun HomeScreen(
                         SkeletonLine(modifier = Modifier.width(160.dp), height = 32.dp)
                     } else {
                         Text(
-                            text       = formatInr(allTimeBalance ?: 0.0),
+                            text       = formatInr((allTimeBalance ?: 0.0) + holdMoney),
                             color      = NeutralWhite,
                             fontSize   = 28.sp,
                             fontWeight = FontWeight.Bold,
@@ -350,6 +363,35 @@ fun HomeScreen(
                             .clip(RoundedCornerShape(2.dp))
                             .background(BrandYellow),
                     )
+                    if (!isBalanceLoading) {
+                        Spacer(Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column {
+                                Text("Net Balance", color = NeutralWhite.copy(alpha = 0.70f), fontSize = 11.sp)
+                                Text(
+                                    text = formatInr(allTimeBalance ?: 0.0),
+                                    color = NeutralWhite,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                            Column(
+                                modifier = Modifier.clickable { onOpenHolds() },
+                                horizontalAlignment = Alignment.End,
+                            ) {
+                                Text("Hold Money →", color = NeutralWhite.copy(alpha = 0.70f), fontSize = 11.sp)
+                                Text(
+                                    text = formatInr(holdMoney),
+                                    color = NeutralWhite,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
