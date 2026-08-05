@@ -30,6 +30,7 @@ import com.example.spendsync.data.repository.AuthRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.navigation.BottomNavItem
 import com.example.spendsync.navigation.SpendSyncBottomBar
+import com.example.spendsync.ui.holds.HoldsScreen
 import com.example.spendsync.ui.home.HomeScreen
 import com.example.spendsync.ui.placeholder.AnalyticsScreen
 import com.example.spendsync.ui.placeholder.BudgetScreen
@@ -77,6 +78,9 @@ fun MainScreen(
     var presetType by remember { mutableStateOf<TransactionType?>(null) }
     var editingTransaction by remember { mutableStateOf<TransactionDto?>(null) }
     val expenseOverlayVisible = presetType != null || editingTransaction != null
+
+    // ── Holds list overlay — reached from Home's "Hold Money" stat ────────────
+    var showHolds by rememberSaveable { mutableStateOf(false) }
 
     // Bumped every time the add/edit overlay closes so Home reloads its list —
     // Home only reacts to date-filter changes otherwise.
@@ -185,6 +189,7 @@ fun MainScreen(
                         externalViewTransactionId = viewTransactionRequestId,
                         externalViewTransaction = viewTransactionRequestData,
                         onSignOut        = onSignOut,
+                        onOpenHolds      = { showHolds = true },
                     )
                 }
             }
@@ -218,6 +223,27 @@ fun MainScreen(
                         editTransaction = editingTransaction,
                         initialType = presetType,
                         onBack = { closeExpenseOverlay() },
+                    )
+                }
+            }
+
+            // ── Holds list overlay — same spring as the add/edit-expense one ──
+            AnimatedContent(
+                targetState    = showHolds,
+                transitionSpec = {
+                    if (targetState) {
+                        slideInVertically(animationSpec = overlaySlideSpec) { it } togetherWith fadeOut(tween(0))
+                    } else {
+                        fadeIn(tween(0)) togetherWith
+                            slideOutVertically(animationSpec = overlaySlideSpec) { it }
+                    }
+                },
+                label = "holds_overlay",
+            ) { visible ->
+                if (visible) {
+                    HoldsScreen(
+                        financeRepository = financeRepository,
+                        onBack = { showHolds = false },
                     )
                 }
             }
