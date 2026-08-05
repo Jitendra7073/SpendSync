@@ -164,6 +164,80 @@ class FinanceRepository(
         }
     }
 
+    // ── Holds ─────────────────────────────────────────────────────────────────
+
+    suspend fun createHold(
+        transactionId: String,
+        direction: String,
+        personName: String,
+        amount: Double,
+        expectedReturnDate: String,
+    ): AuthResult<HoldDto> {
+        return try {
+            val request = CreateHoldRequest(transactionId, direction, personName, amount, expectedReturnDate)
+            val response = api.createHold(getAuthHeader(), request)
+            if (response.isSuccessful && response.body() != null) {
+                cacheInvalidate("holds")
+                AuthResult.Success(response.body()!!.data)
+            } else {
+                AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    suspend fun getHolds(status: String? = null, direction: String? = null): AuthResult<List<HoldDto>> {
+        val key = "holds:$status:$direction"
+        cached<List<HoldDto>>(key)?.let { return AuthResult.Success(it) }
+        return try {
+            val response = api.getHolds(getAuthHeader(), status, direction)
+            if (response.isSuccessful && response.body() != null) {
+                val data = response.body()!!.data
+                cache[key] = data
+                AuthResult.Success(data)
+            } else {
+                AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    suspend fun updateHold(
+        id: String,
+        status: String? = null,
+        personName: String? = null,
+        expectedReturnDate: String? = null,
+    ): AuthResult<HoldDto> {
+        return try {
+            val request = UpdateHoldRequest(personName, expectedReturnDate, status)
+            val response = api.updateHold(getAuthHeader(), id, request)
+            if (response.isSuccessful && response.body() != null) {
+                cacheInvalidate("holds")
+                AuthResult.Success(response.body()!!.data)
+            } else {
+                AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    suspend fun deleteHold(id: String): AuthResult<Unit> {
+        return try {
+            val response = api.deleteHold(getAuthHeader(), id)
+            if (response.isSuccessful) {
+                cacheInvalidate("holds")
+                AuthResult.Success(Unit)
+            } else {
+                AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
     // ── Budgets ───────────────────────────────────────────────────────────────
 
     suspend fun getBudgets(month: String? = null, category: String? = null, forceRefresh: Boolean = false): AuthResult<List<BudgetDto>> {
