@@ -146,6 +146,7 @@ fun ProfileScreen(
     val autoCapturePackages by sessionDataStore.autoCapturePackages.collectAsState(initial = emptySet())
     val amountMaskingEnabled by sessionDataStore.amountMaskingEnabled.collectAsState(initial = false)
     val amountVisibilityDurationSeconds by sessionDataStore.amountVisibilityDurationSeconds.collectAsState(initial = 60)
+    val pinHash by sessionDataStore.pinHash.collectAsState(initial = null)
 
     val today = remember { LocalDate.now() }
 
@@ -762,7 +763,7 @@ fun ProfileScreen(
     if (showPinSetupDialog) {
         PinSetupDialog(
             sessionDataStore = sessionDataStore,
-            requireCurrentPin = false,
+            requireCurrentPin = pinHash != null,
             onDone = {
                 showPinSetupDialog = false
                 scope.launch { sessionDataStore.updateAmountMaskingEnabled(true) }
