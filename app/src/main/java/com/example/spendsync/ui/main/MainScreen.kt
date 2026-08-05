@@ -16,6 +16,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,8 +36,10 @@ import com.example.spendsync.ui.home.HomeScreen
 import com.example.spendsync.ui.placeholder.AnalyticsScreen
 import com.example.spendsync.ui.placeholder.BudgetScreen
 import com.example.spendsync.ui.profile.ProfileScreen
+import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.DateFilterState
 import com.example.spendsync.ui.shared.MonthPickerDialog
+import com.example.spendsync.ui.shared.PinUnlockDialog
 import com.example.spendsync.ui.transaction.AddExpenseScreen
 import com.example.spendsync.ui.transaction.AddTransactionTypeSheet
 import com.example.spendsync.ui.transaction.TransactionType
@@ -59,6 +62,18 @@ fun MainScreen(
 ) {
     // ── Shared date filter — one instance, all tabs read/mutate it ────────────
     val dateFilterState = remember { DateFilterState() }
+
+    // ── Shared amount-visibility session — one unlock, every tab reflects it ──
+    val amountVisibility = remember { AmountVisibilityState() }
+
+    LaunchedEffect(amountVisibility.unlockedUntil) {
+        val until = amountVisibility.unlockedUntil ?: return@LaunchedEffect
+        val remainingMs = java.time.Duration.between(java.time.Instant.now(), until).toMillis()
+        if (remainingMs > 0) {
+            kotlinx.coroutines.delay(remainingMs)
+        }
+        amountVisibility.lock()
+    }
 
     // ── Tab selection — a real swipeable pager (Home/Analytics/Budget/Profile;
     // the FAB "Add" isn't a page, it opens the overlay below instead) so tabs
@@ -161,6 +176,7 @@ fun MainScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
                         dateFilterState = dateFilterState,
+                        amountVisibility = amountVisibility,
                         onOpenSettings = ::requestOpenSettings,
                         onViewTransaction = ::requestViewTransaction,
                     )
@@ -168,6 +184,7 @@ fun MainScreen(
                         sessionDataStore = sessionDataStore,
                         financeRepository = financeRepository,
                         dateFilterState = dateFilterState,
+                        amountVisibility = amountVisibility,
                         onOpenSettings = ::requestOpenSettings,
                         onViewTransaction = ::requestViewTransaction,
                     )
@@ -176,6 +193,7 @@ fun MainScreen(
                         repository       = repository,
                         financeRepository = financeRepository,
                         openSettingsRequestId = openSettingsRequestId,
+                        amountVisibility = amountVisibility,
                         onSignOut        = onSignOut,
                     )
                     else -> HomeScreen(
@@ -183,6 +201,7 @@ fun MainScreen(
                         financeRepository = financeRepository,
                         sessionDataStore = sessionDataStore,
                         dateFilterState  = dateFilterState,
+                        amountVisibility = amountVisibility,
                         refreshKey       = homeRefreshKey,
                         onEditTransaction = { tx -> editingTransaction = tx },
                         onOpenSettings   = ::requestOpenSettings,
@@ -243,6 +262,7 @@ fun MainScreen(
                 if (visible) {
                     HoldsScreen(
                         financeRepository = financeRepository,
+                        amountVisibility = amountVisibility,
                         // Home stays composed underneath this overlay, so settling
                         // a hold here leaves its balance card stale unless we bump
                         // the same key closeExpenseOverlay() uses.
@@ -274,6 +294,15 @@ fun MainScreen(
                     onDismiss = {
                         dateFilterState.showMonthPicker = false
                     }
+                )
+            }
+
+            // ── Shared PIN-unlock dialog — triggered from any tab's eye icon ──
+            if (amountVisibility.showUnlockPrompt) {
+                PinUnlockDialog(
+                    sessionDataStore = sessionDataStore,
+                    onUnlock = { durationSeconds -> amountVisibility.unlock(durationSeconds) },
+                    onDismiss = { amountVisibility.dismissUnlockPrompt() },
                 )
             }
         }
