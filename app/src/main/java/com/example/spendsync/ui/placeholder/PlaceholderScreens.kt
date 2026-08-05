@@ -53,7 +53,6 @@ import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.remote.model.*
 import com.example.spendsync.utils.LocalizationUtils
-import com.example.spendsync.utils.formatInr
 import com.example.spendsync.ui.components.SkeletonBox
 import com.example.spendsync.ui.components.SkeletonLine
 import com.example.spendsync.ui.components.ToastHost
@@ -86,8 +85,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendsync.ui.home.MockTransaction
 import com.example.spendsync.ui.home.TransactionType
+import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.CalendarHeader
 import com.example.spendsync.ui.shared.DateFilterState
+import com.example.spendsync.ui.shared.MaskableAmountText
 import com.example.spendsync.ui.theme.BrandBlue
 import com.example.spendsync.ui.theme.chartCategoricalColors
 import com.example.spendsync.ui.theme.NeutralBlack
@@ -165,6 +166,7 @@ fun AnalyticsScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
     dateFilterState: DateFilterState,
+    amountVisibility: AmountVisibilityState,
     onOpenSettings: () -> Unit = {},
     onViewTransaction: (TransactionDto) -> Unit = {},
 ) {
@@ -443,7 +445,8 @@ fun AnalyticsScreen(
                 ) {
                     OverviewStat(
                         label = LocalizationUtils.getTranslation("income", language),
-                        amount = formatInr(totalIncome),
+                        amount = totalIncome,
+                        amountVisibility = amountVisibility,
                         color = SemanticSuccess,
                         modifier = Modifier.weight(1f),
                     )
@@ -456,7 +459,8 @@ fun AnalyticsScreen(
                     )
                     OverviewStat(
                         label = LocalizationUtils.getTranslation("expenses", language),
-                        amount = formatInr(totalExpenses),
+                        amount = totalExpenses,
+                        amountVisibility = amountVisibility,
                         color = SemanticError,
                         modifier = Modifier.weight(1f),
                     )
@@ -469,7 +473,9 @@ fun AnalyticsScreen(
                     )
                     OverviewStat(
                         label = "Net Balance",
-                        amount = "${if (totalBalance >= 0) "+" else "-"}${formatInr(kotlin.math.abs(totalBalance))}",
+                        amount = kotlin.math.abs(totalBalance),
+                        amountVisibility = amountVisibility,
+                        prefix = if (totalBalance >= 0) "+" else "-",
                         color = if (totalBalance >= 0) SemanticSuccess else SemanticError,
                         modifier = Modifier.weight(1f),
                     )
@@ -494,6 +500,7 @@ fun AnalyticsScreen(
                     SpendingTrendChart(
                         points = trendPoints,
                         lineColor = BrandBlue,
+                        amountVisibility = amountVisibility,
                     )
                 }
             }
@@ -516,6 +523,7 @@ fun AnalyticsScreen(
                     CategoryBarChart(
                         items = chartCategoryData,
                         totalExpenseSum = totalExpenses,
+                        amountVisibility = amountVisibility,
                     )
                 }
             }
@@ -538,6 +546,7 @@ fun AnalyticsScreen(
                     DoubleBarChart(
                         income = totalIncome.toFloat(),
                         expense = totalExpenses.toFloat(),
+                        amountVisibility = amountVisibility,
                     )
                 }
             }
@@ -557,7 +566,9 @@ fun AnalyticsScreen(
                 // 1. Savings Rate Insights
                 InsightCard(
                     title = "Savings Rate",
-                    value = "%,.1f%%".format(savingsRate),
+                    value = savingsRate,
+                    amountVisibility = amountVisibility,
+                    isPercentage = true,
                     desc = if (savingsRate >= 20.0) "Excellent! You are building safety funds." else "Aim to save at least 20% of your earnings.",
                     icon = Icons.Default.Savings,
                     accentColor = SemanticSuccess
@@ -571,7 +582,8 @@ fun AnalyticsScreen(
                 val avgDaily = totalExpenses / daysCount
                 InsightCard(
                     title = "Average Daily Spend",
-                    value = formatInr(avgDaily),
+                    value = avgDaily,
+                    amountVisibility = amountVisibility,
                     desc = "Calculated over a range of $daysCount day(s).",
                     icon = Icons.Default.Wallet,
                     accentColor = BrandBlue
@@ -667,21 +679,24 @@ private fun SectionHeader(title: String, subtitle: String? = null) {
 @Composable
 private fun OverviewStat(
     label: String,
-    amount: String,
+    amount: Double,
+    amountVisibility: AmountVisibilityState,
     color: Color,
     modifier: Modifier = Modifier,
+    prefix: String = "",
 ) {
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = amount,
+        MaskableAmountText(
+            amount = amount,
+            visibility = amountVisibility,
+            prefix = prefix,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = color,
-            maxLines = 1,
         )
         Spacer(Modifier.height(4.dp))
         Text(text = label, fontSize = 11.sp, color = NeutralMid, maxLines = 1)
@@ -695,6 +710,7 @@ private fun OverviewStat(
 private fun SpendingTrendChart(
     points: List<TrendPoint>,
     lineColor: Color,
+    amountVisibility: AmountVisibilityState,
 ) {
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
@@ -722,12 +738,17 @@ private fun SpendingTrendChart(
     val peakIndex = points.indices.maxByOrNull { points[it].spent } ?: 0
 
     Column {
-        Text(
-            text = "Peak: ${formatInr(points[peakIndex].spent)}" + " · ${points[peakIndex].label}",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = NeutralBlack,
-        )
+        Row {
+            Text(text = "Peak: ", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NeutralBlack)
+            MaskableAmountText(
+                amount = points[peakIndex].spent,
+                visibility = amountVisibility,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = NeutralBlack,
+            )
+            Text(text = " · ${points[peakIndex].label}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NeutralBlack)
+        }
         Spacer(Modifier.height(12.dp))
 
         Canvas(
@@ -818,6 +839,7 @@ private fun SpendingTrendChart(
 private fun CategoryBarChart(
     items: List<Triple<String, Double, Color>>,
     totalExpenseSum: Double,
+    amountVisibility: AmountVisibilityState,
 ) {
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
@@ -854,11 +876,15 @@ private fun CategoryBarChart(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(text = category, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NeutralBlack)
-                    Text(
-                        text = "${formatInr(amount)}  ·  %,.1f%%".format(pct),
-                        fontSize = 12.sp,
-                        color = NeutralMid,
-                    )
+                    Row {
+                        MaskableAmountText(
+                            amount = amount,
+                            visibility = amountVisibility,
+                            fontSize = 12.sp,
+                            color = NeutralMid,
+                        )
+                        Text(text = "  ·  %,.1f%%".format(pct), fontSize = 12.sp, color = NeutralMid)
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
                 Box(
@@ -888,6 +914,7 @@ private fun CategoryBarChart(
 private fun DoubleBarChart(
     income: Float,
     expense: Float,
+    amountVisibility: AmountVisibilityState,
 ) {
     val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
     val maxVal = maxOf(income, expense, 1f)
@@ -899,7 +926,8 @@ private fun DoubleBarChart(
         horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
     ) {
         ComparisonBar(
-            formattedValue = formatInr(income.toDouble()),
+            amount = income.toDouble(),
+            amountVisibility = amountVisibility,
             label = "Income",
             fraction = income / maxVal,
             color = SemanticSuccess,
@@ -907,7 +935,8 @@ private fun DoubleBarChart(
             modifier = Modifier.weight(1f),
         )
         ComparisonBar(
-            formattedValue = formatInr(expense.toDouble()),
+            amount = expense.toDouble(),
+            amountVisibility = amountVisibility,
             label = "Expenses",
             fraction = expense / maxVal,
             color = SemanticError,
@@ -919,7 +948,8 @@ private fun DoubleBarChart(
 
 @Composable
 private fun ComparisonBar(
-    formattedValue: String,
+    amount: Double,
+    amountVisibility: AmountVisibilityState,
     label: String,
     fraction: Float,
     color: Color,
@@ -932,7 +962,13 @@ private fun ComparisonBar(
         modifier = modifier.fillMaxHeight(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(formattedValue, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = NeutralBlack, maxLines = 1)
+        MaskableAmountText(
+            amount = amount,
+            visibility = amountVisibility,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = NeutralBlack,
+        )
         Spacer(Modifier.height(8.dp))
         Box(
             modifier = Modifier
@@ -963,10 +999,14 @@ private fun ComparisonBar(
 @Composable
 private fun InsightCard(
     title: String,
-    value: String,
+    value: Double,
+    amountVisibility: AmountVisibilityState,
     desc: String,
     icon: ImageVector,
-    accentColor: Color
+    accentColor: Color,
+    // Savings Rate is a percentage, not a rupee amount — it must never be
+    // routed through INR formatting or the masking session.
+    isPercentage: Boolean = false,
 ) {
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
@@ -999,7 +1039,17 @@ private fun InsightCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, fontSize = 12.sp, color = NeutralMid, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(2.dp))
-                Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = NeutralBlack)
+                if (isPercentage) {
+                    Text(text = "%,.1f%%".format(value), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = NeutralBlack)
+                } else {
+                    MaskableAmountText(
+                        amount = value,
+                        visibility = amountVisibility,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = NeutralBlack,
+                    )
+                }
                 Spacer(Modifier.height(2.dp))
                 Text(text = desc, fontSize = 11.sp, color = NeutralMid)
             }
@@ -1117,6 +1167,7 @@ fun BudgetScreen(
     sessionDataStore: SessionDataStore,
     financeRepository: FinanceRepository,
     dateFilterState: DateFilterState,
+    amountVisibility: AmountVisibilityState,
     onOpenSettings: () -> Unit = {},
     onViewTransaction: (TransactionDto) -> Unit = {},
 ) {
@@ -1254,11 +1305,12 @@ fun BudgetScreen(
                         fontWeight = FontWeight.Medium
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = formatInr(totalBudget),
+                    MaskableAmountText(
+                        amount = totalBudget,
+                        visibility = amountVisibility,
                         color = NeutralBlack,
                         fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(16.dp))
 
@@ -1266,16 +1318,23 @@ fun BudgetScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "Spent: ${formatInr(totalSpent)}",
-                            fontSize = 12.sp,
-                            color = NeutralMid
-                        )
-                        Text(
-                            text = "Remaining: ${formatInr((totalBudget - totalSpent).coerceAtLeast(0.0))}",
-                            fontSize = 12.sp,
-                            color = if (totalSpent > totalBudget) Color.Red else BrandBlue
-                        )
+                        Row {
+                            Text(text = "Spent: ", fontSize = 12.sp, color = NeutralMid)
+                            MaskableAmountText(amount = totalSpent, visibility = amountVisibility, fontSize = 12.sp, color = NeutralMid)
+                        }
+                        Row {
+                            Text(
+                                text = "Remaining: ",
+                                fontSize = 12.sp,
+                                color = if (totalSpent > totalBudget) Color.Red else BrandBlue,
+                            )
+                            MaskableAmountText(
+                                amount = (totalBudget - totalSpent).coerceAtLeast(0.0),
+                                visibility = amountVisibility,
+                                fontSize = 12.sp,
+                                color = if (totalSpent > totalBudget) Color.Red else BrandBlue,
+                            )
+                        }
                     }
 
                     Spacer(Modifier.height(8.dp))
@@ -1374,12 +1433,11 @@ fun BudgetScreen(
                                       fontSize = 14.sp,
                                       color = NeutralBlack
                                   )
-                                  Text(
-                                      text = "${formatInr(spent)} / ${formatInr(limit)}",
-                                      fontWeight = FontWeight.SemiBold,
-                                      fontSize = 12.sp,
-                                      color = NeutralBlack
-                                  )
+                                  Row {
+                                      MaskableAmountText(amount = spent, visibility = amountVisibility, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = NeutralBlack)
+                                      Text(text = " / ", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = NeutralBlack)
+                                      MaskableAmountText(amount = limit, visibility = amountVisibility, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = NeutralBlack)
+                                  }
                             }
                             Spacer(Modifier.height(8.dp))
                             LinearProgressIndicator(
