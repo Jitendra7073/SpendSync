@@ -95,7 +95,8 @@ fun MainScreen(
     // the FAB "Add" isn't a page, it opens the overlay below instead) so tabs
     // can be reached either by dragging left/right or by tapping the bottom bar.
     val pages = remember {
-        listOf(BottomNavItem.Home.route, BottomNavItem.Analytics.route, BottomNavItem.Budget.route, BottomNavItem.Profile.route)
+        // Budget is last and has no tab in the bar: reachable from the assistant, never passed through when swiping.
+        listOf(BottomNavItem.Home.route, BottomNavItem.Analytics.route, BottomNavItem.Profile.route, BottomNavItem.Budget.route)
     }
     val pagerState = rememberPagerState(initialPage = 0) { pages.size }
     val selectedRoute = pages[pagerState.currentPage]
@@ -183,6 +184,7 @@ fun MainScreen(
                     onItemSelected = { item ->
                         when {
                             item.isFab -> showTypeSheet = true
+                            item.route == BottomNavItem.Assistant.route -> showAssistant = true
                             else -> {
                                 val index = pages.indexOf(item.route)
                                 if (index >= 0) jumpToTab(index)

@@ -5,6 +5,8 @@ import com.example.spendsync.R
 import com.example.spendsync.ui.i18n.tr
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.remote.ApiClient
+import com.example.spendsync.data.remote.model.ForgotPasswordRequest
+import com.example.spendsync.data.remote.model.ResetPasswordRequest
 import com.example.spendsync.data.remote.model.SignInRequest
 import com.example.spendsync.data.remote.model.SignUpRequest
 import com.google.gson.Gson
@@ -98,6 +100,23 @@ class AuthRepository(
         } catch (e: Exception) {
             AuthResult.Error(e.toUserMessage())
         }
+    }
+
+    // ── Forgot password ───────────────────────────────────────────────────────
+
+    /** Asks the server to email a reset code. Success does not prove the email has an account (on purpose). */
+    suspend fun requestResetCode(email: String, language: String): AuthResult<Unit> = try {
+        val response = api.forgotPassword(ForgotPasswordRequest(email = email, language = language))
+        if (response.isSuccessful) AuthResult.Success(Unit) else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+    } catch (e: Exception) {
+        AuthResult.Error(e.toUserMessage())
+    }
+
+    suspend fun resetPassword(email: String, code: String, newPassword: String): AuthResult<Unit> = try {
+        val response = api.resetPassword(ResetPasswordRequest(email = email, code = code, newPassword = newPassword))
+        if (response.isSuccessful) AuthResult.Success(Unit) else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+    } catch (e: Exception) {
+        AuthResult.Error(e.toUserMessage())
     }
 
     // ── Session Check ─────────────────────────────────────────────────────────

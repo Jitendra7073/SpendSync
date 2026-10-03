@@ -15,6 +15,9 @@ object ServerMessages {
         return when {
             c == "INVALID_EMAIL_OR_PASSWORD" || "invalid email or password" in m -> tr(R.string.err_invalid_credentials)
             c == "USER_ALREADY_EXISTS" || "user already exists" in m -> tr(R.string.err_user_exists)
+            c == "INVALID_CODE" -> tr(R.string.auth_err_code_invalid)
+            c == "CODE_EXPIRED" -> tr(R.string.auth_err_code_expired)
+            c == "TOO_MANY_ATTEMPTS" -> tr(R.string.auth_err_too_many)
             c == "PASSWORD_TOO_SHORT" || "password too short" in m -> tr(R.string.password_must_be_at_least_8)
             c == "RATE_LIMIT_EXCEEDED" || "too many requests" in m -> tr(R.string.err_rate_limit)
             c == "VALIDATION_ERROR" || "validation failed" in m -> tr(R.string.err_validation)

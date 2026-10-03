@@ -1,5 +1,7 @@
 package com.example.spendsync.data.remote
 
+import com.example.spendsync.data.remote.model.ForgotPasswordRequest
+import com.example.spendsync.data.remote.model.ResetPasswordRequest
 import com.example.spendsync.data.remote.model.SessionResponse
 import com.example.spendsync.data.remote.model.SignInRequest
 import com.example.spendsync.data.remote.model.SignInResponse
@@ -30,6 +32,14 @@ interface AuthApiService {
     /** Verify that the current session token is still valid. */
     @GET("api/auth/get-session")
     suspend fun getSession(@Header("Authorization") token: String): Response<SessionResponse>
+
+    /** Emails a 6-character reset code. Always answers the same, whether or not the email has an account. */
+    @POST("api/password/forgot")
+    suspend fun forgotPassword(@Body body: ForgotPasswordRequest): Response<Unit>
+
+    /** Checks the emailed code and sets the new password. */
+    @POST("api/password/reset")
+    suspend fun resetPassword(@Body body: ResetPasswordRequest): Response<Unit>
 
     /** Sign out — invalidates the server-side session. */
     @POST("api/auth/sign-out")

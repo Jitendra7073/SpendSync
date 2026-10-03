@@ -13,6 +13,8 @@ export interface LayoutInput {
   /** Short line shown next to the inbox subject in most mail apps. */
   preheader: string;
   intro?: string;
+  /** A big, easy-to-copy value such as a one-time code. */
+  highlight?: { label: string; value: string };
   rows?: Array<[string, string]>;
   sections?: EmailSection[];
   footer?: string;
@@ -30,7 +32,7 @@ export function renderEmail(l: LayoutInput): string {
   const sections = (l.sections ?? [])
     .map(
       (s) =>
-        `<div style="margin-top:22px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5b6b73;font-weight:700;margin-bottom:8px">${esc(s.heading)}</div>` +
+        `<div style="margin-top:22px">${s.heading ? `<div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5b6b73;font-weight:700;margin-bottom:8px">${esc(s.heading)}</div>` : ''}` +
         `<div style="background:#f3f6f7;border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.55;color:#12222a;white-space:pre-wrap">${esc(s.body)}</div></div>`,
     )
     .join('');
@@ -43,6 +45,10 @@ export function renderEmail(l: LayoutInput): string {
     `<div style="color:#ffffff;font-size:22px;font-weight:700;margin-top:4px">${esc(l.title)}</div></td></tr>` +
     `<tr><td style="padding:24px 28px 28px">` +
     (l.intro ? `<p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#12222a">${esc(l.intro)}</p>` : '') +
+    (l.highlight
+      ? `<div style="margin:4px 0 20px;text-align:center"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5b6b73;font-weight:700">${esc(l.highlight.label)}</div>` +
+        `<div style="display:inline-block;margin-top:8px;padding:14px 26px;border-radius:12px;background:#e6f4f3;color:#0b5f5a;font-family:Consolas,Menlo,monospace;font-size:34px;font-weight:700;letter-spacing:.35em;padding-left:calc(26px + .35em)">${esc(l.highlight.value)}</div></div>`
+      : '') +
     (rows ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e3eaed;border-bottom:1px solid #e3eaed">${rows}</table>` : '') +
     sections +
     (l.footer ? `<p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#7a8a92">${esc(l.footer)}</p>` : '') +

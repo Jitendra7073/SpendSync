@@ -2,6 +2,19 @@ package com.example.spendsync.data.remote.model
 
 import com.google.gson.annotations.SerializedName
 
+// ── Forgot password ──────────────────────────────────────────────────────────
+
+data class ForgotPasswordRequest(
+    @SerializedName("email")    val email: String,
+    @SerializedName("language") val language: String,
+)
+
+data class ResetPasswordRequest(
+    @SerializedName("email")       val email: String,
+    @SerializedName("code")        val code: String,
+    @SerializedName("newPassword") val newPassword: String,
+)
+
 // ── Sign-In ──────────────────────────────────────────────────────────────────
 
 data class SignInRequest(

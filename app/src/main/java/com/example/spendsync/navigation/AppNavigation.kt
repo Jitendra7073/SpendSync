@@ -24,6 +24,7 @@ import com.example.spendsync.data.repository.AuthRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.ui.auth.AuthViewModel
 import com.example.spendsync.ui.auth.AuthViewModelFactory
+import com.example.spendsync.ui.auth.ForgotPasswordScreen
 import com.example.spendsync.ui.auth.LoginScreen
 import com.example.spendsync.ui.auth.RegisterScreen
 import com.example.spendsync.ui.main.MainScreen
@@ -36,6 +37,7 @@ import kotlinx.coroutines.launch
 object Route {
     const val LOGIN    = "login"
     const val REGISTER = "register"
+    const val FORGOT   = "forgot_password"
     const val MAIN     = "main"   // hosts MainScreen which owns the bottom nav
 }
 
@@ -149,6 +151,17 @@ fun AppNavigation(
                 onNavigateToRegister = {
                     navController.navigate(Route.REGISTER)
                 },
+                onNavigateToForgot = {
+                    navController.navigate(Route.FORGOT)
+                },
+            )
+        }
+
+        // ── Forgot password ───────────────────────────────────────────────────
+        composable(route = Route.FORGOT) {
+            ForgotPasswordScreen(
+                viewModel = authViewModel,
+                onBack    = { navController.navigateUp() },
             )
         }
 

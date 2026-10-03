@@ -6,6 +6,7 @@ import com.example.spendsync.ui.i18n.tr
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Wallet
@@ -21,6 +22,8 @@ sealed class BottomNavItem(
     @StringRes val labelRes: Int,
     val icon: ImageVector,
     val isFab: Boolean = false,
+    /** False for items that open something (the assistant) instead of switching to a page. */
+    val selectable: Boolean = true,
 ) {
     val label: String get() = tr(labelRes)
 
@@ -43,6 +46,15 @@ sealed class BottomNavItem(
         isFab  = true,
     )
 
+    /** Opens the assistant chat; not a page, so it is never highlighted as the current tab. */
+    object Assistant : BottomNavItem(
+        route = "tab_assistant",
+        labelRes = R.string.assistant_title,
+        icon  = Icons.Default.AutoAwesome,
+        selectable = false,
+    )
+
+    /** Still a page (reachable from the assistant), but hidden from the bottom bar. */
     object Budget : BottomNavItem(
         route = "tab_budget",
         labelRes = R.string.budget,
@@ -64,6 +76,6 @@ sealed class BottomNavItem(
         // assigned. The list would then contain `null` entries, causing a
         // NullPointerException in SpendSyncBottomBar (item.isFab). Deferring with
         // `by lazy` guarantees every object is fully constructed before use.
-        val all by lazy { listOf(Home, Analytics, AddTransaction, Budget, Profile) }
+        val all by lazy { listOf(Home, Analytics, Profile, Assistant, AddTransaction) }
     }
 }

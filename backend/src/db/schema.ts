@@ -214,3 +214,20 @@ export const supportTickets = pgTable('support_tickets', {
   emailError: text('email_error'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+// ============================================================================
+// PASSWORD RESET CODES
+// ============================================================================
+
+export const passwordResets = pgTable('password_resets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  codeHash: text('code_hash').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
