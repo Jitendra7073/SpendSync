@@ -36,7 +36,8 @@ data class AuthUiState(
     val resendSeconds: Int = 0,
 )
 
-enum class ResetStep { Email, Code }
+/** Email -> enter the code (checked on its own) -> only then choose a new password. */
+enum class ResetStep { Email, Code, Password }
 
 // ── One-shot events (toast messages, navigation) ──────────────────────────────
 
@@ -133,7 +134,33 @@ class AuthViewModel(
 
     private var cooldownJob: Job? = null
 
-    fun onResetCodeChanged(value: String) { _uiState.value = _uiState.value.copy(resetCode = normalizeResetCode(value)) }
+    fun onResetCodeChanged(value: String) {
+        val code = normalizeResetCode(value)
+        _uiState.value = _uiState.value.copy(resetCode = code)
+        if (code.length == RESET_CODE_LENGTH) verifyResetCode() // check as soon as the sixth character is in
+    }
+
+    /** Step 2: ask the server whether the code is right. Only a correct code opens the password step. */
+    fun verifyResetCode() {
+        val state = _uiState.value
+        if (state.isLoading || state.resetStep != ResetStep.Code) return
+        if (state.resetCode.length != RESET_CODE_LENGTH) { sendError(tr(R.string.auth_code_invalid_len)); return }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            when (val result = repository.verifyResetCode(state.email, state.resetCode)) {
+                is AuthResult.Success -> _uiState.value = _uiState.value.copy(isLoading = false, resetStep = ResetStep.Password)
+                is AuthResult.Error -> {
+                    _uiState.value = _uiState.value.copy(isLoading = false, resetCode = "")
+                    _events.send(AuthEvent.ShowToast(result.message))
+                }
+            }
+        }
+    }
+
+    /** Back arrow on the password step: return to the code step to type it again. */
+    fun backToCodeStep() {
+        _uiState.value = _uiState.value.copy(resetStep = ResetStep.Code, resetCode = "", newPassword = "", confirmNewPassword = "")
+    }
     fun onNewPasswordChanged(value: String) { _uiState.value = _uiState.value.copy(newPassword = value) }
     fun onConfirmNewPasswordChanged(value: String) { _uiState.value = _uiState.value.copy(confirmNewPassword = value) }
     fun toggleNewPasswordVisibility() { _uiState.value = _uiState.value.copy(newPasswordVisible = !_uiState.value.newPasswordVisible) }
@@ -177,6 +204,7 @@ class AuthViewModel(
         val state = _uiState.value
         if (state.isLoading) return
         when {
+            state.resetStep != ResetStep.Password -> return
             state.resetCode.length != RESET_CODE_LENGTH -> return sendError(tr(R.string.auth_code_invalid_len))
             state.newPassword.length < 8 -> return sendError(tr(R.string.password_must_be_at_least_8))
             state.newPassword != state.confirmNewPassword -> return sendError(tr(R.string.passwords_do_not_match))

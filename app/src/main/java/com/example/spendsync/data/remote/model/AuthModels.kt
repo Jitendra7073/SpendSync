@@ -9,6 +9,11 @@ data class ForgotPasswordRequest(
     @SerializedName("language") val language: String,
 )
 
+data class VerifyCodeRequest(
+    @SerializedName("email") val email: String,
+    @SerializedName("code")  val code: String,
+)
+
 data class ResetPasswordRequest(
     @SerializedName("email")       val email: String,
     @SerializedName("code")        val code: String,

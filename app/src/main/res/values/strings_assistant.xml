@@ -218,4 +218,16 @@
     <string name="auth_strength_ok">Okay</string>
     <string name="auth_strength_strong">Strong</string>
     <string name="auth_password_hint">Use 8+ characters with letters and numbers</string>
+    <string name="auth_hero_line1">Your money,</string>
+    <string name="auth_hero_line2">finally clear.</string>
+    <string name="auth_hero_sub">Track spending, split with friends and ask your AI assistant anything.</string>
+    <string name="auth_chip_private">Private by PIN</string>
+    <string name="auth_chip_ai">AI assistant</string>
+    <string name="auth_chip_sync">Synced everywhere</string>
+    <string name="auth_card_balance">Balance</string>
+    <string name="auth_card_budget">Food budget</string>
+    <string name="auth_card_ai">Uttam owes you ₹200</string>
+    <string name="auth_verify_button">Verify code</string>
+    <string name="auth_pw_title">Choose a new password</string>
+    <string name="auth_pw_sub">Code accepted. Now choose a new password for your account.</string>
 </resources>

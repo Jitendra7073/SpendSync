@@ -708,4 +708,16 @@
     <string name="auth_strength_ok">Correct</string>
     <string name="auth_strength_strong">Fort</string>
     <string name="auth_password_hint">Utilisez 8+ caractères avec lettres et chiffres</string>
+    <string name="auth_hero_line1">Votre argent,</string>
+    <string name="auth_hero_line2">enfin clair.</string>
+    <string name="auth_hero_sub">Suivez vos dépenses, faites les comptes avec vos amis et posez vos questions à votre assistant IA.</string>
+    <string name="auth_chip_private">Protégé par PIN</string>
+    <string name="auth_chip_ai">Assistant IA</string>
+    <string name="auth_chip_sync">Synchronisé</string>
+    <string name="auth_card_balance">Solde</string>
+    <string name="auth_card_budget">Budget repas</string>
+    <string name="auth_card_ai">Uttam vous doit 200 ₹</string>
+    <string name="auth_verify_button">Vérifier le code</string>
+    <string name="auth_pw_title">Choisissez un nouveau mot de passe</string>
+    <string name="auth_pw_sub">Code accepté. Choisissez maintenant un nouveau mot de passe pour votre compte.</string>
 </resources>

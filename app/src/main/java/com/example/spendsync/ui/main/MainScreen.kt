@@ -95,8 +95,9 @@ fun MainScreen(
     // the FAB "Add" isn't a page, it opens the overlay below instead) so tabs
     // can be reached either by dragging left/right or by tapping the bottom bar.
     val pages = remember {
-        // Budget is last and has no tab in the bar: reachable from the assistant, never passed through when swiping.
-        listOf(BottomNavItem.Home.route, BottomNavItem.Analytics.route, BottomNavItem.Profile.route, BottomNavItem.Budget.route)
+        // Swipe order matches the bar. The assistant is a real page (swipe left from Profile); Budget is not a
+        // page any more: it opens full-screen from the assistant.
+        listOf(BottomNavItem.Home.route, BottomNavItem.Analytics.route, BottomNavItem.Profile.route, BottomNavItem.Assistant.route)
     }
     val pagerState = rememberPagerState(initialPage = 0) { pages.size }
     val selectedRoute = pages[pagerState.currentPage]
@@ -116,8 +117,12 @@ fun MainScreen(
 
     var homeRefreshKey by remember { mutableStateOf(0) }
 
-    // ── Assistant chat overlay — opened from the sparkle button in the top bar ─
-    var showAssistant by rememberSaveable { mutableStateOf(false) }
+    // ── Budget: full-screen page opened from the assistant (no tab, not swipeable) ─
+    var showBudget by rememberSaveable { mutableStateOf(false) }
+    val assistantIndex = pages.indexOf(BottomNavItem.Assistant.route)
+    // The page the user came from, so the assistant knows its context and its back arrow returns there.
+    var lastTab by remember { mutableStateOf(BottomNavItem.Home.route) }
+    LaunchedEffect(selectedRoute) { if (selectedRoute != BottomNavItem.Assistant.route) lastTab = selectedRoute }
     val appContext = androidx.compose.ui.platform.LocalContext.current
     val assistantViewModel: com.example.spendsync.ui.assistant.AssistantViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
         factory = com.example.spendsync.ui.assistant.AssistantViewModel.factory(
@@ -172,7 +177,7 @@ fun MainScreen(
             // or its own bottom controls: full-screen overlays (add expense, holds, assistant) and the
             // on-screen keyboard. It slides away instead of popping.
             val keyboardOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-            val barVisible = !expenseOverlayVisible && !showHolds && !showAssistant && !keyboardOpen
+            val barVisible = selectedRoute != BottomNavItem.Assistant.route && !expenseOverlayVisible && !showHolds && !showBudget && !keyboardOpen
             androidx.compose.animation.AnimatedVisibility(
                 visible = barVisible,
                 enter = androidx.compose.animation.slideInVertically(tween(260)) { it } + fadeIn(tween(200)),
@@ -184,7 +189,7 @@ fun MainScreen(
                     onItemSelected = { item ->
                         when {
                             item.isFab -> showTypeSheet = true
-                            item.route == BottomNavItem.Assistant.route -> showAssistant = true
+                            item.route == BottomNavItem.Assistant.route -> jumpToTab(assistantIndex)
                             else -> {
                                 val index = pages.indexOf(item.route)
                                 if (index >= 0) jumpToTab(index)
@@ -218,17 +223,37 @@ fun MainScreen(
                         amountVisibility = amountVisibility,
                         onOpenSettings = ::requestOpenSettings,
                         onViewTransaction = ::requestViewTransaction,
-                        onOpenAssistant = { showAssistant = true },
+                        onOpenAssistant = { jumpToTab(assistantIndex) },
                     )
-                    BottomNavItem.Budget.route    -> BudgetScreen(
-                        sessionDataStore = sessionDataStore,
-                        financeRepository = financeRepository,
-                        dateFilterState = dateFilterState,
-                        amountVisibility = amountVisibility,
-                        onOpenSettings = ::requestOpenSettings,
-                        onViewTransaction = ::requestViewTransaction,
-                        onOpenAssistant = { showAssistant = true },
-                    )
+                    BottomNavItem.Assistant.route -> {
+                        // Built only when it is (about to be) the visible page, so its consent dialog and chat
+                        // load do not run while the user is still on Profile.
+                        if (pagerState.currentPage == page || pagerState.targetPage == page) {
+                            com.example.spendsync.ui.assistant.AssistantScreen(
+                                viewModel = assistantViewModel,
+                                sessionDataStore = sessionDataStore,
+                                amountVisibility = amountVisibility,
+                                currentScreen = when (lastTab) {
+                                    BottomNavItem.Analytics.route -> "analytics"
+                                    BottomNavItem.Profile.route -> "profile"
+                                    else -> "home"
+                                },
+                                onBack = { jumpToTab(pages.indexOf(lastTab).coerceAtLeast(0)) },
+                                onOpenScreen = { screen ->
+                                    when (screen) {
+                                        "home" -> jumpToTab(pages.indexOf(BottomNavItem.Home.route))
+                                        "analytics" -> jumpToTab(pages.indexOf(BottomNavItem.Analytics.route))
+                                        "profile" -> jumpToTab(pages.indexOf(BottomNavItem.Profile.route))
+                                        "budget" -> showBudget = true
+                                        "holds" -> showHolds = true
+                                        "add_transaction" -> showTypeSheet = true
+                                    }
+                                },
+                            )
+                        } else {
+                            Box(Modifier.fillMaxSize())
+                        }
+                    }
                     BottomNavItem.Profile.route   -> ProfileScreen(
                         sessionDataStore = sessionDataStore,
                         repository       = repository,
@@ -250,7 +275,7 @@ fun MainScreen(
                         externalViewTransaction = viewTransactionRequestData,
                         onSignOut        = onSignOut,
                         onOpenHolds      = { showHolds = true },
-                        onOpenAssistant  = { showAssistant = true },
+                        onOpenAssistant  = { jumpToTab(assistantIndex) },
                     )
                 }
             }
@@ -315,9 +340,9 @@ fun MainScreen(
                 }
             }
 
-            // ── Assistant chat — slides up like the other full-screen overlays ──
+            // ── Budget — full-screen page with a back arrow; reached from the assistant ──
             AnimatedContent(
-                targetState    = showAssistant,
+                targetState    = showBudget,
                 transitionSpec = {
                     if (targetState) {
                         slideInVertically(animationSpec = overlaySlideSpec) { it } togetherWith fadeOut(tween(0))
@@ -325,32 +350,19 @@ fun MainScreen(
                         fadeIn(tween(0)) togetherWith slideOutVertically(animationSpec = overlaySlideSpec) { it }
                     }
                 },
-                label = "assistant_overlay",
+                label = "budget_overlay",
             ) { visible ->
                 if (visible) {
-                    androidx.activity.compose.BackHandler { showAssistant = false }
-                    com.example.spendsync.ui.assistant.AssistantScreen(
-                        viewModel = assistantViewModel,
+                    androidx.activity.compose.BackHandler { showBudget = false }
+                    BudgetScreen(
                         sessionDataStore = sessionDataStore,
+                        financeRepository = financeRepository,
+                        dateFilterState = dateFilterState,
                         amountVisibility = amountVisibility,
-                        currentScreen = when (selectedRoute) {
-                            BottomNavItem.Analytics.route -> "analytics"
-                            BottomNavItem.Budget.route -> "budget"
-                            BottomNavItem.Profile.route -> "profile"
-                            else -> "home"
-                        },
-                        onBack = { showAssistant = false },
-                        onOpenScreen = { screen ->
-                            showAssistant = false
-                            when (screen) {
-                                "home" -> jumpToTab(pages.indexOf(BottomNavItem.Home.route))
-                                "analytics" -> jumpToTab(pages.indexOf(BottomNavItem.Analytics.route))
-                                "budget" -> jumpToTab(pages.indexOf(BottomNavItem.Budget.route))
-                                "profile" -> jumpToTab(pages.indexOf(BottomNavItem.Profile.route))
-                                "holds" -> showHolds = true
-                                "add_transaction" -> showTypeSheet = true
-                            }
-                        },
+                        onOpenSettings = ::requestOpenSettings,
+                        onViewTransaction = ::requestViewTransaction,
+                        onOpenAssistant = { showBudget = false; jumpToTab(assistantIndex) },
+                        onBack = { showBudget = false },
                     )
                 }
             }

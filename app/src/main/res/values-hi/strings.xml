@@ -708,4 +708,16 @@
     <string name="auth_strength_ok">ठीक-ठाक</string>
     <string name="auth_strength_strong">मज़बूत</string>
     <string name="auth_password_hint">8+ अक्षर, अक्षर और अंक मिलाकर रखें</string>
+    <string name="auth_hero_line1">आपका पैसा,</string>
+    <string name="auth_hero_line2">अब साफ़ दिखेगा।</string>
+    <string name="auth_hero_sub">खर्च ट्रैक करें, दोस्तों से हिसाब रखें और अपने AI सहायक से कुछ भी पूछें।</string>
+    <string name="auth_chip_private">PIN से सुरक्षित</string>
+    <string name="auth_chip_ai">AI सहायक</string>
+    <string name="auth_chip_sync">हर जगह सिंक</string>
+    <string name="auth_card_balance">बैलेंस</string>
+    <string name="auth_card_budget">खाने का बजट</string>
+    <string name="auth_card_ai">उत्तम पर आपके ₹200 बाकी हैं</string>
+    <string name="auth_verify_button">कोड जाँचें</string>
+    <string name="auth_pw_title">नया पासवर्ड चुनें</string>
+    <string name="auth_pw_sub">कोड सही है। अब अपने खाते के लिए नया पासवर्ड चुनें।</string>
 </resources>

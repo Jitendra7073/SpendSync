@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -128,6 +129,7 @@ fun HomeTopBar(
     onCalendarClick: () -> Unit,
     onSearchClick: () -> Unit,
     onAssistantClick: (() -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     Row(
@@ -136,6 +138,13 @@ fun HomeTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (onBack != null) {
+                com.example.spendsync.ui.components.AppIconButton(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    com.example.spendsync.ui.i18n.tr(com.example.spendsync.R.string.back),
+                    onClick = onBack,
+                )
+            }
             Box(
                 Modifier.size(36.dp).clip(CircleShape).background(scheme.primary.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center,

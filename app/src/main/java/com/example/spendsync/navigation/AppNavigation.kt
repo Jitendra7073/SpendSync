@@ -24,9 +24,7 @@ import com.example.spendsync.data.repository.AuthRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.ui.auth.AuthViewModel
 import com.example.spendsync.ui.auth.AuthViewModelFactory
-import com.example.spendsync.ui.auth.ForgotPasswordScreen
-import com.example.spendsync.ui.auth.LoginScreen
-import com.example.spendsync.ui.auth.RegisterScreen
+import com.example.spendsync.ui.auth.AuthFlowScreen
 import com.example.spendsync.ui.main.MainScreen
 import com.example.spendsync.data.repository.hydrateSettingsFromBackend
 import com.example.spendsync.data.repository.warmFinanceCache
@@ -36,8 +34,6 @@ import kotlinx.coroutines.launch
 
 object Route {
     const val LOGIN    = "login"
-    const val REGISTER = "register"
-    const val FORGOT   = "forgot_password"
     const val MAIN     = "main"   // hosts MainScreen which owns the bottom nav
 }
 
@@ -90,7 +86,7 @@ fun AppNavigation(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 val currentRoute = navController.currentBackStackEntry?.destination?.route
-                if (currentRoute != Route.LOGIN && currentRoute != Route.REGISTER) {
+                if (currentRoute != Route.LOGIN) {
                     scope.launch {
                         if (!authRepository.hasLocalSession()) {
                             navController.navigate(Route.LOGIN) {
@@ -136,50 +132,18 @@ fun AppNavigation(
         },
     ) {
 
-        // ── Login ─────────────────────────────────────────────────────────────
+        // ── Auth: log in, sign up and forgot password are pages of ONE screen (see AuthFlowScreen),
+        // so switching between them never slides the whole design out and in again. ─────────────
         composable(route = Route.LOGIN) {
-            LoginScreen(
-                viewModel            = authViewModel,
-                onNavigateToHome     = {
+            AuthFlowScreen(
+                viewModel        = authViewModel,
+                onNavigateToHome = {
                     scope.launch { hydrateSettingsFromBackend(financeRepository, sessionDataStore) }
                     scope.launch { warmFinanceCache(financeRepository) }
-                    // Clear LOGIN off the stack once signed in. Stack: [MAIN].
+                    // Clear the auth screen off the stack once signed in. Stack: [MAIN].
                     navController.navigate(Route.MAIN) {
                         popUpTo(Route.LOGIN) { inclusive = true }
                     }
-                },
-                onNavigateToRegister = {
-                    navController.navigate(Route.REGISTER)
-                },
-                onNavigateToForgot = {
-                    navController.navigate(Route.FORGOT)
-                },
-            )
-        }
-
-        // ── Forgot password ───────────────────────────────────────────────────
-        composable(route = Route.FORGOT) {
-            ForgotPasswordScreen(
-                viewModel = authViewModel,
-                onBack    = { navController.navigateUp() },
-            )
-        }
-
-        // ── Register ──────────────────────────────────────────────────────────
-        composable(route = Route.REGISTER) {
-            RegisterScreen(
-                viewModel         = authViewModel,
-                onNavigateToHome  = {
-                    scope.launch { hydrateSettingsFromBackend(financeRepository, sessionDataStore) }
-                    scope.launch { warmFinanceCache(financeRepository) }
-                    // Clear the auth stack (LOGIN → REGISTER) once registered.
-                    // Stack: [MAIN]. Never empty (MAIN pushed first).
-                    navController.navigate(Route.MAIN) {
-                        popUpTo(Route.LOGIN) { inclusive = true }
-                    }
-                },
-                onNavigateToLogin = {
-                    navController.navigateUp()
                 },
             )
         }

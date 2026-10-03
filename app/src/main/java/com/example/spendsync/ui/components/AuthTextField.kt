@@ -73,7 +73,7 @@ fun AuthTextField(
             androidx.compose.ui.text.input.VisualTransformation.None,
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
-        shape           = RoundedCornerShape(12.dp),
+        shape           = RoundedCornerShape(16.dp),
         singleLine      = singleLine,
         enabled         = enabled,
         colors          = OutlinedTextFieldDefaults.colors(
@@ -82,12 +82,12 @@ fun AuthTextField(
             unfocusedTextColor        = onSurface,
             disabledTextColor         = onSurfaceVariant,
             // ── Container (transparent so the card's own surface shows through) ─
-            focusedContainerColor     = Color.Transparent,
-            unfocusedContainerColor   = Color.Transparent,
-            disabledContainerColor    = Color.Transparent,
+            focusedContainerColor     = primary.copy(alpha = 0.06f),
+            unfocusedContainerColor   = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+            disabledContainerColor    = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
             // ── Border ────────────────────────────────────────────────────────
             focusedBorderColor        = primary,
-            unfocusedBorderColor      = outline,
+            unfocusedBorderColor      = MaterialTheme.colorScheme.outlineVariant,
             disabledBorderColor       = outline.copy(alpha = 0.5f),
             // ── Label ─────────────────────────────────────────────────────────
             focusedLabelColor         = primary,

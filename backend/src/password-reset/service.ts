@@ -51,12 +51,12 @@ export async function requestReset(rawEmail: string, language?: string): Promise
 
 export type ResetOutcome = Verdict;
 
-/** Checks the code and, if right, sets the new password and signs the user out everywhere. */
-export async function confirmReset(rawEmail: string, rawCode: string, newPassword: string): Promise<ResetOutcome> {
+/** Looks up the newest code for this email and judges the attempt; a wrong guess counts toward the limit. */
+async function checkCode(rawEmail: string, rawCode: string) {
   const email = normEmail(rawEmail);
   const code = normalizeCode(rawCode);
   const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email)).limit(1);
-  if (!u) return 'none';
+  if (!u) return { verdict: 'none' as Verdict, userId: null, record: null };
 
   const [record] = await db
     .select()
@@ -69,17 +69,28 @@ export async function confirmReset(rawEmail: string, rawCode: string, newPasswor
   if (verdict === 'wrong' && record) {
     await db.update(passwordResets).set({ attempts: record.attempts + 1 }).where(eq(passwordResets.id, record.id));
   }
-  if (verdict !== 'ok' || !record) return verdict;
+  return { verdict, userId: u.id, record: record ?? null };
+}
+
+/** Step 2 of the flow: is this code right? Changes nothing except counting a wrong try. */
+export async function verifyCode(rawEmail: string, rawCode: string): Promise<ResetOutcome> {
+  return (await checkCode(rawEmail, rawCode)).verdict;
+}
+
+/** Step 3: checks the code again and, if right, sets the new password and signs the user out everywhere. */
+export async function confirmReset(rawEmail: string, rawCode: string, newPassword: string): Promise<ResetOutcome> {
+  const { verdict, userId, record } = await checkCode(rawEmail, rawCode);
+  if (verdict !== 'ok' || !record || !userId) return verdict;
 
   const hashed = await hashPassword(newPassword);
   const updated = await db
     .update(account)
     .set({ password: hashed, updatedAt: new Date() })
-    .where(and(eq(account.userId, u.id), eq(account.providerId, 'credential')))
+    .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
     .returning({ id: account.id });
   if (updated.length === 0) return 'none';
 
   await db.update(passwordResets).set({ usedAt: new Date() }).where(eq(passwordResets.id, record.id));
-  await db.delete(session).where(eq(session.userId, u.id)); // anyone who had the old password is signed out
+  await db.delete(session).where(eq(session.userId, userId)); // anyone who had the old password is signed out
   return 'ok';
 }

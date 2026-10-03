@@ -9,6 +9,7 @@ import com.example.spendsync.data.remote.model.ForgotPasswordRequest
 import com.example.spendsync.data.remote.model.ResetPasswordRequest
 import com.example.spendsync.data.remote.model.SignInRequest
 import com.example.spendsync.data.remote.model.SignUpRequest
+import com.example.spendsync.data.remote.model.VerifyCodeRequest
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.coroutines.flow.firstOrNull
@@ -107,6 +108,13 @@ class AuthRepository(
     /** Asks the server to email a reset code. Success does not prove the email has an account (on purpose). */
     suspend fun requestResetCode(email: String, language: String): AuthResult<Unit> = try {
         val response = api.forgotPassword(ForgotPasswordRequest(email = email, language = language))
+        if (response.isSuccessful) AuthResult.Success(Unit) else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+    } catch (e: Exception) {
+        AuthResult.Error(e.toUserMessage())
+    }
+
+    suspend fun verifyResetCode(email: String, code: String): AuthResult<Unit> = try {
+        val response = api.verifyResetCode(VerifyCodeRequest(email = email, code = code))
         if (response.isSuccessful) AuthResult.Success(Unit) else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
     } catch (e: Exception) {
         AuthResult.Error(e.toUserMessage())

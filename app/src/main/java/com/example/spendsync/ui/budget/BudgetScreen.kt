@@ -146,6 +146,8 @@ fun BudgetScreen(
     onOpenSettings: () -> Unit = {},
     onViewTransaction: (TransactionDto) -> Unit = {},
     onOpenAssistant: () -> Unit = {},
+    /** Set when Budget is shown as its own page (not a tab): adds a back arrow to the top bar. */
+    onBack: (() -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
 
@@ -239,6 +241,7 @@ fun BudgetScreen(
                                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                     Column(Modifier.statusBarsPadding()) {
                                         HomeTopBar(
+                                            onBack = onBack,
                                             title = tr(R.string.budget),
                                             icon = Icons.Default.Wallet,
                                             selectedDate = dateFilterState.selectedDate,

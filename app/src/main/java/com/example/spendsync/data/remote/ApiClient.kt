@@ -1,13 +1,12 @@
 package com.example.spendsync.data.remote
 
 import com.example.spendsync.BuildConfig
-import okhttp3.JavaNetCookieJar
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.net.CookieManager
-import java.net.CookiePolicy
 import java.util.concurrent.TimeUnit
 
 /**
@@ -23,12 +22,16 @@ import java.util.concurrent.TimeUnit
  */
 object ApiClient {
 
-    // Shared cookie jar — keeps the Better Auth session cookie alive in-memory
-    val cookieJar: JavaNetCookieJar by lazy {
-        val cookieManager = CookieManager().apply {
-            setCookiePolicy(CookiePolicy.ACCEPT_ALL)
-        }
-        JavaNetCookieJar(cookieManager)
+    // No cookie jar on purpose: the app authenticates with the bearer token. A cookie jar kept the old
+    // session cookie around, and after a sign-out or password reset it went out on the next login request
+    // with no Origin header, which Better Auth rejects ("Missing or null Origin").
+    private val apiOrigin: String by lazy {
+        BuildConfig.API_BASE_URL.toHttpUrl().newBuilder().encodedPath("/").build().toString().trimEnd('/')
+    }
+
+    private val originInterceptor = Interceptor { chain ->
+        val request = chain.request()
+        chain.proceed(if (request.header("Origin") == null) request.newBuilder().header("Origin", apiOrigin).build() else request)
     }
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
@@ -40,7 +43,7 @@ object ApiClient {
 
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .cookieJar(cookieJar)
+            .addInterceptor(originInterceptor)
             .addInterceptor(AuthInterceptor())
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -50,7 +53,7 @@ object ApiClient {
     }
 
     /**
-     * For Server-Sent Events (the assistant). Same auth and cookies, but without the body-logging
+     * For Server-Sent Events (the assistant). Same auth, but without the body-logging
      * interceptor — it would buffer the whole stream and defeat streaming — and with a read timeout
      * long enough for a slow first token (it only counts the gap between bytes).
      */

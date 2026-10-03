@@ -6,6 +6,7 @@ import com.example.spendsync.data.remote.model.SessionResponse
 import com.example.spendsync.data.remote.model.SignInRequest
 import com.example.spendsync.data.remote.model.SignInResponse
 import com.example.spendsync.data.remote.model.SignUpRequest
+import com.example.spendsync.data.remote.model.VerifyCodeRequest
 import com.example.spendsync.data.remote.model.SignUpResponse
 import retrofit2.Response
 import retrofit2.http.Body
@@ -36,6 +37,10 @@ interface AuthApiService {
     /** Emails a 6-character reset code. Always answers the same, whether or not the email has an account. */
     @POST("api/password/forgot")
     suspend fun forgotPassword(@Body body: ForgotPasswordRequest): Response<Unit>
+
+    /** Is the emailed code correct? Only then does the app ask for a new password. */
+    @POST("api/password/verify")
+    suspend fun verifyResetCode(@Body body: VerifyCodeRequest): Response<Unit>
 
     /** Checks the emailed code and sets the new password. */
     @POST("api/password/reset")
