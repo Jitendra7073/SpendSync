@@ -3,12 +3,10 @@ import { db } from '../db/index';
 import { supportTickets, user } from '../db/schema/index';
 import { sendEmail } from '../lib/email';
 import { logger } from '../utils/logger';
+import { supportRecipients } from './recipients';
+import { composeReceiptEmail } from './templates';
 import { composeTicketEmail, newTicketRef, type CreateTicketInput, type TicketCategory } from './ticket';
 
-/** Where reports go. Comma-separated; set SUPPORT_EMAIL_TO in the server environment. */
-function supportRecipients(): string[] {
-  return (process.env.SUPPORT_EMAIL_TO ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-}
 
 /**
  * Saves the report first (so it is never lost), then emails the team a copy and records how that went.
@@ -32,7 +30,17 @@ export async function createTicket(userId: string, input: CreateTicketInput) {
     user: { id: userId, name: u?.name, email: u?.email },
     createdAt: row.createdAt,
   });
-  const result = await sendEmail({ to, ...mail, replyTo: u?.email ?? undefined });
+  // The email shows who wrote it: their name as the sender, their address as Reply-To.
+  // Two emails: the team gets the full report; the person who sent it gets a "we got it" confirmation
+  // (Reply-To = the support inbox, so their reply reaches the team).
+  const receipt = u?.email
+    ? composeReceiptEmail({ ref, category: input.category as TicketCategory, message: input.message, context: input.context, user: { name: u.name, email: u.email }, createdAt: row.createdAt })
+    : null;
+  const [result, receiptResult] = await Promise.all([
+    sendEmail({ to, ...mail, replyTo: u?.email ?? undefined, fromName: u?.name ? `${u.name} (SpendSync user)` : undefined }),
+    receipt ? sendEmail({ to: u!.email, ...receipt, replyTo: to[0], fromName: 'SpendSync Support' }) : Promise.resolve(null),
+  ]);
+  if (receiptResult && !receiptResult.ok) logger.warn('support receipt email failed', { ref, error: receiptResult.error });
   const emailStatus = result.ok ? 'sent' : result.reason === 'not_configured' ? 'not_configured' : 'failed';
   if (!result.ok && result.reason === 'failed') logger.warn('support email failed', { ref, error: result.error });
   await db

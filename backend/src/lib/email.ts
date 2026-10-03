@@ -21,6 +21,8 @@ export interface EmailPayload {
   text: string;
   html?: string;
   replyTo?: string;
+  /** Shown as the sender's name (e.g. the person who wrote the report). The address stays the SMTP account. */
+  fromName?: string;
 }
 
 export type EmailResult = { ok: true; messageId?: string } | { ok: false; reason: 'not_configured' | 'failed'; error?: string };
@@ -35,6 +37,16 @@ export function smtpFromEnv(env: Env = process.env): SmtpCredentials | null {
   if (!host || !user || !password) return null;
   const port = Number(env.SMTP_PORT) || 587;
   return { host, port, user, password, from: env.EMAIL_FROM?.trim() || undefined };
+}
+
+/** "Name <a@b.com>" -> a@b.com; plain addresses pass through. */
+function addressOf(from: string): string {
+  return /<([^>]+)>/.exec(from)?.[1]?.trim() ?? from.trim();
+}
+
+/** Display names must not be able to break the header. */
+function cleanName(name: string): string {
+  return name.replace(/[\r\n"<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
 type TransportFactory = typeof nodemailer.createTransport;
@@ -60,7 +72,9 @@ export async function sendEmail(
       socketTimeout: 12_000,
     });
     const info = await transport.sendMail({
-      from: creds.from ?? creds.user,
+      from: payload.fromName && cleanName(payload.fromName)
+        ? { name: cleanName(payload.fromName), address: addressOf(creds.from ?? creds.user) }
+        : (creds.from ?? creds.user),
       to: recipients,
       subject: payload.subject,
       text: payload.text,

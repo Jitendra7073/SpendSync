@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { renderEmail } from './templates';
 
 export const TICKET_CATEGORIES = ['bug', 'wrong_data', 'assistant', 'account', 'feature', 'other'] as const;
 export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
@@ -40,8 +41,6 @@ export function newTicketRef(rand: () => number = Math.random): string {
   return `SS-${out}`;
 }
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
 export interface TicketEmailInput {
   ref: string;
   category: TicketCategory;
@@ -66,7 +65,8 @@ export function composeTicketEmail(t: TicketEmailInput): { subject: string; text
     ['Screen', c.screen ?? '-'],
   ];
   const chat = c.chat ?? [];
-  const subject = `[SpendSync ${t.ref}] ${CATEGORY_LABEL[t.category]}: ${t.message.replace(/\s+/g, ' ').slice(0, 60)}`;
+  const who = t.user.name?.trim() || t.user.email || 'user';
+  const subject = `[SpendSync ${t.ref}] ${who}${t.user.email && t.user.name ? ` <${t.user.email}>` : ''} · ${CATEGORY_LABEL[t.category]}: ${t.message.replace(/\s+/g, ' ').slice(0, 50)}`;
 
   const text = [
     ...facts.map(([k, v]) => `${k}: ${v}`),
@@ -76,14 +76,16 @@ export function composeTicketEmail(t: TicketEmailInput): { subject: string; text
     ...(chat.length ? ['', 'Recent assistant chat (shared by the user):', ...chat.map((l) => `${l.role === 'user' ? 'User' : 'Assistant'}: ${l.text}`)] : []),
   ].join('\n');
 
-  const html =
-    `<table cellpadding="6" style="border-collapse:collapse;font-family:sans-serif;font-size:14px">` +
-    facts.map(([k, v]) => `<tr><td style="color:#555">${esc(k)}</td><td><b>${esc(v)}</b></td></tr>`).join('') +
-    `</table><h3 style="font-family:sans-serif">What the user wrote</h3><p style="font-family:sans-serif;white-space:pre-wrap">${esc(t.message)}</p>` +
-    (chat.length
-      ? `<h3 style="font-family:sans-serif">Recent assistant chat (shared by the user)</h3>` +
-        chat.map((l) => `<p style="font-family:sans-serif;margin:4px 0"><b>${l.role === 'user' ? 'User' : 'Assistant'}:</b> ${esc(l.text)}</p>`).join('')
-      : '');
+  const html = renderEmail({
+    title: `${CATEGORY_LABEL[t.category]} (${t.ref})`,
+    preheader: `${who}: ${t.message.replace(/\s+/g, ' ').slice(0, 90)}`,
+    intro: `${who} sent a report from the SpendSync app. Reply to this email to answer them directly.`,
+    rows: facts,
+    sections: [
+      { heading: 'What the user wrote', body: t.message },
+      ...(chat.length ? [{ heading: 'Recent assistant chat (shared by the user)', body: chat.map((l) => `${l.role === 'user' ? 'User' : 'Assistant'}: ${l.text}`).join('\n') }] : []),
+    ],
+  });
 
   return { subject, text, html };
 }

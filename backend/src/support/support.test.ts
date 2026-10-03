@@ -6,6 +6,8 @@ vi.mock('../db/index', () => ({ db: {} }));
 
 import { hintsFromFeedback } from '../assistant/feedback';
 import { sendEmail, smtpFromEnv } from '../lib/email';
+import { supportRecipients } from './recipients';
+import { composeReceiptEmail } from './templates';
 import { composeTicketEmail, createTicketSchema, newTicketRef } from './ticket';
 
 const creds = { host: 'smtp.test', port: 587, user: 'me@test.com', password: 'pw', from: 'SpendSync <me@test.com>' };
@@ -35,6 +37,22 @@ describe('email module', () => {
   });
 });
 
+describe('where reports go', () => {
+  it('comes only from SUPPORT_EMAIL_TO: nothing hardcoded, bad entries ignored, empty means not configured', () => {
+    expect(supportRecipients({})).toEqual([]);
+    expect(supportRecipients({ SUPPORT_EMAIL_TO: ' a@x.com , b@x.com ' })).toEqual(['a@x.com', 'b@x.com']);
+    expect(supportRecipients({ SUPPORT_EMAIL_TO: 'not-an-email, ok@x.com,  ' })).toEqual(['ok@x.com']);
+  });
+
+  it('shows the user as the sender name (address stays the SMTP account) and keeps Reply-To', async () => {
+    const sendMail = vi.fn().mockResolvedValue({ messageId: 'm' });
+    await sendEmail({ to: 'team@x.com', subject: 'S', text: 'T', fromName: 'Asha "Boss" <x@y.com>\nBcc: evil', replyTo: 'asha@x.com' }, creds, (() => ({ sendMail })) as never);
+    const sent = sendMail.mock.calls[0][0];
+    expect(sent.from).toEqual({ name: 'Asha Boss x@y.com Bcc: evil', address: 'me@test.com' });
+    expect(sent.replyTo).toBe('asha@x.com');
+  });
+});
+
 describe('support ticket', () => {
   it('validates the report', () => {
     expect(createTicketSchema.safeParse({ category: 'bug', message: 'App crashes when I add an expense' }).success).toBe(true);
@@ -57,9 +75,29 @@ describe('support ticket', () => {
       createdAt: new Date('2026-10-03T10:00:00Z'),
     });
     expect(m.subject).toContain('SS-ABC234');
+    expect(m.subject).toContain('Asha <asha@x.com>');
     for (const part of ['asha@x.com', 'u1', 'Pixel 8', 'Hindi', 'mene 200 diye', 'Assistant misbehaved']) expect(m.text).toContain(part);
     expect(m.html).toContain('&lt;b&gt;sorry&lt;/b&gt;');
     expect(m.html).not.toContain('<b>sorry</b>');
+  });
+});
+
+describe('confirmation email to the user', () => {
+  const base = { ref: 'SS-ABC234', category: 'bug' as const, message: 'It crashed <twice>', user: { name: 'Asha Sharma', email: 'asha@x.com' }, createdAt: new Date('2026-10-03T10:00:00Z') };
+
+  it('greets by first name, quotes the reference and the message, and escapes html', () => {
+    const m = composeReceiptEmail({ ...base, context: {} });
+    expect(m.subject).toContain('SS-ABC234');
+    expect(m.text).toContain('Hi Asha,');
+    expect(m.text).toContain('It crashed <twice>');
+    expect(m.html).toContain('It crashed &lt;twice&gt;');
+    expect(m.html).not.toContain('<twice>');
+  });
+
+  it('writes in the language the user uses in the app, falling back to English', () => {
+    expect(composeReceiptEmail({ ...base, context: { language: 'Hindi' } }).text).toContain('नमस्ते Asha,');
+    expect(composeReceiptEmail({ ...base, context: { language: 'German' } }).subject).toContain('Meldung');
+    expect(composeReceiptEmail({ ...base, context: { language: 'Klingon' } }).text).toContain('Hi Asha,');
   });
 });
 

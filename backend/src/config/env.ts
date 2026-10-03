@@ -22,6 +22,8 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   EMAIL_FROM: z.string().email().optional(),
+  // Who receives support reports (comma-separated). No default: set it in .env / the host's environment.
+  SUPPORT_EMAIL_TO: z.string().optional(),
 
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.string().default('900000'),
