@@ -1,6 +1,8 @@
 package com.example.spendsync.data
 
 import com.example.spendsync.R
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.example.spendsync.ui.i18n.tr
 
 /**
@@ -8,7 +10,32 @@ import com.example.spendsync.ui.i18n.tr
  * language (matched on the error code first, then on the text); anything unknown is shown as the
  * server sent it rather than hidden.
  */
+/**
+ * The API reports errors in two shapes: Better Auth sends `{ "message", "code" }`, our own routes send
+ * `{ "success": false, "error": { "message", "code" } }`. Returns (message, code), either may be null.
+ * Pure on purpose, so it can be unit-tested without Android.
+ */
+fun serverErrorParts(errorBody: String?): Pair<String?, String?> {
+    if (errorBody.isNullOrBlank()) return null to null
+    return try {
+        val root = JsonParser().parse(errorBody).asJsonObject
+        fun JsonObject.text(key: String) = get(key)?.takeIf { it.isJsonPrimitive }?.asString
+        val nested = root.get("error")?.takeIf { it.isJsonObject }?.asJsonObject
+        val message = root.text("message") ?: nested?.text("message") ?: root.text("error")
+        val code = root.text("code") ?: nested?.text("code")
+        message to code
+    } catch (e: Exception) {
+        null to null
+    }
+}
+
 object ServerMessages {
+    /** Turns a raw error response body into one sentence in the user's language. */
+    fun fromBody(errorBody: String?): String {
+        val (message, code) = serverErrorParts(errorBody)
+        return localize(message, code)
+    }
+
     fun localize(message: String?, code: String? = null): String {
         val m = message.orEmpty().lowercase()
         val c = code.orEmpty().uppercase()

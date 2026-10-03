@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
@@ -65,12 +67,33 @@ fun AppNavigation(
         }
     }
 
+    // The one way into the app after signing in or up. It is safe to call more than once: it only acts while
+    // the auth screen is showing, so the event path and the session path below can never double-navigate.
+    fun goHome() {
+        if (navController.currentDestination?.route != Route.LOGIN) return
+        scope.launch { hydrateSettingsFromBackend(financeRepository, sessionDataStore) }
+        scope.launch { warmFinanceCache(financeRepository) }
+        // Clear the auth screen off the stack. Stack: [MAIN].
+        navController.navigate(Route.MAIN) {
+            popUpTo(Route.LOGIN) { inclusive = true }
+        }
+    }
+
+    // Signed in = go home. Driven by the saved session itself, not only by a one-shot event, so a lost or
+    // mis-delivered event during a screen transition can never leave the user stuck on the login screen.
+    val sessionToken by sessionDataStore.sessionToken.collectAsState(initial = null)
+    LaunchedEffect(sessionToken) {
+        if (!sessionToken.isNullOrBlank()) goHome()
+    }
+
     // Listen for 401 Unauthorized events from AuthInterceptor.
     // Clear session, cache, and navigate to Login with full back stack clear.
     LaunchedEffect(Unit) {
         AuthEvents.unauthorizedFlow.collect {
             sessionDataStore.clearSession()
             financeRepository.clearCache()
+            // Already on the auth screen: nothing to redirect (re-navigating would reload it).
+            if (navController.currentDestination?.route == Route.LOGIN) return@collect
             navController.navigate(Route.LOGIN) {
                 popUpTo(0) { inclusive = true }
             }
@@ -137,14 +160,7 @@ fun AppNavigation(
         composable(route = Route.LOGIN) {
             AuthFlowScreen(
                 viewModel        = authViewModel,
-                onNavigateToHome = {
-                    scope.launch { hydrateSettingsFromBackend(financeRepository, sessionDataStore) }
-                    scope.launch { warmFinanceCache(financeRepository) }
-                    // Clear the auth screen off the stack once signed in. Stack: [MAIN].
-                    navController.navigate(Route.MAIN) {
-                        popUpTo(Route.LOGIN) { inclusive = true }
-                    }
-                },
+                onNavigateToHome = { goHome() },
             )
         }
 

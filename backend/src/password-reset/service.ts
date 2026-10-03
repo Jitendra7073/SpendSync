@@ -9,29 +9,22 @@ import { CODE_TTL_MS, MAX_REQUESTS_PER_HOUR, generateResetCode, hashCode, judgeA
 import { composeResetEmail } from './email';
 
 const normEmail = (e: string) => e.trim().toLowerCase();
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Emails a fresh code to the account owner. Always looks the same from outside (unknown email, rate-limited
  * or sent), so nobody can use this to find out who has an account.
  */
-export async function requestReset(rawEmail: string, language?: string): Promise<void> {
+export async function requestReset(rawEmail: string, language?: string): Promise<(() => Promise<void>) | null> {
   const email = normEmail(rawEmail);
   const [u] = await db.select({ id: user.id, name: user.name, email: user.email }).from(user).where(eq(user.email, email)).limit(1);
-  if (!u) {
-    await sleep(600); // roughly the time a real send takes
-    return;
-  }
+  if (!u) return null;
 
   const since = new Date(Date.now() - 60 * 60 * 1000);
   const [{ n }] = await db
     .select({ n: count() })
     .from(passwordResets)
     .where(and(eq(passwordResets.userId, u.id), gt(passwordResets.createdAt, since)));
-  if (n >= MAX_REQUESTS_PER_HOUR) {
-    await sleep(600);
-    return;
-  }
+  if (n >= MAX_REQUESTS_PER_HOUR) return null;
 
   // Only the newest code is valid.
   await db.update(passwordResets).set({ usedAt: new Date() }).where(and(eq(passwordResets.userId, u.id), isNull(passwordResets.usedAt)));
@@ -44,9 +37,13 @@ export async function requestReset(rawEmail: string, language?: string): Promise
     expiresAt: new Date(Date.now() + CODE_TTL_MS),
   });
 
+  // The email is sent AFTER the answer goes back (the route runs this in `after`), so the answer is as quick
+  // for a real account as for an unknown one.
   const mail = composeResetEmail({ code, name: u.name, language });
-  const result = await sendEmail({ to: u.email, ...mail, fromName: 'SpendSync' });
-  if (!result.ok) logger.warn('password reset email not sent', { reason: result.reason, error: result.error });
+  return async () => {
+    const result = await sendEmail({ to: u.email, ...mail, fromName: 'SpendSync' });
+    if (!result.ok) logger.warn('password reset email not sent', { reason: result.reason, error: result.error });
+  };
 }
 
 export type ResetOutcome = Verdict;

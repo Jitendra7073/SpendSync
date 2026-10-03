@@ -14,12 +14,19 @@ import okhttp3.Response
  * consumes the response body or throws. Emission is fire-and-forget on
  * [Dispatchers.IO] so the interceptor thread is never blocked.
  */
+/**
+ * A 401 on these means "wrong email or password" (or a bad code), NOT "your session expired". Treating it as an
+ * expiry cleared the session and reloaded the login screen on every wrong password.
+ */
+internal fun isCredentialAttempt(path: String): Boolean =
+    path.startsWith("/api/auth/sign-in") || path.startsWith("/api/auth/sign-up") || path.startsWith("/api/password/")
+
 class AuthInterceptor : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val response = chain.proceed(chain.request())
 
-        if (response.code == 401) {
+        if (response.code == 401 && !isCredentialAttempt(chain.request().url.encodedPath)) {
             @Suppress("OPT_IN_USAGE")
             GlobalScope.launch(Dispatchers.IO) {
                 AuthEvents.unauthorizedFlow.emit(Unit)

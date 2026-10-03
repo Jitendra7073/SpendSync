@@ -170,18 +170,7 @@ class AuthRepository(
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private fun parseErrorMessage(errorBody: String?): String {
-        if (errorBody.isNullOrBlank()) return tr(R.string.an_unexpected_error_occurred)
-        return try {
-            val json = gson.fromJson(errorBody, JsonObject::class.java)
-            ServerMessages.localize(
-                message = json.get("message")?.asString ?: json.get("error")?.takeIf { it.isJsonPrimitive }?.asString,
-                code = json.get("code")?.asString,
-            )
-        } catch (e: Exception) {
-            tr(R.string.an_unexpected_error_occurred)
-        }
-    }
+    private fun parseErrorMessage(errorBody: String?): String = ServerMessages.fromBody(errorBody)
 
     private fun Exception.toUserMessage(): String = when {
         message?.contains("Unable to resolve host", ignoreCase = true) == true ->

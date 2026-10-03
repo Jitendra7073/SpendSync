@@ -60,7 +60,7 @@ fun AuthFlowScreen(
         ) { current ->
             when (current) {
                 AuthPage.Login -> LoginContent(viewModel)
-                AuthPage.Register -> RegisterContent(viewModel, onOverview = onNavigateToHome)
+                AuthPage.Register -> RegisterContent(viewModel)
                 AuthPage.Forgot -> ForgotContent(viewModel, onBackToLogin = { page = AuthPage.Login })
             }
         }

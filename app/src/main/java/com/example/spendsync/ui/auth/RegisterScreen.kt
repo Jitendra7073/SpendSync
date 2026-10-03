@@ -36,9 +36,9 @@ import com.example.spendsync.ui.components.Text
 import com.example.spendsync.ui.i18n.tr
 import com.example.spendsync.ui.settings.cascadeIn
 
-/** The sign-up form, inside [AuthShell]. [onOverview] skips sign-in and goes straight into the app. */
+/** The sign-up form, inside [AuthShell]. */
 @Composable
-fun RegisterContent(viewModel: AuthViewModel, onOverview: () -> Unit) {
+fun RegisterContent(viewModel: AuthViewModel) {
     val scheme = MaterialTheme.colorScheme
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
@@ -108,9 +108,5 @@ fun RegisterContent(viewModel: AuthViewModel, onOverview: () -> Unit) {
             enabled = !uiState.isLoading,
             fullWidth = true,
         )
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Text(tr(R.string.just_browsing), color = scheme.onSurfaceVariant, fontSize = 12.sp)
-            AppButton(tr(R.string.overview), onClick = onOverview, variant = ButtonVariant.Text, size = ButtonSize.Small)
-        }
     }
 }
