@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -162,9 +164,16 @@ fun MainScreen(
     Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
-            // Hide the bottom bar when the add-expense screen is open so it
-            // doesn't peek through the overlay.
-            if (!expenseOverlayVisible) {
+            // The bar floats above every page, so it must get out of the way of anything with an input
+            // or its own bottom controls: full-screen overlays (add expense, holds, assistant) and the
+            // on-screen keyboard. It slides away instead of popping.
+            val keyboardOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+            val barVisible = !expenseOverlayVisible && !showHolds && !showAssistant && !keyboardOpen
+            androidx.compose.animation.AnimatedVisibility(
+                visible = barVisible,
+                enter = androidx.compose.animation.slideInVertically(tween(260)) { it } + fadeIn(tween(200)),
+                exit = androidx.compose.animation.slideOutVertically(tween(200)) { it } + fadeOut(tween(140)),
+            ) {
                 SpendSyncBottomBar(
                     sessionDataStore = sessionDataStore,
                     currentRoute   = selectedRoute,

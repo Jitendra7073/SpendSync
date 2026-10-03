@@ -45,7 +45,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
-    "better-auth": "^1.6.23",
+    "better-auth": "1.6.33",
     "drizzle-orm": "^0.33.0",
     "next": "^16.2.10",
     "postgres": "^3.4.4",

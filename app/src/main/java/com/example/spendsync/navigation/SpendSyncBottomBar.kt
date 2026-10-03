@@ -3,12 +3,17 @@ package com.example.spendsync.navigation
 import com.example.spendsync.R
 import com.example.spendsync.ui.i18n.tr
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,81 +22,92 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import com.example.spendsync.ui.components.Icon
 import androidx.compose.material3.MaterialTheme
-import com.example.spendsync.ui.components.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendsync.data.local.SessionDataStore
+import com.example.spendsync.ui.components.Icon
+import com.example.spendsync.ui.components.Text
 
 /**
- * Floating pill-shaped bottom navigation bar that dynamically inherits colors and language preferences.
+ * Floating bottom navigation: a frosted pill with five equal slots (so labels in any language never
+ * shift the layout), a selected state that grows a tinted capsule behind the icon, hover/press
+ * feedback, and a raised "+" in the middle.
+ *
+ * The host hides this bar on full-screen overlays (assistant, holds, add expense) and while the keyboard
+ * is open, so it never covers an input.
  */
 @Composable
 fun SpendSyncBottomBar(
-    sessionDataStore: SessionDataStore,
+    @Suppress("UNUSED_PARAMETER") sessionDataStore: SessionDataStore,
     currentRoute: String,
     onItemSelected: (BottomNavItem) -> Unit,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(30.dp)
 
-    val navBgColor = MaterialTheme.colorScheme.surface
-    val shadowColor = MaterialTheme.colorScheme.onBackground
-
+    // A soft fade behind the pill so scrolling content never collides with it visually.
     Box(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(Color.Transparent, scheme.background.copy(alpha = 0.92f)))),
         contentAlignment = Alignment.BottomCenter,
     ) {
-        // Pill container
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                // Soft elevation shadow
+                .padding(horizontal = 16.dp, vertical = 10.dp)
                 .shadow(
-                    elevation = 16.dp,
-                    shape = RoundedCornerShape(32.dp),
-                    ambientColor = shadowColor.copy(alpha = 0.08f),
-                    spotColor = shadowColor.copy(alpha = 0.12f),
+                    elevation = 14.dp,
+                    shape = shape,
+                    ambientColor = scheme.onBackground.copy(alpha = 0.10f),
+                    spotColor = scheme.onBackground.copy(alpha = 0.16f),
                 )
-                .clip(RoundedCornerShape(32.dp))
-                .background(navBgColor)
-                .padding(horizontal = 4.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+                .clip(shape)
+                .background(scheme.surface.copy(alpha = 0.96f))
+                .border(BorderStroke(0.5.dp, scheme.outlineVariant.copy(alpha = 0.7f)), shape)
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BottomNavItem.all.forEach { item ->
-                if (item.isFab) {
-                    FabNavItem(onClick = { onItemSelected(item) })
-                } else {
-                    val translatedLabel = item.label
-
-                    RegularNavItem(
-                        item = item,
-                        translatedLabel = translatedLabel,
-                        isSelected = currentRoute == item.route,
-                        onClick = { onItemSelected(item) },
-                    )
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    if (item.isFab) {
+                        FabNavItem(onClick = { onItemSelected(item) })
+                    } else {
+                        RegularNavItem(
+                            item = item,
+                            isSelected = currentRoute == item.route,
+                            onClick = { onItemSelected(item) },
+                        )
+                    }
                 }
             }
         }
@@ -103,98 +119,130 @@ fun SpendSyncBottomBar(
 @Composable
 private fun RegularNavItem(
     item: BottomNavItem,
-    translatedLabel: String,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
+    val scheme = MaterialTheme.colorScheme
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val hovered by interaction.collectIsHoveredAsState()
+    val label = item.label
 
-    val activeColor = MaterialTheme.colorScheme.primary
-    val unactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
-
-    val iconColor by animateColorAsState(
-        targetValue = if (isSelected) activeColor else unactiveColor,
-        animationSpec = tween(220),
-        label = "icon_color",
+    val tint by animateColorAsState(
+        if (isSelected) scheme.primary else scheme.onSurfaceVariant,
+        tween(200), label = "nav_tint",
     )
-    
-    val indicatorColor by animateColorAsState(
-        targetValue = if (isSelected) activeColor.copy(alpha = 0.12f) else Color.Transparent,
-        animationSpec = tween(220),
-        label = "indicator_color",
+    // Capsule behind the icon: grows and tints when selected, a faint wash on hover/press.
+    val capsuleWidth by animateDpAsState(
+        if (isSelected) 58.dp else 40.dp,
+        spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMedium), label = "nav_capsule",
+    )
+    val capsuleColor by animateColorAsState(
+        when {
+            isSelected -> scheme.primary.copy(alpha = 0.16f)
+            pressed -> scheme.onSurface.copy(alpha = 0.10f)
+            hovered -> scheme.onSurface.copy(alpha = 0.06f)
+            else -> Color.Transparent
+        },
+        tween(160), label = "nav_capsule_color",
+    )
+    val iconScale by animateFloatAsState(
+        when {
+            pressed -> 0.88f
+            isSelected -> 1.08f
+            else -> 1f
+        },
+        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "nav_icon_scale",
     )
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(
-                interactionSource = interactionSource,
-                indication = ripple(bounded = true, color = activeColor),
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .hoverable(interaction)
+            .selectable(
+                selected = isSelected,
+                interactionSource = interaction,
+                indication = ripple(bounded = true, color = scheme.primary),
+                role = Role.Tab,
                 onClick = onClick,
             )
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.Center,
     ) {
-        // Icon container with animated pill background when selected
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(indicatorColor)
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            contentAlignment = Alignment.Center
+                .width(capsuleWidth)
+                .height(30.dp)
+                .clip(RoundedCornerShape(15.dp))
+                .background(capsuleColor),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = item.icon,
-                contentDescription = translatedLabel,
-                tint = iconColor,
-                modifier = Modifier.size(24.dp)
+                contentDescription = null, // the label below names the tab; avoids reading it twice
+                tint = tint,
+                modifier = Modifier
+                    .size(24.dp)
+                    .graphicsLayer { scaleX = iconScale; scaleY = iconScale },
             )
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Text(
-            text = translatedLabel,
+            text = label,
             fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            color = if (isSelected) activeColor else unactiveColor,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = tint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
         )
     }
 }
 
-// ── Centre FAB ────────────────────────────────────────────────────────────────
+// ── Centre "+" ────────────────────────────────────────────────────────────────
 
 @Composable
 private fun FabNavItem(onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
+    val scheme = MaterialTheme.colorScheme
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val hovered by interaction.collectIsHoveredAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.90f else 1f,
-        animationSpec = spring(dampingRatio = 0.4f, stiffness = 600f),
-        label = "fab_scale",
+        when {
+            pressed -> 0.90f
+            hovered -> 1.06f
+            else -> 1f
+        },
+        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "fab_scale",
     )
-
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
-    val shadowColor = MaterialTheme.colorScheme.onBackground
 
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .offset(y = (-12).dp)
-            .size(52.dp)
+            .offset(y = (-10).dp)
+            .size(54.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .shadow(elevation = 8.dp, shape = CircleShape, spotColor = shadowColor.copy(alpha = 0.25f))
+            .shadow(10.dp, CircleShape, spotColor = scheme.primary.copy(alpha = 0.45f))
             .clip(CircleShape)
-            .background(primaryColor) // Making FAB prominent primary accent
-            .clickable(
-                interactionSource = interactionSource,
-                indication = ripple(bounded = true, color = onPrimaryColor),
+            .background(Brush.linearGradient(listOf(scheme.primary, scheme.primary.copy(alpha = 0.82f))))
+            // A ring in the bar's own colour separates the button from the pill it overlaps.
+            .border(3.dp, scheme.surface, CircleShape)
+            .hoverable(interaction)
+            .selectable(
+                selected = false,
+                interactionSource = interaction,
+                indication = ripple(bounded = true, color = scheme.onPrimary),
+                role = Role.Button,
                 onClick = onClick,
             ),
     ) {
         Icon(
             imageVector = Icons.Default.Add,
             contentDescription = tr(R.string.add_transaction),
-            tint = onPrimaryColor,
+            tint = scheme.onPrimary,
             modifier = Modifier.size(28.dp),
         )
     }
