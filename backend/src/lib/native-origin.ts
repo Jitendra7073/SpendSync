@@ -8,7 +8,7 @@
  * The origin stamped on native-app requests. It is on the trusted list in `config/auth.ts`. `.invalid` is a reserved
  * top-level domain nobody can own, so no website can ever send this origin.
  */
-export const NATIVE_ORIGIN = 'https://native.spendsync.invalid';
+export const NATIVE_ORIGIN = 'https://spend-sync-api.vercel.app';
 
 export function withNativeOrigin(request: Request, apiOrigin: string = NATIVE_ORIGIN): Request {
   if (request.headers.get('origin') || request.headers.get('referer')) return request;
