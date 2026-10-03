@@ -44,7 +44,7 @@ fun RegisterContent(viewModel: AuthViewModel, onOverview: () -> Unit) {
     val focusManager = LocalFocusManager.current
 
     Column {
-        AuthPageHeader(tr(R.string.create_account), tr(R.string.sign_up_and_start_tracking_your))
+        AuthPageHeader(tr(R.string.create_account))
         AuthTextField(
             modifier = Modifier.cascadeIn(0),
             value = uiState.name,

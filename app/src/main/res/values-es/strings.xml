@@ -689,7 +689,7 @@
     <string name="auth_forgot_sub">Introduce tu correo y te enviaremos un código de 6 caracteres para restablecerla.</string>
     <string name="auth_send_code">Enviar código</string>
     <string name="auth_code_title">Revisa tu correo</string>
-    <string name="auth_code_sub">Enviamos un código de 6 caracteres a %1$s. Dura 15 minutos.</string>
+    <string name="auth_code_sub">Código enviado a %1$s</string>
     <string name="auth_code_label">Código de restablecimiento, 6 caracteres</string>
     <string name="auth_new_password">Contraseña nueva</string>
     <string name="auth_confirm_new_password">Confirma la contraseña nueva</string>

@@ -199,7 +199,7 @@
     <string name="auth_forgot_sub">Enter your email and we\'ll send you a 6-character code to reset it.</string>
     <string name="auth_send_code">Send code</string>
     <string name="auth_code_title">Check your email</string>
-    <string name="auth_code_sub">We sent a 6-character code to %1$s. It works for 15 minutes.</string>
+    <string name="auth_code_sub">Code sent to %1$s</string>
     <string name="auth_code_label">Reset code, 6 characters</string>
     <string name="auth_new_password">New password</string>
     <string name="auth_confirm_new_password">Confirm new password</string>
@@ -226,7 +226,7 @@
     <string name="auth_chip_sync">Synced everywhere</string>
     <string name="auth_card_balance">Balance</string>
     <string name="auth_card_budget">Food budget</string>
-    <string name="auth_card_ai">Uttam owes you ₹200</string>
+    <string name="auth_card_ai">Person A owes you ₹200</string>
     <string name="auth_verify_button">Verify code</string>
     <string name="auth_pw_title">Choose a new password</string>
     <string name="auth_pw_sub">Code accepted. Now choose a new password for your account.</string>

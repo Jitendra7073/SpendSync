@@ -116,13 +116,15 @@ enum class AuthMode { Login, Register }
 /** The pages that live inside the one shell. */
 enum class AuthPage { Login, Register, Forgot }
 
-/** Title and one line under it, at the top of every auth page. */
+/** The page title; a short line under it only where it carries information (e.g. where the code was sent). */
 @Composable
-fun AuthPageHeader(title: String, subtitle: String) {
+fun AuthPageHeader(title: String, subtitle: String? = null) {
     val scheme = MaterialTheme.colorScheme
     Text(title, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
-    Spacer(Modifier.height(6.dp))
-    Text(subtitle, fontSize = 14.sp, lineHeight = 20.sp, color = scheme.onSurfaceVariant)
+    if (subtitle != null) {
+        Spacer(Modifier.height(6.dp))
+        Text(subtitle, fontSize = 14.sp, lineHeight = 20.sp, color = scheme.onSurfaceVariant)
+    }
     Spacer(Modifier.height(20.dp))
 }
 
@@ -257,17 +259,9 @@ private fun AuthHero(small: Boolean, extras: Boolean) {
         Spacer(Modifier.height(if (small) 12.dp else 22.dp))
         GradientText(tr(R.string.auth_hero_line1), style = TextStyle(fontSize = headline, fontWeight = FontWeight.ExtraBold, lineHeight = headline * 1.1f, color = scheme.onBackground))
         GradientText(tr(R.string.auth_hero_line2), style = TextStyle(fontSize = headline, fontWeight = FontWeight.ExtraBold, lineHeight = headline * 1.1f, brush = gradient))
-        Spacer(Modifier.height(8.dp))
-        Text(tr(R.string.auth_hero_sub), fontSize = 15.sp, lineHeight = 21.sp, color = scheme.onSurfaceVariant, modifier = Modifier.widthIn(max = 420.dp))
         AnimatedVisibility(visible = extras, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
             Column {
-                Spacer(Modifier.height(16.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FeatureChip(Icons.Default.Lock, tr(R.string.auth_chip_private))
-                    FeatureChip(Icons.Default.AutoAwesome, tr(R.string.auth_chip_ai))
-                    FeatureChip(Icons.Default.Sync, tr(R.string.auth_chip_sync))
-                }
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(20.dp))
                 FloatingCards()
             }
         }
@@ -330,7 +324,6 @@ private fun FloatingCards() {
         Column(
             Modifier.align(Alignment.TopStart).fillMaxWidth(0.56f).graphicsLayer { translationY = bobA * density.density }.card().padding(12.dp),
         ) {
-            Text(tr(R.string.auth_card_balance), fontSize = 11.sp, color = scheme.onSurfaceVariant)
             Text("₹48,250", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
             val line = incomeColor()
             Canvas(Modifier.fillMaxWidth().height(30.dp).padding(top = 6.dp)) {
@@ -366,7 +359,6 @@ private fun FloatingCards() {
                 }
                 Text("72%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
             }
-            Text(tr(R.string.auth_card_budget), fontSize = 11.sp, color = scheme.onSurfaceVariant)
         }
         // Assistant bubble
         Row(
@@ -430,8 +422,7 @@ fun PasswordStrength(password: String, modifier: Modifier = Modifier) {
             }
         }
         Text(
-            tr(when (level) { 1 -> R.string.auth_strength_weak; 2 -> R.string.auth_strength_ok; else -> R.string.auth_strength_strong }) +
-                if (level == 1) " · " + tr(R.string.auth_password_hint) else "",
+            tr(when (level) { 1 -> R.string.auth_strength_weak; 2 -> R.string.auth_strength_ok; else -> R.string.auth_strength_strong }),
             fontSize = 12.sp, color = if (level == 1) scheme.error else scheme.onSurfaceVariant,
         )
     }

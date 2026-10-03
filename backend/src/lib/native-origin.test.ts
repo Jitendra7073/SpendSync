@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { withNativeOrigin } from './native-origin';
+import { NATIVE_ORIGIN, withNativeOrigin } from './native-origin';
 
 const req = (headers: Record<string, string> = {}) => new Request('https://api.example.com/api/auth/sign-in/email', { method: 'POST', body: '{"a":1}', headers });
 
 describe('withNativeOrigin', () => {
-  it('adds our own origin when a native client sends neither Origin nor Referer, keeping body and cookie', async () => {
-    const out = withNativeOrigin(req({ cookie: 'x=1' }), 'https://api.example.com');
-    expect(out.headers.get('origin')).toBe('https://api.example.com');
+  it('adds the native origin when a client sends neither Origin nor Referer, keeping body and cookie', async () => {
+    const out = withNativeOrigin(req({ cookie: 'x=1' }));
+    expect(out.headers.get('origin')).toBe(NATIVE_ORIGIN);
+    expect(NATIVE_ORIGIN).toMatch(/\.invalid$/);
     expect(out.headers.get('cookie')).toBe('x=1');
     expect(await out.text()).toBe('{"a":1}');
   });

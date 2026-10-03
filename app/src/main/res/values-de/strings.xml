@@ -689,7 +689,7 @@
     <string name="auth_forgot_sub">Gib deine E-Mail ein, wir senden dir einen 6-stelligen Code zum Zurücksetzen.</string>
     <string name="auth_send_code">Code senden</string>
     <string name="auth_code_title">Prüfe deine E-Mails</string>
-    <string name="auth_code_sub">Wir haben einen 6-stelligen Code an %1$s gesendet. Er gilt 15 Minuten.</string>
+    <string name="auth_code_sub">Code gesendet an %1$s</string>
     <string name="auth_code_label">Zurücksetzungscode, 6 Zeichen</string>
     <string name="auth_new_password">Neues Passwort</string>
     <string name="auth_confirm_new_password">Neues Passwort bestätigen</string>

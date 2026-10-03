@@ -37,7 +37,7 @@ fun LoginContent(viewModel: AuthViewModel) {
     val focusManager = LocalFocusManager.current
 
     Column {
-        AuthPageHeader(tr(R.string.welcome_back_2), tr(R.string.login_to_your_spendsync_account))
+        AuthPageHeader(tr(R.string.welcome_back_2))
         AuthTextField(
             modifier = Modifier.cascadeIn(0),
             value = uiState.email,

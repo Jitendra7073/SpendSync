@@ -1,8 +1,6 @@
 package com.example.spendsync.data.remote
 
 import com.example.spendsync.BuildConfig
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -22,17 +20,10 @@ import java.util.concurrent.TimeUnit
  */
 object ApiClient {
 
-    // No cookie jar on purpose: the app authenticates with the bearer token. A cookie jar kept the old
-    // session cookie around, and after a sign-out or password reset it went out on the next login request
-    // with no Origin header, which Better Auth rejects ("Missing or null Origin").
-    private val apiOrigin: String by lazy {
-        BuildConfig.API_BASE_URL.toHttpUrl().newBuilder().encodedPath("/").build().toString().trimEnd('/')
-    }
-
-    private val originInterceptor = Interceptor { chain ->
-        val request = chain.request()
-        chain.proceed(if (request.header("Origin") == null) request.newBuilder().header("Origin", apiOrigin).build() else request)
-    }
+    // No cookie jar on purpose: the app authenticates with the bearer token. A cookie jar kept the old session
+    // cookie, which after a sign-out or password reset went out on the next login with no Origin header.
+    // Without cookies Better Auth does no origin check at all, so the app sends none (the server also
+    // covers older builds, see backend lib/native-origin.ts).
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = if (BuildConfig.DEBUG)
@@ -43,7 +34,6 @@ object ApiClient {
 
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .addInterceptor(originInterceptor)
             .addInterceptor(AuthInterceptor())
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)

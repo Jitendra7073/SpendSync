@@ -48,11 +48,7 @@ fun ForgotContent(viewModel: AuthViewModel, onBackToLogin: () -> Unit) {
     Column {
         AuthPageHeader(
             title = tr(when (uiState.resetStep) { ResetStep.Email -> R.string.auth_forgot_title; ResetStep.Code -> R.string.auth_code_title; ResetStep.Password -> R.string.auth_pw_title }),
-            subtitle = when (uiState.resetStep) {
-                ResetStep.Email -> tr(R.string.auth_forgot_sub)
-                ResetStep.Code -> tr(R.string.auth_code_sub, uiState.email)
-                ResetStep.Password -> tr(R.string.auth_pw_sub)
-            },
+            subtitle = if (uiState.resetStep == ResetStep.Code) tr(R.string.auth_code_sub, uiState.email) else null,
         )
         AnimatedContent(
             targetState = uiState.resetStep,

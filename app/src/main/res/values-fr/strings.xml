@@ -689,7 +689,7 @@
     <string name="auth_forgot_sub">Saisissez votre e-mail et nous vous enverrons un code de 6 caractères pour la réinitialiser.</string>
     <string name="auth_send_code">Envoyer le code</string>
     <string name="auth_code_title">Consultez vos e-mails</string>
-    <string name="auth_code_sub">Nous avons envoyé un code de 6 caractères à %1$s. Il est valable 15 minutes.</string>
+    <string name="auth_code_sub">Code envoyé à %1$s</string>
     <string name="auth_code_label">Code de réinitialisation, 6 caractères</string>
     <string name="auth_new_password">Nouveau mot de passe</string>
     <string name="auth_confirm_new_password">Confirmez le nouveau mot de passe</string>

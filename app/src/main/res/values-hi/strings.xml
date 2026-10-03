@@ -689,7 +689,7 @@
     <string name="auth_forgot_sub">अपना ईमेल डालें, हम रीसेट के लिए 6 अक्षरों का कोड भेजेंगे।</string>
     <string name="auth_send_code">कोड भेजें</string>
     <string name="auth_code_title">अपना ईमेल देखें</string>
-    <string name="auth_code_sub">हमने %1$s पर 6 अक्षरों का कोड भेजा है। यह 15 मिनट तक चलेगा।</string>
+    <string name="auth_code_sub">कोड %1$s पर भेजा गया</string>
     <string name="auth_code_label">रीसेट कोड, 6 अक्षर</string>
     <string name="auth_new_password">नया पासवर्ड</string>
     <string name="auth_confirm_new_password">नया पासवर्ड दोहराएँ</string>

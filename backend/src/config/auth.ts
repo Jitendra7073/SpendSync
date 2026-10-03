@@ -2,7 +2,15 @@ import { betterAuth } from 'better-auth';
 import { bearer } from 'better-auth/plugins/bearer';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '../db/index';
+import { NATIVE_ORIGIN } from '../lib/native-origin';
 import { config } from './env';
+
+/** The deployed site's own address (Vercel sets these), so it never rejects itself. */
+function hostedOrigins(): string[] {
+  return [process.env.VERCEL_PROJECT_PRODUCTION_URL, process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]
+    .filter((h): h is string => Boolean(h))
+    .map((h) => `https://${h}`);
+}
 
 /**
  * Better Auth Configuration
@@ -33,7 +41,7 @@ export const auth = betterAuth({
   secret: config.auth.secret,
   
   // Trust host (for reverse proxies)
-  trustedOrigins: config.cors.allowedOrigins,
+  trustedOrigins: [...new Set([...config.cors.allowedOrigins, config.apiUrl, ...hostedOrigins(), NATIVE_ORIGIN])],
 
   // Accept `Authorization: Bearer <token>` in addition to the session
   // cookie — the Android client is a native app with no shared cookie
