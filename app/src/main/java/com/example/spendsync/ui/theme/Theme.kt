@@ -11,6 +11,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -56,6 +57,15 @@ private val SpendSyncDarkColors = darkColorScheme(
     outline            = NeutralMid,
 )
 
+/** Accent choices offered in Settings → Appearance; names are what gets stored/synced. */
+val AccentOptions: List<Pair<String, Color>> = listOf(
+    "Brand Blue"     to BrandBlue,
+    "Emerald Green"  to Color(0xFF059669),
+    "Kakariki Green" to Color(0xFF4D7C0F),
+    "Crimson Red"    to Color(0xFFDC2626),
+    "Coral Orange"   to Color(0xFFF97316),
+)
+
 @Composable
 fun SpendSyncTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -88,6 +98,7 @@ fun SpendSyncTheme(
 
     val baseLightScheme = SpendSyncLightColors.copy(
         primary = primaryColor,
+        tertiary = lerp(primaryColor, Color.Black, 0.3f),
         primaryContainer = primaryColor.copy(alpha = 0.15f),
         background = backgroundColor,
         onBackground = onBackgroundColor,
@@ -97,6 +108,7 @@ fun SpendSyncTheme(
 
     val baseDarkScheme = SpendSyncDarkColors.copy(
         primary = primaryColor,
+        tertiary = lerp(primaryColor, Color.White, 0.2f),
         primaryContainer = primaryColor.copy(alpha = 0.25f),
         background = if (accentColorName == "Kakariki Green") Color(0xFF141A0F) else NeutralBlack,
         surface = if (accentColorName == "Kakariki Green") Color(0xFF1B2416) else NeutralDark,

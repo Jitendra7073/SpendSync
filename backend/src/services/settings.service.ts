@@ -41,6 +41,16 @@ export class SettingsService {
         language: 'English',
         currency: 'USD',
         dateFormat: 'DD / MM / YYYY',
+        themeMode: 'System',
+        amountMaskingEnabled: false,
+        amountVisibilitySeconds: 60,
+        autoCaptureEnabled: false,
+        autoCapturePackages: '',
+        assistantModel: 'auto',
+        assistantStyle: 'balanced',
+        assistantTone: 'friendly',
+        assistantInstructions: '',
+        assistantDisabledTools: '',
       })
       .returning();
 
@@ -62,6 +72,16 @@ export class SettingsService {
       language?: string;
       currency?: string;
       dateFormat?: string;
+      themeMode?: string;
+      amountMaskingEnabled?: boolean;
+      amountVisibilitySeconds?: number;
+      autoCaptureEnabled?: boolean;
+      autoCapturePackages?: string;
+      assistantModel?: string;
+      assistantStyle?: string;
+      assistantTone?: string;
+      assistantInstructions?: string;
+      assistantDisabledTools?: string;
     }
   ) {
     // Ensure settings exist

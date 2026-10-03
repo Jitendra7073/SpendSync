@@ -59,13 +59,12 @@ fun AuthTextField(
         },
         trailingIcon = trailingIcon?.let {
             {
-                IconButton(onClick = { onTrailingIconClick?.invoke() }) {
-                    Icon(
-                        imageVector        = it,
-                        contentDescription = trailingIconDescription,
-                        tint               = onSurfaceVariant,
-                    )
-                }
+                com.example.spendsync.ui.components.AppIconButton(
+                    icon = it,
+                    contentDescription = trailingIconDescription.orEmpty(),
+                    onClick = { onTrailingIconClick?.invoke() },
+                    tint = onSurfaceVariant,
+                )
             }
         },
         visualTransformation = if (isPassword && !passwordVisible)

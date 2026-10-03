@@ -1,8 +1,9 @@
 package com.example.spendsync.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 // ── SpendSync Brand ─────────────────────────────────────────────────────────
 val BrandBlue        = Color(0xFF1A56DB)   // primary blue (splash / header)
@@ -59,9 +60,20 @@ val ChartCategoricalDark = listOf(
     Color(0xFFD95926),
 )
 
+/** True when the *app's* theme (Settings → Theme) is dark — not the phone's system setting. */
+@Composable
+fun isAppDark(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
 @Composable
 fun chartCategoricalColors(): List<Color> =
-    if (isSystemInDarkTheme()) ChartCategoricalDark else ChartCategoricalLight
+    if (isAppDark()) ChartCategoricalDark else ChartCategoricalLight
+
+/** Income / expense text+icon colours, re-stepped per theme so contrast holds in both. */
+@Composable
+fun incomeColor(): Color = if (isAppDark()) Color(0xFF4ADE80) else Color(0xFF15803D)
+
+@Composable
+fun expenseColor(): Color = if (isAppDark()) Color(0xFFF87171) else Color(0xFFB91C1C)
 
 // ── Legacy / Material fallbacks ──────────────────────────────────────────────
 val Purple80         = Color(0xFFD0BCFF)

@@ -1,5 +1,6 @@
 package com.example.spendsync.notifications
 
+import com.example.spendsync.ui.i18n.tr
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -26,7 +27,7 @@ object TransactionCaptureNotifier {
         manager.createNotificationChannel(
             NotificationChannel(
                 NotificationCaptureIds.CHANNEL_ID,
-                "Auto-captured transactions",
+                tr(R.string.auto_captured_transactions),
                 NotificationManager.IMPORTANCE_DEFAULT,
             )
         )
@@ -47,19 +48,19 @@ object TransactionCaptureNotifier {
         )
         val replyAction = NotificationCompat.Action.Builder(
             android.R.drawable.ic_menu_edit,
-            "Add description",
+            tr(R.string.add_description),
             replyPendingIntent,
         ).addRemoteInput(
             RemoteInput.Builder(NotificationCaptureIds.KEY_TEXT_REPLY)
-                .setLabel("Add a description")
+                .setLabel(tr(R.string.add_a_description))
                 .build()
         ).build()
 
         val directionSign = if (transaction.type == "credit") "+" else "-"
         val notification = NotificationCompat.Builder(context, NotificationCaptureIds.CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("$directionSign₹${transaction.amount} to ${transaction.merchant}")
-            .setContentText("Tap reply to add a description")
+            .setContentTitle(tr(R.string.captured_amount_to, directionSign, transaction.amount, transaction.merchant))
+            .setContentText(tr(R.string.tap_reply_to_add_a_description))
             .addAction(replyAction)
             .setAutoCancel(true)
             .build()

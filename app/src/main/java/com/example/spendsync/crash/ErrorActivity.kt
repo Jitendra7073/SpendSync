@@ -1,5 +1,7 @@
 package com.example.spendsync.crash
 
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -14,9 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material3.Icon
+import com.example.spendsync.ui.components.Icon
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.example.spendsync.ui.components.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,7 +27,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendsync.MainActivity
-import com.example.spendsync.ui.components.PrimaryButton
+import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.components.ButtonSize
 import com.example.spendsync.ui.theme.BrandBlue
 import com.example.spendsync.ui.theme.NeutralMid
 import com.example.spendsync.ui.theme.NeutralOffWhite
@@ -88,7 +91,7 @@ private fun ErrorScreen(
         )
         Spacer(Modifier.height(20.dp))
         Text(
-            text       = "Something went wrong",
+            text       = tr(R.string.something_went_wrong),
             fontSize   = 18.sp,
             fontWeight = FontWeight.Bold,
             color      = BrandBlue,
@@ -96,8 +99,8 @@ private fun ErrorScreen(
         )
         Spacer(Modifier.height(10.dp))
         Text(
-            text      = "The app ran into an unexpected problem. Your data is safe — " +
-                "just restart to continue.",
+            text      = tr(R.string.the_app_ran_into_an_unexpected) +
+                tr(R.string.just_restart_to_continue),
             fontSize  = 14.sp,
             color     = NeutralMid,
             textAlign = TextAlign.Center,
@@ -112,9 +115,11 @@ private fun ErrorScreen(
             )
         }
         Spacer(Modifier.height(32.dp))
-        PrimaryButton(
-            text    = "Restart",
+        AppButton(
+            text = tr(R.string.restart_the_app),
             onClick = onRestart,
+            size = ButtonSize.Large,
+            fullWidth = true,
         )
     }
 }

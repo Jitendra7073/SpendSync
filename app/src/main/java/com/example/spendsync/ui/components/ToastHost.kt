@@ -1,5 +1,7 @@
 package com.example.spendsync.ui.components
 
+import com.example.spendsync.ui.i18n.tr
+import com.example.spendsync.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -109,7 +111,7 @@ fun ToastHost(
 private fun ToastBanner(message: String, isError: Boolean) {
     val bgColor   = if (isError) SemanticError else SemanticSuccess
     val icon      = if (isError) Icons.Default.Warning else Icons.Default.CheckCircle
-    val iconDesc  = if (isError) "Error" else "Success"
+    val iconDesc  = if (isError) tr(R.string.error_label) else tr(R.string.success_label)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,

@@ -1,5 +1,9 @@
 package com.example.spendsync.ui.shared
 
+import androidx.compose.material.icons.filled.AutoAwesome
+import com.example.spendsync.ui.i18n.LanguageManager
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
@@ -12,8 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
+import com.example.spendsync.ui.components.Icon
+import com.example.spendsync.ui.components.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -41,8 +45,10 @@ fun TopBarDateSearchGroup(
     groupBackgroundColor: Color,
     modifier: Modifier = Modifier,
     dateFormatPattern: String = "d MMM yyyy",
+    /** When set, a sparkle button opens the assistant. */
+    onAssistantClick: (() -> Unit)? = null,
 ) {
-    val dateFormatter = remember(dateFormatPattern) {
+    val dateFormatter = remember(dateFormatPattern, LanguageManager.current) {
         DateTimeFormatter.ofPattern(dateFormatPattern, Locale.getDefault())
     }
 
@@ -69,7 +75,7 @@ fun TopBarDateSearchGroup(
             Spacer(modifier = Modifier.width(6.dp))
             Icon(
                 imageVector = Icons.Default.CalendarMonth,
-                contentDescription = "Select Date",
+                contentDescription = tr(R.string.select_date),
                 tint = contentColor,
                 modifier = Modifier.size(20.dp),
             )
@@ -84,10 +90,27 @@ fun TopBarDateSearchGroup(
         ) {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = "Search",
+                contentDescription = tr(R.string.search),
                 tint = contentColor,
                 modifier = Modifier.size(20.dp),
             )
+        }
+
+        if (onAssistantClick != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onAssistantClick)
+                    .padding(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = tr(R.string.assistant_open_a11y),
+                    tint = contentColor,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }

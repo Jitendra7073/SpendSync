@@ -1,5 +1,7 @@
 package com.example.spendsync.ui.auth
 
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +28,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.example.spendsync.ui.components.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,8 +47,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendsync.ui.components.AuthTextField
-import com.example.spendsync.ui.components.PrimaryButton
-import com.example.spendsync.ui.components.TextLinkButton
+import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.components.ButtonSize
+import com.example.spendsync.ui.components.ButtonVariant
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
 import com.example.spendsync.ui.theme.BrandBlue
@@ -133,14 +136,14 @@ fun RegisterScreen(
                     verticalArrangement = Arrangement.Top,
                 ) {
                     Text(
-                        text       = "CREATE ACCOUNT",
+                        text       = tr(R.string.create_account),
                         color      = BrandBlue,
                         fontSize   = 18.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text     = "Sign up and start tracking your expenses",
+                        text     = tr(R.string.sign_up_and_start_tracking_your),
                         color    = NeutralMid,
                         fontSize = 12.sp,
                     )
@@ -151,7 +154,7 @@ fun RegisterScreen(
                     AuthTextField(
                         value           = uiState.name,
                         onValueChange   = viewModel::onNameChanged,
-                        label           = "Full Name",
+                        label           = tr(R.string.full_name),
                         leadingIcon     = Icons.Default.Person,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Text,
@@ -169,7 +172,7 @@ fun RegisterScreen(
                     AuthTextField(
                         value           = uiState.email,
                         onValueChange   = viewModel::onEmailChanged,
-                        label           = "Email Address",
+                        label           = tr(R.string.email_address),
                         leadingIcon     = Icons.Default.Email,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Email,
@@ -187,7 +190,7 @@ fun RegisterScreen(
                     AuthTextField(
                         value                   = uiState.password,
                         onValueChange           = viewModel::onPasswordChanged,
-                        label                   = "Password",
+                        label                   = tr(R.string.password),
                         leadingIcon             = Icons.Default.Lock,
                         isPassword              = true,
                         passwordVisible         = uiState.passwordVisible,
@@ -195,7 +198,7 @@ fun RegisterScreen(
                             Icons.Default.VisibilityOff else Icons.Default.Visibility,
                         onTrailingIconClick     = viewModel::togglePasswordVisibility,
                         trailingIconDescription = if (uiState.passwordVisible)
-                            "Hide password" else "Show password",
+                            tr(R.string.hide_password) else tr(R.string.show_password),
                         keyboardOptions         = KeyboardOptions(
                             keyboardType = KeyboardType.Password,
                             imeAction    = ImeAction.Next,
@@ -212,7 +215,7 @@ fun RegisterScreen(
                     AuthTextField(
                         value                   = uiState.confirmPassword,
                         onValueChange           = viewModel::onConfirmPasswordChanged,
-                        label                   = "Confirm Password",
+                        label                   = tr(R.string.confirm_password),
                         leadingIcon             = Icons.Default.Lock,
                         isPassword              = true,
                         passwordVisible         = uiState.confirmPasswordVisible,
@@ -220,7 +223,7 @@ fun RegisterScreen(
                             Icons.Default.VisibilityOff else Icons.Default.Visibility,
                         onTrailingIconClick     = viewModel::toggleConfirmPasswordVisibility,
                         trailingIconDescription = if (uiState.confirmPasswordVisible)
-                            "Hide confirm password" else "Show confirm password",
+                            tr(R.string.hide_confirm_password) else tr(R.string.show_confirm_password),
                         keyboardOptions         = KeyboardOptions(
                             keyboardType = KeyboardType.Password,
                             imeAction    = ImeAction.Done,
@@ -237,14 +240,16 @@ fun RegisterScreen(
                     Spacer(Modifier.height(28.dp))
 
                     // Primary action
-                    PrimaryButton(
-                        text      = "Create Account",
-                        onClick   = {
+                    AppButton(
+                        text = tr(R.string.create_account_2),
+                        onClick = {
                             focusManager.clearFocus()
                             viewModel.signUp()
                         },
-                        isLoading = uiState.isLoading,
-                        enabled   = !uiState.isLoading,
+                        size = ButtonSize.Large,
+                        loading = uiState.isLoading,
+                        enabled = !uiState.isLoading,
+                        fullWidth = true,
                     )
 
                     Spacer(Modifier.height(20.dp))
@@ -256,14 +261,15 @@ fun RegisterScreen(
                         verticalAlignment     = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text     = "Already have an account?",
+                            text     = tr(R.string.already_have_an_account),
                             color    = NeutralDark,
                             fontSize = 14.sp,
                         )
-                        TextLinkButton(
-                            text    = "Log In",
+                        AppButton(
+                            text = tr(R.string.log_in),
                             onClick = { viewModel.navigateToLogin() },
-                            color   = BrandBlue,
+                            variant = ButtonVariant.Text,
+                            size = ButtonSize.Small,
                         )
                     }
 
@@ -278,16 +284,15 @@ fun RegisterScreen(
                         verticalAlignment     = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text     = "Just browsing?",
+                            text     = tr(R.string.just_browsing),
                             color    = NeutralMid,
                             fontSize = 12.sp,
                         )
-                        TextLinkButton(
-                            text       = "Overview",
-                            onClick    = onNavigateToHome,
-                            color      = NeutralDark,
-                            fontWeight = FontWeight.Medium,
-                            fontSize   = 13,
+                        AppButton(
+                            text = tr(R.string.overview),
+                            onClick = onNavigateToHome,
+                            variant = ButtonVariant.Text,
+                            size = ButtonSize.Small,
                         )
                     }
                 }

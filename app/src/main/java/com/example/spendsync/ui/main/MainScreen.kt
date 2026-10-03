@@ -34,8 +34,8 @@ import com.example.spendsync.navigation.BottomNavItem
 import com.example.spendsync.navigation.SpendSyncBottomBar
 import com.example.spendsync.ui.holds.HoldsScreen
 import com.example.spendsync.ui.home.HomeScreen
-import com.example.spendsync.ui.placeholder.AnalyticsScreen
-import com.example.spendsync.ui.placeholder.BudgetScreen
+import com.example.spendsync.ui.analytics.AnalyticsScreen
+import com.example.spendsync.ui.budget.BudgetScreen
 import com.example.spendsync.ui.profile.ProfileScreen
 import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.DateFilterState
@@ -110,6 +110,17 @@ fun MainScreen(
 
     // ── Holds list overlay — reached from Home's "Hold Money" stat ────────────
     var showHolds by rememberSaveable { mutableStateOf(false) }
+
+    // ── Assistant chat overlay — opened from the sparkle button in the top bar ─
+    var showAssistant by rememberSaveable { mutableStateOf(false) }
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+    val assistantViewModel: com.example.spendsync.ui.assistant.AssistantViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.example.spendsync.ui.assistant.AssistantViewModel.factory(
+            repository = remember { com.example.spendsync.data.assistant.AssistantRepository(sessionDataStore) },
+            store = remember { com.example.spendsync.data.assistant.ChatStore(appContext) },
+            session = sessionDataStore,
+        ),
+    )
 
     // Bumped every time the add/edit overlay closes so Home reloads its list —
     // Home only reacts to date-filter changes otherwise.
@@ -193,6 +204,7 @@ fun MainScreen(
                         amountVisibility = amountVisibility,
                         onOpenSettings = ::requestOpenSettings,
                         onViewTransaction = ::requestViewTransaction,
+                        onOpenAssistant = { showAssistant = true },
                     )
                     BottomNavItem.Budget.route    -> BudgetScreen(
                         sessionDataStore = sessionDataStore,
@@ -201,6 +213,7 @@ fun MainScreen(
                         amountVisibility = amountVisibility,
                         onOpenSettings = ::requestOpenSettings,
                         onViewTransaction = ::requestViewTransaction,
+                        onOpenAssistant = { showAssistant = true },
                     )
                     BottomNavItem.Profile.route   -> ProfileScreen(
                         sessionDataStore = sessionDataStore,
@@ -223,6 +236,7 @@ fun MainScreen(
                         externalViewTransaction = viewTransactionRequestData,
                         onSignOut        = onSignOut,
                         onOpenHolds      = { showHolds = true },
+                        onOpenAssistant  = { showAssistant = true },
                     )
                 }
             }
@@ -277,11 +291,52 @@ fun MainScreen(
                 if (visible) {
                     HoldsScreen(
                         financeRepository = financeRepository,
+                        sessionDataStore = sessionDataStore,
                         amountVisibility = amountVisibility,
                         // Home stays composed underneath this overlay, so settling
                         // a hold here leaves its balance card stale unless we bump
                         // the same key closeExpenseOverlay() uses.
                         onBack = { showHolds = false; homeRefreshKey++ },
+                    )
+                }
+            }
+
+            // ── Assistant chat — slides up like the other full-screen overlays ──
+            AnimatedContent(
+                targetState    = showAssistant,
+                transitionSpec = {
+                    if (targetState) {
+                        slideInVertically(animationSpec = overlaySlideSpec) { it } togetherWith fadeOut(tween(0))
+                    } else {
+                        fadeIn(tween(0)) togetherWith slideOutVertically(animationSpec = overlaySlideSpec) { it }
+                    }
+                },
+                label = "assistant_overlay",
+            ) { visible ->
+                if (visible) {
+                    androidx.activity.compose.BackHandler { showAssistant = false }
+                    com.example.spendsync.ui.assistant.AssistantScreen(
+                        viewModel = assistantViewModel,
+                        sessionDataStore = sessionDataStore,
+                        amountVisibility = amountVisibility,
+                        currentScreen = when (selectedRoute) {
+                            BottomNavItem.Analytics.route -> "analytics"
+                            BottomNavItem.Budget.route -> "budget"
+                            BottomNavItem.Profile.route -> "profile"
+                            else -> "home"
+                        },
+                        onBack = { showAssistant = false },
+                        onOpenScreen = { screen ->
+                            showAssistant = false
+                            when (screen) {
+                                "home" -> jumpToTab(pages.indexOf(BottomNavItem.Home.route))
+                                "analytics" -> jumpToTab(pages.indexOf(BottomNavItem.Analytics.route))
+                                "budget" -> jumpToTab(pages.indexOf(BottomNavItem.Budget.route))
+                                "profile" -> jumpToTab(pages.indexOf(BottomNavItem.Profile.route))
+                                "holds" -> showHolds = true
+                                "add_transaction" -> showTypeSheet = true
+                            }
+                        },
                     )
                 }
             }

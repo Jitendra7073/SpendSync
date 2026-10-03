@@ -1,5 +1,8 @@
 package com.example.spendsync.ui.transaction
 
+import com.example.spendsync.ui.i18n.categoryLabel
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -68,13 +71,13 @@ import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
+import com.example.spendsync.ui.components.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
+import com.example.spendsync.ui.components.Text
 import androidx.compose.material3.ripple
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Switch
@@ -108,7 +111,6 @@ import com.example.spendsync.data.remote.IconifyApiClient
 import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
-import com.example.spendsync.ui.components.rememberPressScale
 import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.MaskableAmountText
 import coil3.compose.AsyncImage
@@ -121,6 +123,39 @@ import com.example.spendsync.ui.theme.SemanticSuccess
 import com.example.spendsync.ui.shared.MonthPickerDialog
 import com.example.spendsync.notifications.HoldReminderWorker
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.Role
+import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.components.AppChip
+import com.example.spendsync.ui.components.AppIconButton
+import com.example.spendsync.ui.components.AppSheet
+import com.example.spendsync.ui.components.AppTextField
+import com.example.spendsync.ui.components.ButtonSize
+import com.example.spendsync.ui.components.ButtonVariant
+import com.example.spendsync.ui.home.glassCard
+import com.example.spendsync.ui.settings.SettingsBackdrop
+import com.example.spendsync.ui.settings.SettingsContentWidth
+import com.example.spendsync.ui.settings.SettingsTopBar
+import com.example.spendsync.ui.theme.expenseColor
+import com.example.spendsync.ui.theme.incomeColor
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -219,6 +254,7 @@ fun AddExpenseScreen(
         )
     }
     var showDatePicker by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
 
     var expectReturn by remember { mutableStateOf(false) }
     var holdPersonName by remember { mutableStateOf("") }
@@ -367,15 +403,15 @@ fun AddExpenseScreen(
             rankedCategories
         } else {
             categoryPool
-                .filter { it.label.firstOrNull()?.uppercaseChar() in selectedFilterLetters }
-                .sortedBy { it.label }
+                .filter { categoryLabel(it.label).firstOrNull()?.uppercaseChar() in selectedFilterLetters }
+                .sortedBy { categoryLabel(it.label) }
         }
     }
 
     // Which starting letters actually have a category — disables dead letters
     // in the A-Z sheet instead of showing 26 options where most do nothing.
     val availableFilterLetters = remember(categoryPool) {
-        categoryPool.mapNotNull { it.label.firstOrNull()?.uppercaseChar() }.toSet()
+        categoryPool.mapNotNull { categoryLabel(it.label).firstOrNull()?.uppercaseChar() }.toSet()
     }
 
     // Auto-suggest a category from what the user types, based on past picks
@@ -398,12 +434,8 @@ fun AddExpenseScreen(
             }
         }
     }
-    val accentColor = if (type == TransactionType.INCOME) SemanticSuccess else SemanticError
-    val headerColor by animateColorAsState(
-        targetValue   = accentColor,
-        animationSpec = tween(300),
-        label         = "header_color",
-    )
+    // Theme-aware green / red — readable on the surface in light and dark.
+    val accentColor = if (type == TransactionType.INCOME) incomeColor() else expenseColor()
 
     // Add-category screen state
     var showAddCategory by remember { mutableStateOf(false) }
@@ -414,475 +446,252 @@ fun AddExpenseScreen(
         displayedCategories + Category("+ Add", Icons.Default.Add)
     }
 
-    ToastHost(toast = toast, onDismiss = { toast = null }) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(NeutralOffWhite),
-    ) {
-        // ── Coloured header ───────────────────────────────────────────────────
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(headerColor)
-                .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
-        ) {
-            // Back arrow + title
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector        = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint               = NeutralWhite,
-                    )
-                }
-                Text(
-                    text       = if (isEditing) "Edit Transaction" else "Add Transaction",
-                    color      = NeutralWhite,
-                    fontSize   = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+    val canSave = amountVal > 0.0 && !selectedCat.isNullOrBlank()
 
-            Spacer(Modifier.height(16.dp))
-
-            // ── Income / Expense toggle ───────────────────────────────────────
-            TypeToggle(
-                selected  = type,
-                onSelect  = { type = it; selectedCat = null },
-                modifier  = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── Amount input ──────────────────────────────────────────────────
-            Column(
-                modifier            = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text     = "Amount",
-                    color    = NeutralWhite.copy(alpha = 0.80f),
-                    fontSize = 12.sp,
-                )
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text       = currencySymbol,
-                        color      = NeutralWhite,
-                        fontSize   = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    OutlinedTextField(
-                        value         = amount,
-                        onValueChange = { v ->
-                            val filtered = v.filter { it.isDigit() || it == '.' }
-                            if (filtered.count { it == '.' } <= 1) amount = filtered
-                        },
-                        placeholder   = {
-                            Text(
-                                text     = "0.00",
-                                color    = NeutralWhite.copy(alpha = 0.45f),
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        },
-                        textStyle     = androidx.compose.ui.text.TextStyle(
-                            color      = NeutralWhite,
-                            fontSize   = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        colors        = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor   = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            cursorColor          = NeutralWhite,
-                        ),
-                        singleLine    = true,
-                        modifier      = Modifier
-                            .weight(1f)
-                            .focusRequester(amountFocusRequester),
-                    )
-                }
-
-                // Live insufficient-balance warning — updates as the user types,
-                // instead of only failing after they tap Save.
-                if (insufficientBalance) {
-                    Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = NeutralWhite,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Insufficient balance — ",
-                            color = NeutralWhite,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        MaskableAmountText(
-                            amount = availableForThisTransaction.coerceAtLeast(0.0),
-                            visibility = amountVisibility,
-                            color = NeutralWhite,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = " available",
-                            color = NeutralWhite,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
-
-                // Conditionally show Note field directly under Amount if user has entered an amount
-                if (amount.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = note,
-                        onValueChange = { note = it },
-                        placeholder = { 
-                            Text(
-                                "Add a note (description)...", 
-                                color = NeutralWhite.copy(alpha = 0.60f), 
-                                fontSize = 14.sp
-                            ) 
-                        },
-                        singleLine = true,
-                        textStyle = androidx.compose.ui.text.TextStyle(color = NeutralWhite, fontSize = 14.sp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = NeutralWhite,
-                            unfocusedBorderColor = NeutralWhite.copy(alpha = 0.40f),
-                            cursorColor = NeutralWhite,
-                            focusedLabelColor = NeutralWhite
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp)
-                    )
-                }
-
-                // Inline "expect this back?" toggle — only for NEW transactions,
-                // a hold can't be attached retroactively while editing.
-                if (!isEditing && amount.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = if (type == TransactionType.EXPENSE) "Expect this back?" else "Need to pay this back?",
-                            color = NeutralWhite,
-                            fontSize = 14.sp,
-                        )
-                        Switch(checked = expectReturn, onCheckedChange = { expectReturn = it })
-                    }
-                    if (expectReturn) {
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = holdPersonName,
-                            onValueChange = { holdPersonName = it },
-                            placeholder = { Text("Who's this with?", color = NeutralWhite.copy(alpha = 0.60f), fontSize = 14.sp) },
-                            singleLine = true,
-                            textStyle = androidx.compose.ui.text.TextStyle(color = NeutralWhite, fontSize = 14.sp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = NeutralWhite,
-                                unfocusedBorderColor = NeutralWhite.copy(alpha = 0.40f),
-                                cursorColor = NeutralWhite,
-                                focusedLabelColor = NeutralWhite
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showHoldDatePicker = true }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = NeutralWhite)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Expected return: $holdReturnDate", color = NeutralWhite, fontSize = 14.sp)
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
+    fun save() {
+        if (transactionDate.isAfter(LocalDate.now())) {
+            toast = ToastMessage(tr(R.string.transaction_date_cannot_be_in_the), isError = true)
+            return
         }
+        if (insufficientBalance) {
+            // Plain toast text can't carry a tap-to-unlock eye, so this figure stays unmasked on purpose.
+            toast = ToastMessage(
+                tr(R.string.insufficient_balance_have, "$currencySymbol${"%,.2f".format(availableForThisTransaction.coerceAtLeast(0.0))}"),
+                isError = true,
+            )
+            return
+        }
+        if (!isEditing && expectReturn && holdPersonName.isBlank()) {
+            toast = ToastMessage(tr(R.string.enter_who_this_is_with_or), isError = true)
+            return
+        }
+        if (!canSave) return
+        scope.launch {
+            saving = true
+            val apiType = if (type == TransactionType.INCOME) "credit" else "debit"
+            val merchantName = if (note.isNotBlank()) note else selectedCat ?: "Other"
+            val chosenCategory = selectedCat ?: "Other"
+            val dateStr = "${transactionDate}T00:00:00.000Z"
+            val res = if (isEditing) {
+                financeRepository.updateTransaction(
+                    id = editTransaction!!.id, amount = amountVal, type = apiType, merchant = merchantName,
+                    category = chosenCategory, note = note, transactionDate = dateStr,
+                )
+            } else {
+                financeRepository.createTransaction(
+                    amount = amountVal, type = apiType, merchant = merchantName,
+                    category = chosenCategory, note = note, transactionDate = dateStr,
+                )
+            }
+            // Teach the suggestion engine: next time this merchant is typed, suggestCategory()
+            // will offer this category. Own coroutine so it never delays navigating back.
+            if (note.isNotBlank()) {
+                val keyword = note.trim().lowercase()
+                scope.launch { financeRepository.createCategory(keyword, chosenCategory) }
+            }
+            if (res is AuthResult.Success) {
+                if (!isEditing && expectReturn && holdPersonName.isNotBlank()) {
+                    val direction = if (type == TransactionType.EXPENSE) "owed_to_me" else "owed_by_me"
+                    val holdRes = financeRepository.createHold(
+                        transactionId = res.data.id,
+                        direction = direction,
+                        personName = holdPersonName,
+                        amount = amountVal,
+                        expectedReturnDate = "${holdReturnDate}T00:00:00.000Z",
+                    )
+                    if (holdRes is AuthResult.Success) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        HoldReminderWorker.schedule(
+                            context = context,
+                            holdId = holdRes.data.id,
+                            personName = holdPersonName,
+                            amount = amountVal,
+                            direction = direction,
+                            expectedReturnDate = holdReturnDate,
+                        )
+                    } else {
+                        toast = ToastMessage(tr(R.string.transaction_saved_hold_failed, (holdRes as AuthResult.Error).message), isError = true)
+                        delay(1500)
+                        onBack()
+                        return@launch
+                    }
+                }
+                toast = ToastMessage(if (isEditing) tr(R.string.transaction_updated) else tr(R.string.transaction_added), isError = false)
+                delay(500)
+                onBack()
+            } else {
+                saving = false
+                toast = ToastMessage((res as AuthResult.Error).message, isError = true)
+            }
+        }
+    }
 
-        // ── Body — Date fixed at top, Category grid fills the rest of the ────
-        // screen down to the pinned Save bar (not a page scroll — the grid
-        // has its own internal scroll for when categories overflow it).
+    ToastHost(toast = toast, onDismiss = { toast = null }) {
+    SettingsBackdrop {
+    Column(Modifier.fillMaxSize()) {
+        SettingsTopBar(if (isEditing) tr(R.string.edit_transaction) else tr(R.string.add_transaction), onBack)
+
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 20.dp),
+                .verticalScroll(rememberScrollState())
+                .imePadding(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(24.dp))
+            SettingsContentWidth {
+                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // ── Type ─────────────────────────────────────────────────
+                    TypeToggle(selected = type, onSelect = { type = it; selectedCat = null })
 
-            // ── Date ─────────────────────────────────────────────────────────
-            SectionLabel("Date")
-            Spacer(Modifier.height(12.dp))
-            DateSelectorRow(
-                date = transactionDate,
-                accentColor = accentColor,
-                onClick = { showDatePicker = true },
-            )
-
-            Spacer(Modifier.height(24.dp))
-
-            // ── Category label + alphabet filter (once the pool earns it) ─────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SectionLabel("Category")
-                if (categoryPool.size > 10) {
-                    IconButton(
-                        onClick = { showAlphabetFilter = true },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FilterList,
-                            contentDescription = "Filter categories alphabetically",
-                            tint = accentColor,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-
-            // Active-filter pill — lets the user clear it without reopening the sheet.
-            if (selectedFilterLetters.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(accentColor.copy(alpha = 0.12f))
-                        .clickable { selectedFilterLetters = emptySet() }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Letters: ${selectedFilterLetters.sorted().joinToString(", ")}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = accentColor,
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Clear letter filter",
-                            tint = accentColor,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-
-            // Grid displaying the displayed categories + the special "+" Chip at the
-            // end — fills all remaining vertical space down to the Save bar
-            // (weight(1f), not a fixed height), and scrolls internally once
-            // there are more categories than fit in that space.
-            LazyVerticalGrid(
-                columns             = GridCells.Fixed(4),
-                contentPadding      = PaddingValues(0.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement   = Arrangement.spacedBy(12.dp),
-                modifier            = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-            ) {
-                items(gridItems) { cat ->
-                    if (cat.label == "+ Add") {
-                        // Render add custom category trigger chip
-                        CategoryChip(
-                            category   = cat,
-                            isSelected = false,
-                            color      = accentColor,
-                            onClick    = { showAddCategory = true },
-                        )
-                    } else {
-                        CategoryChip(
-                            category   = cat,
-                            isSelected = selectedCat == cat.label,
-                            color      = accentColor,
-                            onClick    = { selectedCat = cat.label },
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-        }
-
-        // ── Save button — always pinned to the bottom of the screen ──────────
-        // Same tactile press-scale PrimaryButton uses elsewhere in the app —
-        // this is the single most-used action in SpendSync, it should feel
-        // at least as considered as the login button does.
-        val (saveButtonScale, saveButtonInteractionSource) = rememberPressScale()
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(NeutralWhite)
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(saveButtonScale)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (insufficientBalance) accentColor.copy(alpha = 0.5f) else accentColor)
-                    .clickable(
-                        interactionSource = saveButtonInteractionSource,
-                        indication        = ripple(bounded = true, color = NeutralWhite),
-                        onClick           = {
-                            if (transactionDate.isAfter(LocalDate.now())) {
-                                toast = ToastMessage("Transaction date cannot be in the future.", isError = true)
-                                return@clickable
-                            }
-                            if (insufficientBalance) {
-                                // ToastMessage.message is a plain String rendered by
-                                // ToastBanner outside a Composable eye-icon affordance —
-                                // same reasoning as HoldReminderNotifier's system
-                                // notification text: no tap target is possible here,
-                                // so this figure is left unmasked deliberately.
-                                toast = ToastMessage(
-                                    "Insufficient balance. You have $currencySymbol${"%,.2f".format(availableForThisTransaction.coerceAtLeast(0.0))} available.",
-                                    isError = true,
+                    // ── Amount ───────────────────────────────────────────────
+                    FormCard {
+                        Text(tr(R.string.how_much), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(currencySymbol, color = accentColor, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(6.dp))
+                            OutlinedTextField(
+                                value = amount,
+                                onValueChange = { v ->
+                                    val filtered = v.filter { it.isDigit() || it == '.' }
+                                    if (filtered.count { it == '.' } <= 1) amount = filtered
+                                },
+                                placeholder = { Text("0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), fontSize = 32.sp, fontWeight = FontWeight.Bold) },
+                                textStyle = androidx.compose.ui.text.TextStyle(color = accentColor, fontSize = 32.sp, fontWeight = FontWeight.Bold),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color.Transparent,
+                                    unfocusedBorderColor = Color.Transparent,
+                                    cursorColor = accentColor,
+                                ),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f).focusRequester(amountFocusRequester),
+                            )
+                        }
+                        // Live warning — updates as you type instead of failing after Save.
+                        AnimatedVisibility(insufficientBalance) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(tr(R.string.not_enough_balance_you_have), color = MaterialTheme.colorScheme.error, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                MaskableAmountText(
+                                    amount = availableForThisTransaction.coerceAtLeast(0.0),
+                                    visibility = amountVisibility,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                 )
-                                return@clickable
                             }
-                            if (!isEditing && expectReturn && holdPersonName.isBlank()) {
-                                toast = ToastMessage(
-                                    "Enter who this is with, or turn off \"Expect this back?\"",
-                                    isError = true,
-                                )
-                                return@clickable
+                        }
+                    }
+
+                    // ── Details ──────────────────────────────────────────────
+                    FormCard {
+                        AppTextField(
+                            value = note,
+                            onValueChange = { note = it },
+                            label = tr(R.string.what_was_it_for_optional),
+                            placeholder = tr(R.string.e_g_lunch_salary_uber),
+                            leadingIcon = Icons.Default.Edit,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        DateSelectorRow(label = tr(R.string.date), date = transactionDate, accentColor = accentColor, onClick = { showDatePicker = true })
+
+                        // A hold can only be attached to a NEW transaction.
+                        if (!isEditing) {
+                            Spacer(Modifier.height(8.dp))
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 52.dp)
+                                    .toggleable(value = expectReturn, role = Role.Switch, onValueChange = { expectReturn = it }),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        if (type == TransactionType.EXPENSE) tr(R.string.expect_this_back) else tr(R.string.need_to_pay_this_back),
+                                        fontSize = 15.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Text(tr(R.string.we_ll_track_it_in_holds), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Switch(checked = expectReturn, onCheckedChange = null)
                             }
-                            if (amountVal > 0.0 && !selectedCat.isNullOrBlank()) {
-                                scope.launch {
-                                     val apiType = if (type == TransactionType.INCOME) "credit" else "debit"
-                                     val merchantName = if (note.isNotBlank()) note else selectedCat ?: "Other"
-                                     val chosenCategory = selectedCat ?: "Other"
-                                     val dateStr = "${transactionDate}T00:00:00.000Z"
-                                     val res = if (isEditing) {
-                                         financeRepository.updateTransaction(
-                                             id = editTransaction.id,
-                                             amount = amountVal,
-                                             type = apiType,
-                                             merchant = merchantName,
-                                             category = chosenCategory,
-                                             note = note,
-                                             transactionDate = dateStr,
-                                         )
-                                     } else {
-                                         financeRepository.createTransaction(
-                                             amount = amountVal,
-                                             type = apiType,
-                                             merchant = merchantName,
-                                             category = chosenCategory,
-                                             note = note,
-                                             transactionDate = dateStr,
-                                         )
-                                     }
-                                     // Teach the suggestion engine: next time this merchant
-                                     // is typed, suggestCategory() will offer this category.
-                                     // Own coroutine so it never delays navigating back —
-                                     // a duplicate keyword 409s harmlessly either way.
-                                     if (note.isNotBlank()) {
-                                         val keyword = note.trim().lowercase()
-                                         scope.launch { financeRepository.createCategory(keyword, chosenCategory) }
-                                     }
-                                     if (res is AuthResult.Success) {
-                                         if (!isEditing && expectReturn && holdPersonName.isNotBlank()) {
-                                             val direction = if (type == TransactionType.EXPENSE) "owed_to_me" else "owed_by_me"
-                                             val holdRes = financeRepository.createHold(
-                                                 transactionId = res.data.id,
-                                                 direction = direction,
-                                                 personName = holdPersonName,
-                                                 amount = amountVal,
-                                                 expectedReturnDate = "${holdReturnDate}T00:00:00.000Z",
-                                             )
-                                             if (holdRes is AuthResult.Success) {
-                                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                                     ContextCompat.checkSelfPermission(
-                                                         context,
-                                                         Manifest.permission.POST_NOTIFICATIONS,
-                                                     ) != PackageManager.PERMISSION_GRANTED
-                                                 ) {
-                                                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                                 }
-                                                 HoldReminderWorker.schedule(
-                                                     context = context,
-                                                     holdId = holdRes.data.id,
-                                                     personName = holdPersonName,
-                                                     amount = amountVal,
-                                                     direction = direction,
-                                                     expectedReturnDate = holdReturnDate,
-                                                 )
-                                             } else {
-                                                 toast = ToastMessage(
-                                                     "Transaction saved, but couldn't track the hold: ${(holdRes as AuthResult.Error).message}",
-                                                     isError = true,
-                                                 )
-                                                 delay(1500)
-                                                 onBack()
-                                                 return@launch
-                                             }
-                                         }
-                                         toast = ToastMessage(
-                                             if (isEditing) "Transaction updated" else "Transaction added",
-                                             isError = false
-                                         )
-                                         delay(500)
-                                         onBack()
-                                     } else {
-                                         val message = (res as AuthResult.Error).message
-                                         toast = ToastMessage(message, isError = true)
-                                     }
+                            AnimatedVisibility(expectReturn) {
+                                Column(Modifier.padding(top = 8.dp)) {
+                                    AppTextField(holdPersonName, { holdPersonName = it }, label = tr(R.string.who_is_it_with), leadingIcon = Icons.Default.Person)
+                                    Spacer(Modifier.height(12.dp))
+                                    DateSelectorRow(label = tr(R.string.expected_back_by), date = holdReturnDate, accentColor = accentColor, onClick = { showHoldDatePicker = true })
                                 }
                             }
-                        },
-                    )
-                    .padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text       = when {
-                        isEditing && type == TransactionType.INCOME  -> "Update Income"
-                        isEditing                                    -> "Update Expense"
-                        type == TransactionType.INCOME                -> "Save Income"
-                        else                                          -> "Save Expense"
-                    },
-                    color      = NeutralWhite,
-                    fontSize   = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                )
+                        }
+                    }
+
+                    // ── Category ─────────────────────────────────────────────
+                    FormCard {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            SectionLabel(tr(R.string.category))
+                            if (categoryPool.size > 10) {
+                                AppIconButton(Icons.Default.FilterList, tr(R.string.filter_categories_by_letter), onClick = { showAlphabetFilter = true }, tint = accentColor)
+                            }
+                        }
+                        if (selectedFilterLetters.isNotEmpty()) {
+                            AppChip(
+                                label = tr(R.string.letters_chip, selectedFilterLetters.sorted().joinToString(", ")),
+                                selected = true,
+                                onClick = { selectedFilterLetters = emptySet() },
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        val rows = remember(gridItems) { gridItems.chunked(4) }
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            rows.forEach { row ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    row.forEach { cat ->
+                                        Box(Modifier.weight(1f)) {
+                                            if (cat.label == "+ Add") {
+                                                CategoryChip(cat, isSelected = false, color = accentColor, onClick = { showAddCategory = true })
+                                            } else {
+                                                CategoryChip(cat, isSelected = selectedCat == cat.label, color = accentColor, onClick = { selectedCat = cat.label })
+                                            }
+                                        }
+                                    }
+                                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
             }
         }
+
+        // ── Save bar — always pinned to the bottom ───────────────────────────
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            AppButton(
+                text = when {
+                    isEditing -> tr(R.string.save_changes)
+                    type == TransactionType.INCOME -> tr(R.string.add_money_in)
+                    else -> tr(R.string.add_money_out)
+                },
+                onClick = { save() },
+                modifier = Modifier.widthIn(max = 600.dp),
+                size = ButtonSize.Large,
+                enabled = canSave,
+                loading = saving,
+                fullWidth = true,
+            )
+        }
+    }
     }
 
     // Add-category screen — search Iconify, pick a name + icon
@@ -902,7 +711,7 @@ fun AddExpenseScreen(
                     sessionExpenseCategories = sessionExpenseCategories + newCat
                     scope.launch { sessionDataStore.addCustomExpenseCategory(name, iconId) }
                 }
-                selectedCat = name // Automatically select the newly created category
+                selectedCat = name // select the newly created category
                 justAddedCategory = name // ...and keep it pinned near the front of the list
                 selectedFilterLetters = emptySet() // back to the pinned view so it's visible
                 showAddCategory = false
@@ -910,10 +719,7 @@ fun AddExpenseScreen(
         )
     }
 
-    // A-Z category filter — only reachable once the category section's filter
-    // icon is shown (pool > 10), and only lists letters that have a match.
-    // Stays open while toggling letters — the grid behind filters live, and
-    // only closes on an outside tap/swipe (ModalBottomSheet's own dismiss).
+    // A-Z category filter — stays open while toggling letters; the grid behind filters live.
     if (showAlphabetFilter) {
         CategoryAlphabetFilterSheet(
             availableLetters = availableFilterLetters,
@@ -921,32 +727,24 @@ fun AddExpenseScreen(
             matchCount = displayedCategories.size,
             accentColor = accentColor,
             onToggle = { letter ->
-                selectedFilterLetters = if (letter in selectedFilterLetters) {
-                    selectedFilterLetters - letter
-                } else {
-                    selectedFilterLetters + letter
-                }
+                selectedFilterLetters = if (letter in selectedFilterLetters) selectedFilterLetters - letter else selectedFilterLetters + letter
             },
             onClearAll = { selectedFilterLetters = emptySet() },
             onDismiss = { showAlphabetFilter = false },
         )
     }
 
-    // Date picker — future dates are disabled, never backdate past "today"'s max
+    // Future dates are disabled — never backdate past "today"'s max
     if (showDatePicker) {
         MonthPickerDialog(
             current = transactionDate,
             maxDate = today,
-            onConfirm = { picked ->
-                transactionDate = picked
-                showDatePicker = false
-            },
+            onConfirm = { picked -> transactionDate = picked; showDatePicker = false },
             onDismiss = { showDatePicker = false },
         )
     }
 
-    // Hold return-date picker — unlike the transaction date, this is meant to
-    // be in the future, so no maxDate cap is passed.
+    // A hold's return date is meant to be in the future, so no maxDate cap here.
     if (showHoldDatePicker) {
         MonthPickerDialog(
             current = holdReturnDate,
@@ -957,193 +755,131 @@ fun AddExpenseScreen(
     }
 }
 
-// ── Income / Expense toggle ──────────────────────────────────────────────────
+// ── Building blocks ──────────────────────────────────────────────────────────
+
 @Composable
-private fun TypeToggle(
-    selected: TransactionType,
-    onSelect: (TransactionType) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    Row(
-        modifier  = modifier
-            .clip(RoundedCornerShape(40.dp))
-            .background(NeutralWhite.copy(alpha = 0.20f))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(0.dp),
-    ) {
-        TransactionType.entries.forEach { t ->
-            val isSelected = selected == t
-            val bgColor by animateColorAsState(
-                targetValue   = if (isSelected) NeutralWhite else Color.Transparent,
-                animationSpec = tween(220),
-                label         = "toggle_bg",
-            )
-            val textColor by animateColorAsState(
-                targetValue   = if (isSelected) {
-                    if (t == TransactionType.INCOME) SemanticSuccess else SemanticError
-                } else NeutralWhite.copy(alpha = 0.70f),
-                animationSpec = tween(220),
-                label         = "toggle_text",
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(36.dp))
-                    .background(bgColor)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication        = ripple(bounded = true),
-                        onClick           = { onSelect(t) },
-                    )
-                    .padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text       = if (t == TransactionType.INCOME) "Income" else "Expense",
-                    color      = textColor,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    fontSize   = 14.sp,
-                )
+private fun FormCard(content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().glassCard().padding(16.dp), content = content)
+}
+
+/** Money in / Money out switch with a sliding tinted thumb. */
+@Composable
+private fun TypeToggle(selected: TransactionType, onSelect: (TransactionType) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val options = listOf(TransactionType.INCOME to tr(R.string.money_in), TransactionType.EXPENSE to tr(R.string.money_out))
+    val index = options.indexOfFirst { it.first == selected }
+    val tint by animateColorAsState(if (selected == TransactionType.INCOME) incomeColor() else expenseColor(), tween(250), label = "type_tint")
+    BoxWithConstraints(Modifier.fillMaxWidth().glassCard(radius = 28)) {
+        val cell = maxWidth / 2
+        val offset by animateDpAsState(cell * index, spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMedium), label = "type_thumb")
+        Box(
+            Modifier
+                .padding(4.dp)
+                .offset(x = offset)
+                .width(cell - 8.dp)
+                .height(48.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(tint.copy(alpha = 0.16f)),
+        )
+        Row(Modifier.padding(4.dp)) {
+            options.forEach { (t, label) ->
+                val isSel = t == selected
+                val fg by animateColorAsState(if (isSel) tint else scheme.onSurfaceVariant, tween(200), label = "type_fg")
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .selectable(selected = isSel, role = Role.RadioButton, onClick = { onSelect(t) }),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(label, color = fg, fontSize = 15.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium)
+                }
             }
         }
     }
 }
 
-// ── Category chip ────────────────────────────────────────────────────────────
 @Composable
-private fun CategoryChip(
-    category: Category,
-    isSelected: Boolean,
-    color: Color,
-    onClick: () -> Unit,
-) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val NeutralSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
-    val bgColor by animateColorAsState(
-        targetValue   = if (isSelected) color else NeutralSurfaceVariant,
-        animationSpec = tween(200),
-        label         = "cat_bg",
-    )
-    val contentColor by animateColorAsState(
-        targetValue   = if (isSelected) NeutralWhite else NeutralMid,
-        animationSpec = tween(200),
-        label         = "cat_content",
-    )
-
+private fun CategoryChip(category: Category, isSelected: Boolean, color: Color, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val bg by animateColorAsState(if (isSelected) color.copy(alpha = 0.16f) else scheme.surfaceVariant.copy(alpha = 0.6f), tween(200), label = "cat_bg")
+    val tint by animateColorAsState(if (isSelected) color else scheme.onSurfaceVariant, tween(200), label = "cat_tint")
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier            = Modifier
+        modifier = Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication        = ripple(bounded = true, color = color),
-                onClick           = onClick,
-            )
-            .padding(vertical = 8.dp, horizontal = 4.dp),
+            .selectable(selected = isSelected, role = Role.RadioButton, onClick = onClick)
+            .padding(vertical = 8.dp, horizontal = 2.dp),
     ) {
         Box(
-            modifier         = Modifier
+            Modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(bgColor),
+                .background(bg)
+                .then(if (isSelected) Modifier.border(2.dp, color, CircleShape) else Modifier),
             contentAlignment = Alignment.Center,
         ) {
             if (category.iconId != null) {
                 AsyncImage(
-                    model = IconifyApiClient.iconUrl(
-                        category.iconId,
-                        colorHex = if (isSelected) "#FFFFFF" else "#6B7280",
-                    ),
+                    model = IconifyApiClient.iconUrl(category.iconId, colorHex = "#%06X".format(0xFFFFFF and tint.toArgb())),
                     contentDescription = category.label,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.size(22.dp),
                 )
             } else {
-                Icon(
-                    imageVector        = category.icon ?: Icons.Default.Star,
-                    contentDescription = category.label,
-                    tint               = contentColor,
-                    modifier           = Modifier.size(22.dp),
-                )
+                Icon(category.icon ?: Icons.Default.Star, contentDescription = categoryLabel(category.label), tint = tint, modifier = Modifier.size(22.dp))
             }
         }
         Spacer(Modifier.height(5.dp))
         Text(
-            text      = category.label,
-            fontSize  = 11.sp,
-            color     = if (isSelected) NeutralBlack else NeutralMid,
+            if (category.label == "+ Add") tr(R.string.cat_add) else categoryLabel(category.label),
+            fontSize = 11.sp,
+            color = if (isSelected) scheme.onSurface else scheme.onSurfaceVariant,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-            maxLines  = 1,
+            maxLines = 1,
         )
     }
 }
 
-// ── Small helpers ─────────────────────────────────────────────────────────────
 @Composable
 private fun SectionLabel(text: String) {
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    Text(
-        text       = text,
-        fontSize   = 12.sp,
-        fontWeight = FontWeight.SemiBold,
-        color      = NeutralMid,
-    )
+    Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 }
 
-// ── Date selector row — opens the calendar, future dates are disabled ────────
+/** Field-style row that opens the calendar. The label sits above the chosen date. */
 @Composable
-private fun DateSelectorRow(
-    date: LocalDate,
-    accentColor: Color,
-    onClick: () -> Unit,
-) {
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
+private fun DateSelectorRow(label: String, date: LocalDate, accentColor: Color, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
     val today = remember { LocalDate.now() }
-    val label = remember(date) {
+    val text = remember(date) {
         when (date) {
-            today            -> "Today"
-            today.minusDays(1) -> "Yesterday"
-            else              -> date.format(DateTimeFormatter.ofPattern("d MMM yyyy"))
+            today -> tr(R.string.today)
+            today.minusDays(1) -> tr(R.string.yesterday)
+            else -> date.format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy"))
         }
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 56.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(accentColor.copy(alpha = 0.08f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication        = ripple(bounded = true, color = accentColor),
-                onClick           = onClick,
-            )
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .background(scheme.surfaceVariant.copy(alpha = 0.5f))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Icon(
-            imageVector        = Icons.Default.CalendarMonth,
-            contentDescription = null,
-            tint               = accentColor,
-            modifier           = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text       = label,
-            fontSize   = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color      = NeutralBlack,
-        )
+        Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = accentColor, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(label, fontSize = 12.sp, color = scheme.onSurfaceVariant)
+            Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = scheme.onSurface)
+        }
     }
 }
 
-// ── A-Z category filter sheet ────────────────────────────────────────────────
-// A shortcut alongside the scrollable grid — lets the user jump straight to
-// one or more letters instead of scrolling through a long list. Letters with
-// no matching category are shown but disabled,
-// not hidden, so the alphabet always reads as a complete, stable reference.
-@OptIn(ExperimentalMaterial3Api::class)
+/** Pick one or more starting letters; the category list behind updates live. */
 @Composable
 private fun CategoryAlphabetFilterSheet(
     availableLetters: Set<Char>,
@@ -1154,121 +890,60 @@ private fun CategoryAlphabetFilterSheet(
     onClearAll: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val NeutralSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
-    val sheetState = rememberModalBottomSheetState()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = NeutralWhite,
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-            Text(
-                text = "Filter by letter",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = NeutralBlack,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Pick one or more letters — the category list updates as you go",
-                fontSize = 12.sp,
-                color = NeutralMid,
-            )
-            Spacer(Modifier.height(20.dp))
-
-            // Rows of equal-width cells (via weight) so the grid always spans
-            // the sheet's full width edge to edge — no leftover gap on the
-            // right like a fixed-size FlowRow leaves on rows that don't
-            // divide evenly. The trailing row is padded with blank weighted
-            // spacers (not stretched letters) so every circle stays the same size.
-            val lettersPerRow = 6
-            val letterRows = remember { ('A'..'Z').toList().chunked(lettersPerRow) }
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                letterRows.forEach { rowLetters ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        rowLetters.forEach { letter ->
-                            val hasMatches = letter in availableLetters
-                            val isSelected = letter in selectedLetters
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1f)
-                                    .clip(CircleShape)
-                                    .background(
-                                        when {
-                                            isSelected -> accentColor
-                                            hasMatches -> NeutralSurfaceVariant
-                                            else -> Color.Transparent
-                                        }
-                                    )
-                                    .clickable(enabled = hasMatches) { onToggle(letter) },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = letter.toString(),
-                                    fontSize = 14.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = when {
-                                        isSelected -> NeutralWhite
-                                        hasMatches -> NeutralBlack
-                                        else -> NeutralMid.copy(alpha = 0.35f)
-                                    },
+    val scheme = MaterialTheme.colorScheme
+    AppSheet(onDismiss = onDismiss, title = tr(R.string.find_a_category), subtitle = tr(R.string.tap_one_or_more_letters_the)) {
+        val lettersPerRow = 6
+        val letterRows = remember { ('A'..'Z').toList().chunked(lettersPerRow) }
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            letterRows.forEach { rowLetters ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    rowLetters.forEach { letter ->
+                        val hasMatches = letter in availableLetters
+                        val isSelected = letter in selectedLetters
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .heightIn(min = 44.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    when {
+                                        isSelected -> accentColor.copy(alpha = 0.20f)
+                                        hasMatches -> scheme.surfaceVariant.copy(alpha = 0.7f)
+                                        else -> Color.Transparent
+                                    }
                                 )
-                            }
-                        }
-                        repeat(lettersPerRow - rowLetters.size) {
-                            Spacer(modifier = Modifier.weight(1f))
+                                .then(if (isSelected) Modifier.border(2.dp, accentColor, CircleShape) else Modifier)
+                                .clickable(enabled = hasMatches, role = Role.Button) { onToggle(letter) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                letter.toString(),
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = when {
+                                    isSelected -> accentColor
+                                    hasMatches -> scheme.onSurface
+                                    else -> scheme.onSurface.copy(alpha = 0.30f)
+                                },
+                            )
                         }
                     }
+                    repeat(lettersPerRow - rowLetters.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
-
-            Spacer(Modifier.height(18.dp))
-
-            // Live feedback — updates the instant a letter is toggled, without
-            // needing to close the sheet to see the effect.
-            Text(
-                text = if (selectedLetters.isEmpty()) {
-                    "Showing your top categories"
-                } else {
-                    "$matchCount ${if (matchCount == 1) "category matches" else "categories match"}"
-                },
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = NeutralMid,
-            )
-
-            if (selectedLetters.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(NeutralSurfaceVariant)
-                        .clickable(onClick = onClearAll)
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "Clear letters",
-                        color = NeutralBlack,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            if (selectedLetters.isEmpty()) tr(R.string.showing_your_most_used_categories)
+            else if (matchCount == 1) tr(R.string.s_1_category_matches) else tr(R.string.s_1_categories_match, matchCount),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = scheme.onSurfaceVariant,
+        )
+        if (selectedLetters.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            AppButton(tr(R.string.clear_letters), onClearAll, variant = ButtonVariant.Tonal, fullWidth = true)
         }
     }
 }

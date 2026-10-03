@@ -1,5 +1,7 @@
 package com.example.spendsync.ui.auth
 
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendsync.data.repository.AuthRepository
@@ -73,7 +75,7 @@ class AuthViewModel(
             when (val result = repository.signIn(state.email, state.password)) {
                 is AuthResult.Success -> {
                     _uiState.value = _uiState.value.copy(isLoading = false)
-                    _events.send(AuthEvent.ShowToast("Welcome back!", isError = false))
+                    _events.send(AuthEvent.ShowToast(tr(R.string.welcome_back), isError = false))
                     _events.send(AuthEvent.NavigateToHome)
                 }
                 is AuthResult.Error -> {
@@ -94,7 +96,7 @@ class AuthViewModel(
             when (val result = repository.signUp(state.name, state.email, state.password)) {
                 is AuthResult.Success -> {
                     _uiState.value = _uiState.value.copy(isLoading = false)
-                    _events.send(AuthEvent.ShowToast("Account created! Welcome to SpendSync.", isError = false))
+                    _events.send(AuthEvent.ShowToast(tr(R.string.account_created_welcome_to_spendsync), isError = false))
                     _events.send(AuthEvent.NavigateToHome)
                 }
                 is AuthResult.Error -> {
@@ -118,15 +120,15 @@ class AuthViewModel(
     private fun validateLoginFields(state: AuthUiState): Boolean {
         return when {
             state.email.isBlank() -> {
-                sendError("Please enter your email address.")
+                sendError(tr(R.string.please_enter_your_email_address))
                 false
             }
             !android.util.Patterns.EMAIL_ADDRESS.matcher(state.email).matches() -> {
-                sendError("Please enter a valid email address.")
+                sendError(tr(R.string.please_enter_a_valid_email_address))
                 false
             }
             state.password.isBlank() -> {
-                sendError("Please enter your password.")
+                sendError(tr(R.string.please_enter_your_password))
                 false
             }
             else -> true
@@ -136,23 +138,23 @@ class AuthViewModel(
     private fun validateRegisterFields(state: AuthUiState): Boolean {
         return when {
             state.name.isBlank() -> {
-                sendError("Please enter your full name.")
+                sendError(tr(R.string.please_enter_your_full_name))
                 false
             }
             state.email.isBlank() -> {
-                sendError("Please enter your email address.")
+                sendError(tr(R.string.please_enter_your_email_address))
                 false
             }
             !android.util.Patterns.EMAIL_ADDRESS.matcher(state.email).matches() -> {
-                sendError("Please enter a valid email address.")
+                sendError(tr(R.string.please_enter_a_valid_email_address))
                 false
             }
             state.password.length < 8 -> {
-                sendError("Password must be at least 8 characters.")
+                sendError(tr(R.string.password_must_be_at_least_8))
                 false
             }
             state.password != state.confirmPassword -> {
-                sendError("Passwords do not match.")
+                sendError(tr(R.string.passwords_do_not_match))
                 false
             }
             else -> true

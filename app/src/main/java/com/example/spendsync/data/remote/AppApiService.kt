@@ -6,6 +6,13 @@ import retrofit2.http.*
 
 interface AppApiService {
 
+    // ── Account ───────────────────────────────────────────────────────────────
+
+    @DELETE("api/account")
+    suspend fun deleteAccount(
+        @Header("Authorization") token: String
+    ): Response<SuccessResponse<Map<String, Boolean>>>
+
     // ── Transactions ──────────────────────────────────────────────────────────
 
     @POST("api/transactions")

@@ -1,5 +1,8 @@
 package com.example.spendsync.data.repository
 
+import com.example.spendsync.data.ServerMessages
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.remote.ApiClient
 import com.example.spendsync.data.remote.model.SignInRequest
@@ -56,7 +59,7 @@ class AuthRepository(
                 } else {
                     // No usable bearer token — a saved placeholder here would silently
                     // break every subsequent authenticated request, so treat as failure.
-                    AuthResult.Error("Sign in succeeded but no session token was returned.")
+                    AuthResult.Error(tr(R.string.sign_in_succeeded_but_no_session))
                 }
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
@@ -87,7 +90,7 @@ class AuthRepository(
                     )
                     AuthResult.Success(token)
                 } else {
-                    AuthResult.Error("Sign up succeeded but no session token was returned.")
+                    AuthResult.Error(tr(R.string.sign_up_succeeded_but_no_session))
                 }
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
@@ -141,24 +144,25 @@ class AuthRepository(
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun parseErrorMessage(errorBody: String?): String {
-        if (errorBody.isNullOrBlank()) return "An unexpected error occurred."
+        if (errorBody.isNullOrBlank()) return tr(R.string.an_unexpected_error_occurred)
         return try {
             val json = gson.fromJson(errorBody, JsonObject::class.java)
-            json.get("message")?.asString
-                ?: json.get("error")?.asString
-                ?: "An unexpected error occurred."
+            ServerMessages.localize(
+                message = json.get("message")?.asString ?: json.get("error")?.takeIf { it.isJsonPrimitive }?.asString,
+                code = json.get("code")?.asString,
+            )
         } catch (e: Exception) {
-            "An unexpected error occurred."
+            tr(R.string.an_unexpected_error_occurred)
         }
     }
 
     private fun Exception.toUserMessage(): String = when {
         message?.contains("Unable to resolve host", ignoreCase = true) == true ->
-            "No internet connection. Please check your network."
+            tr(R.string.no_internet_connection_please_check_your)
         message?.contains("timeout", ignoreCase = true) == true ->
-            "Request timed out. Please try again."
+            tr(R.string.request_timed_out_please_try_again)
         message?.contains("Connection refused", ignoreCase = true) == true ->
-            "Cannot reach the server. Please try again later."
-        else -> message ?: "An unexpected error occurred."
+            tr(R.string.cannot_reach_the_server_please_try)
+        else -> message ?: tr(R.string.an_unexpected_error_occurred)
     }
 }

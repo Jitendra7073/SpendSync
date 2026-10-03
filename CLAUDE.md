@@ -1,0 +1,59 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+SpendSync is an expense tracker: a native Android client (`app/`) talking to a Next.js + Better Auth + Postgres API (`backend/`). The Android app points at the deployed API (`API_BASE_URL` in `app/build.gradle.kts`, currently `https://spend-sync-api.vercel.app`), not localhost.
+
+## Android app (repo root, Gradle)
+
+```
+./gradlew assembleDebug                      # build
+./gradlew testDebugUnitTest                  # JVM unit tests (app/src/test)
+./gradlew testDebugUnitTest --tests "com.example.spendsync.utils.AmountMaskingTest"   # single class
+./gradlew connectedDebugAndroidTest          # instrumented tests (needs device/emulator)
+```
+
+Kotlin + Jetpack Compose (Material3), Retrofit/OkHttp/Gson, DataStore, WorkManager, Coil. Java 17, minSdk 24, package `com.example.spendsync`. No ViewModels/DI framework in the main flow: screens receive repositories (`AuthRepository`, `FinanceRepository`) and shared state holders directly.
+
+### Architecture
+- `data/remote` — Retrofit services (`AppApiService`, `AuthApiService`), `AuthInterceptor` attaches the Better Auth **bearer token**; `AuthEvents` signals session expiry. DTOs in `data/remote/model`.
+- `data/repository` — `FinanceRepository` wraps API calls; `SettingsSync` syncs user settings with the backend. `data/local/SessionDataStore` persists the session/token and local prefs.
+- `ui/main/MainScreen` hosts the bottom-nav tabs (Home, Holds, Analytics, Budget, Profile) in a pager; `ui/shared` holds cross-tab state (`DateFilterState`, `AmountVisibilityState`, PIN dialogs). Analytics/Budget currently live in `ui/placeholder`.
+- **Amount masking / PIN privacy**: amounts are hidden by default behind a PIN; `AmountVisibilityState` runs an auto-lock timer, and `utils/AmountMasking.kt` + `PinHashing.kt` implement it. Every screen displaying amounts must go through the masking helpers (see `docs/superpowers/specs/2026-08-05-amount-masking-design.md`).
+- `notifications/` — auto-capture of transactions from bank/UPI notifications: `TransactionNotificationListenerService` → `NotificationTransactionParser` (filtered by `NotificationAppAllowlist`) → `PendingCapture` queued and retried by `PendingCaptureRetryWorker`; `Hold*` classes schedule hold-reminder notifications.
+- `crash/CrashHandler` is installed in `SpendSyncApp` and shows `ErrorActivity` instead of the system crash dialog.
+
+Design specs and implementation plans for features live in `docs/superpowers/{specs,plans}/` — read the relevant one before changing money-hold, notification capture, or amount masking.
+
+## Backend (`cd backend`)
+
+```
+npm install
+npm run dev            # next dev
+npm run build
+npm run lint
+npm test               # vitest (e.g. npx vitest run src/types/hold.types.test.ts)
+npm run db:push        # push schema to DATABASE_URL (also db:generate / db:migrate / db:studio)
+```
+
+Needs `backend/.env` (copy `.env.example`; validated in `src/config/env.ts`).
+
+### Architecture
+- **`backend/README.md` is stale** — it describes an Express server (`server.ts`, `controllers/`, `middleware/`). The code is now Next.js App Router: endpoints are `src/app/api/**/route.ts`.
+- Every route export is wrapped in `withApi(handler, { auth: 'required' | 'optional' })` from `src/lib/api-handler.ts`, which centralizes rate limiting (in-memory), CORS (allow-list from config), Better Auth session lookup, and error mapping (`ZodError` → 422, `ApiError` → its status). Throw errors from `src/utils/errors.ts`; build responses with `src/lib/response.ts`. Each route file re-exports `corsPreflight as OPTIONS`.
+- Layering: `route.ts` (parse/validate with Zod schemas from `src/types/*.types.ts`) → `src/services/*.service.ts` (business logic + Drizzle queries). Domains: transactions, categories, budgets, holds, dashboard, settings.
+- Auth: `src/config/auth.ts` (Better Auth, email+password, 7-day sessions, `bearer` plugin for the Android client) mounted at `api/auth/[...all]`.
+- DB: Drizzle on `postgres`. Runtime imports `src/db/schema/index.ts` (per-domain files), but `drizzle.config.ts` points at the separate monolithic `src/db/schema.ts` — **schema changes must be made in both** or `db:push` will diverge from runtime.
+
+## UI conventions (Android)
+- **One component per concept**: buttons are `AppButton`/`AppIconButton`/`AppChip`; dialogs and sheets are `AppDialog`/`AppOptionDialog`/`AppConfirmDialog`/`AppSheet`; text inputs are `AppTextField` (all in `ui/components`). Don't hand-roll `Button`s or dialog cards.
+- **Strings**: no literals in UI/notification/repository code — use `tr(R.string.x)` (`ui/i18n`). Languages en/hi/es/fr/de live in `res/values*/strings.xml`; `I18nResourcesTest` enforces matching keys and placeholders. Don't call `tr()` in enum constructors or top-level vals (stale after a language switch). Stored values (theme, accent, categories) are shown through `themeLabel`/`accentLabel`/`categoryLabel`.
+- **Loading states**: render the real layout with placeholder data inside `Skeleton(loading) { … }`; import `Text`/`Icon` from `ui.components` (not material3) so they turn into bones.
+- **Colours**: theme tokens only (`MaterialTheme.colorScheme`, `incomeColor()`/`expenseColor()`); the app theme follows Settings, not the system, so use `isAppDark()` rather than `isSystemInDarkTheme()`.
+- **Settings**: every preference changes through `SettingsSynchronizer.changed(SettingField.X)` (local first, queued retry, server-confirmed). New setting = `SettingField` + `user_settings` column + zod field in `backend/src/types/settings.types.ts` (+ both schema files) + translations.
+- Backend schema changes need `npm run db:push` before deploying. `local.properties` must use forward slashes.
+
+## Assistant (chatbot)
+- **Backend** (`backend/src/assistant/`): `POST /api/assistant/chat` streams SSE (`loop.ts`, manual tool loop). Models are **free by default** and provider-neutral: `llm/` has adapters (`gemini.ts` for Gemma 4/Gemini, `openai-compat.ts` for Groq/Cerebras/OpenRouter/Mistral, `anthropic.ts` paid + opt-in only), `chain.ts` lists the failover order (override with `ASSISTANT_CHAIN`; a provider is active only if its key is set), and `router.ts` does the failover: per-model cool-downs, first-token/idle timeouts, mid-answer `reset` + next model, `no_tools` models retried in "context" mode (data prefetched by `fallback.ts`). If every model fails, `fallback.offlineAnswer` answers from the help guide / the user's numbers, so the chat never shows an error. Tools live in `tools.ts` with a permission tier (`permissions.ts`): only `read` and `navigate` run; clear-data / sign-out / delete-account have **no tool by design** (tests enforce it). Users can switch tools off and set model/style/tone/instructions (Settings → Assistant → `request.ts` `prefs`, enforced in `loop.ts`; stored in `user_settings.assistant_*`). `GET /api/assistant/status` feeds the settings screen. Help answers come from the BM25 index in `knowledge.ts` — update `HELP_ENTRIES` when a feature or setting changes. Keys: see `backend/.env.example`; audit rows go to `assistant_audit` (`npm run db:push` after schema changes). Tests: `npx vitest run` (loop/router use fake providers, adapters use a fake `fetch`).
+- **Android** (`data/assistant/`, `ui/assistant/`): `AssistantRepository` streams SSE, `ChatStore` is on-device SQLite history (filtered by user id), `reduceReply` builds the streamed reply, `maskAmountsInText` applies the PIN-masking rule to chat text. Consent is `SessionDataStore.assistantConsent` (device-local); everything else is `AssistantPrefs` (`SettingField.Assistant`, synced) edited in Settings → Assistant (`ui/settings/AssistantPage.kt`). The chat shows which model answered (`source` event) and drops text on `reset`. All assistant strings are in `strings_assistant.xml` + translations.
+- Adding a write tool later: tier `write`, enable it in `canRun` only together with a confirm card + undo, and log it in `assistant_audit`.

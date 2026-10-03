@@ -2,7 +2,7 @@
  * Complete schema definitions for Drizzle Kit
  * All tables defined inline to avoid module resolution issues
  */
-import { pgTable, text, timestamp, boolean, uuid, decimal } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, uuid, decimal, integer } from 'drizzle-orm/pg-core';
 
 // ============================================================================
 // AUTH TABLES (Better Auth)
@@ -134,6 +134,40 @@ export const userSettings = pgTable('user_settings', {
   language: text('language').notNull().default('English'),
   currency: text('currency').notNull().default('USD'),
   dateFormat: text('date_format').notNull().default('DD / MM / YYYY'),
+
+  // Theme + privacy + automation prefs. The PIN itself is never stored here —
+  // only whether masking is on and for how long amounts stay revealed.
+  themeMode: text('theme_mode').notNull().default('System'),
+  amountMaskingEnabled: boolean('amount_masking_enabled').notNull().default(false),
+  amountVisibilitySeconds: integer('amount_visibility_seconds').notNull().default(60),
+  autoCaptureEnabled: boolean('auto_capture_enabled').notNull().default(false),
+  // Comma-separated Android package names the user allowed for auto-capture.
+  autoCapturePackages: text('auto_capture_packages').notNull().default(''),
+  // Assistant preferences (Settings -> Assistant). Consent to use the assistant stays device-local.
+  assistantModel: text('assistant_model').notNull().default('auto'),
+  assistantStyle: text('assistant_style').notNull().default('balanced'),
+  assistantTone: text('assistant_tone').notNull().default('friendly'),
+  assistantInstructions: text('assistant_instructions').notNull().default(''),
+  // Comma-separated tool names the user switched off.
+  assistantDisabledTools: text('assistant_disabled_tools').notNull().default(''),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// ============================================================================
+// ASSISTANT AUDIT
+// ============================================================================
+
+export const assistantAudit = pgTable('assistant_audit', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  conversationId: text('conversation_id').notNull(),
+  toolName: text('tool_name').notNull(),
+  tier: text('tier').notNull(),
+  ok: boolean('ok').notNull(),
+  durationMs: integer('duration_ms').notNull(),
+  error: text('error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });

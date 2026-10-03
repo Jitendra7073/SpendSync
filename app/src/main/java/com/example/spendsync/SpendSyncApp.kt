@@ -7,6 +7,11 @@ import coil3.SingletonImageLoader
 import coil3.svg.SvgDecoder
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.example.spendsync.crash.CrashHandler
+import com.example.spendsync.data.local.SessionDataStore
+import com.example.spendsync.ui.i18n.AppLanguage
+import com.example.spendsync.ui.i18n.LanguageManager
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 /**
  * Application entry point.
@@ -22,6 +27,9 @@ import com.example.spendsync.crash.CrashHandler
 class SpendSyncApp : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
+        // Background code (reminder notifications, capture replies, the crash screen) needs the
+        // language before any Activity exists.
+        LanguageManager.apply(this, AppLanguage.fromStored(runBlocking { SessionDataStore(this@SpendSyncApp).language.first() }))
         CrashHandler.install(this)
     }
 

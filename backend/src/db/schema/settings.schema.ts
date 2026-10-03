@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, boolean, timestamp, integer } from 'drizzle-orm/pg-core';
 import { user } from './auth.schema';
 
 /**
@@ -28,6 +28,22 @@ export const userSettings = pgTable('user_settings', {
   language: text('language').notNull().default('English'),
   currency: text('currency').notNull().default('USD'),
   dateFormat: text('date_format').notNull().default('DD / MM / YYYY'),
+
+  // Theme + privacy + automation prefs. The PIN itself is never stored here —
+  // only whether masking is on and for how long amounts stay revealed.
+  themeMode: text('theme_mode').notNull().default('System'),
+  amountMaskingEnabled: boolean('amount_masking_enabled').notNull().default(false),
+  amountVisibilitySeconds: integer('amount_visibility_seconds').notNull().default(60),
+  autoCaptureEnabled: boolean('auto_capture_enabled').notNull().default(false),
+  // Comma-separated Android package names the user allowed for auto-capture.
+  autoCapturePackages: text('auto_capture_packages').notNull().default(''),
+  // Assistant preferences (Settings -> Assistant). Consent to use the assistant stays device-local.
+  assistantModel: text('assistant_model').notNull().default('auto'),
+  assistantStyle: text('assistant_style').notNull().default('balanced'),
+  assistantTone: text('assistant_tone').notNull().default('friendly'),
+  assistantInstructions: text('assistant_instructions').notNull().default(''),
+  // Comma-separated tool names the user switched off.
+  assistantDisabledTools: text('assistant_disabled_tools').notNull().default(''),
 
   // Timestamps
   createdAt: timestamp('created_at').notNull().defaultNow(),

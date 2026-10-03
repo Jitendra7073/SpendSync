@@ -49,6 +49,19 @@ object ApiClient {
             .build()
     }
 
+    /**
+     * For Server-Sent Events (the assistant). Same auth and cookies, but without the body-logging
+     * interceptor — it would buffer the whole stream and defeat streaming — and with a read timeout
+     * long enough for a slow first token (it only counts the gap between bytes).
+     */
+    val streamingClient: OkHttpClient by lazy {
+        okHttpClient.newBuilder()
+            .apply { interceptors().removeAll { it is HttpLoggingInterceptor } }
+            .readTimeout(90, TimeUnit.SECONDS)
+            .callTimeout(0, TimeUnit.SECONDS)
+            .build()
+    }
+
     private val retrofit: Retrofit by lazy {
         Retrofit.Builder()
             .baseUrl(BuildConfig.API_BASE_URL + "/")

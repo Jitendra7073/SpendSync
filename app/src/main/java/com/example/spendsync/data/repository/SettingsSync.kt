@@ -1,31 +1,122 @@
 package com.example.spendsync.data.repository
 
+import com.example.spendsync.data.assistant.AssistantPrefs
+import com.example.spendsync.data.assistant.parseToolSet
+import com.example.spendsync.data.assistant.serializeToolSet
 import com.example.spendsync.data.local.SessionDataStore
+import com.example.spendsync.data.local.parseAutoCapturePackages
+import com.example.spendsync.data.local.serializeAutoCapturePackages
+import com.example.spendsync.data.remote.model.UpdateSettingsRequest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
+/** One entry per user-changeable preference that lives on the account (the PIN itself never does). */
+enum class SettingField { Theme, Accent, Language, DateFormat, Push, Email, Backup, Masking, MaskingSeconds, AutoCapture, AutoCapturePackages, Assistant }
+
 /**
- * Pulls the signed-in user's settings from the backend and writes them into
- * [SessionDataStore] — the app keeps reading from DataStore as the single
- * source of truth, this just keeps it in sync with the server copy after
- * sign-in / sign-up / session restore. Best-effort: on failure the existing
- * local values are left untouched so the app stays usable offline.
+ * Keeps preferences identical across devices without ever losing an edit.
+ *
+ * Every change is written to DataStore first (the UI reads only from there), flagged as
+ * "pending", then pushed. The flag is cleared only after the server confirms, so an edit
+ * made offline is retried on the next launch / sign-in instead of being silently dropped.
+ * [pull] never overwrites a field that still has an unconfirmed local edit.
  */
+class SettingsSynchronizer(
+    private val store: SessionDataStore,
+    private val finance: FinanceRepository,
+    private val isSignedIn: suspend () -> Boolean = { true },
+) {
+    /** Record a local change and try to push it. Returns false when it is still waiting to sync. */
+    suspend fun changed(vararg fields: SettingField): Boolean {
+        if (!isSignedIn()) return true // guests stay device-local by design
+        store.markSettingsPending(fields.map { it.name }.toSet())
+        return flush()
+    }
+
+    /** Push every pending field with its current local value. */
+    suspend fun flush(): Boolean {
+        val pending = store.settingsPendingSync.first()
+            .mapNotNull { name -> SettingField.entries.firstOrNull { it.name == name } }
+        if (pending.isEmpty()) return true
+        val request = buildRequest(pending.toSet())
+        return when (finance.updateSettings(request)) {
+            is AuthResult.Success -> {
+                store.clearSettingsPending(pending.map { it.name }.toSet())
+                true
+            }
+            is AuthResult.Error -> false
+        }
+    }
+
+    /** Push anything pending, then bring the account's settings onto this device. */
+    suspend fun pull() {
+        flush()
+        val result = finance.getSettings(forceRefresh = true)
+        if (result !is AuthResult.Success) return
+        val s = result.data
+        val pending = store.settingsPendingSync.first()
+        fun free(f: SettingField) = f.name !in pending
+
+        if (free(SettingField.Theme)) {
+            if (s.themeMode != null) store.updateThemeMode(s.themeMode) else store.updateDarkMode(s.darkMode)
+        }
+        if (free(SettingField.Push)) store.updateNotifications(s.pushNotifications)
+        if (free(SettingField.Email)) store.updateEmailNotifications(s.emailNotifications)
+        if (free(SettingField.Backup)) store.updateAutoBackup(s.autoBackup)
+        if (free(SettingField.Accent)) store.updateAccentColor(s.accentColor)
+        if (free(SettingField.Language)) store.updateLanguage(s.language)
+        if (free(SettingField.DateFormat)) store.updateDateFormat(s.dateFormat)
+        if (free(SettingField.Masking)) s.amountMaskingEnabled?.let { store.updateAmountMaskingEnabled(it) }
+        if (free(SettingField.MaskingSeconds)) s.amountVisibilitySeconds?.let { store.updateAmountVisibilityDurationSeconds(it) }
+        if (free(SettingField.AutoCapture)) s.autoCaptureEnabled?.let { store.updateAutoCaptureEnabled(it) }
+        if (free(SettingField.AutoCapturePackages)) s.autoCapturePackages?.let { store.updateAutoCapturePackages(parseAutoCapturePackages(it)) }
+        if (free(SettingField.Assistant) && s.assistantModel != null) {
+            store.updateAssistantPrefs(
+                AssistantPrefs(
+                    model = s.assistantModel,
+                    style = s.assistantStyle ?: "balanced",
+                    tone = s.assistantTone ?: "friendly",
+                    instructions = s.assistantInstructions ?: "",
+                    disabledTools = parseToolSet(s.assistantDisabledTools),
+                ),
+            )
+        }
+    }
+
+    private suspend fun buildRequest(fields: Set<SettingField>): UpdateSettingsRequest {
+        val theme = store.themeMode.first()
+        val assistant = store.assistantPrefs.first().takeIf { SettingField.Assistant in fields }
+        return UpdateSettingsRequest(
+            assistantModel = assistant?.model,
+            assistantStyle = assistant?.style,
+            assistantTone = assistant?.tone,
+            assistantInstructions = assistant?.instructions,
+            assistantDisabledTools = assistant?.let { serializeToolSet(it.disabledTools) },
+            themeMode = theme.takeIf { SettingField.Theme in fields },
+            darkMode = (theme == "Dark").takeIf { SettingField.Theme in fields },
+            accentColor = store.accentColor.first().takeIf { SettingField.Accent in fields },
+            language = store.language.first().takeIf { SettingField.Language in fields },
+            dateFormat = store.dateFormat.first().takeIf { SettingField.DateFormat in fields },
+            pushNotifications = store.notificationsEnabled.first().takeIf { SettingField.Push in fields },
+            emailNotifications = store.emailNotifications.first().takeIf { SettingField.Email in fields },
+            autoBackup = store.autoBackup.first().takeIf { SettingField.Backup in fields },
+            amountMaskingEnabled = store.amountMaskingEnabled.first().takeIf { SettingField.Masking in fields },
+            amountVisibilitySeconds = store.amountVisibilityDurationSeconds.first().takeIf { SettingField.MaskingSeconds in fields },
+            autoCaptureEnabled = store.autoCaptureEnabled.first().takeIf { SettingField.AutoCapture in fields },
+            autoCapturePackages = serializeAutoCapturePackages(store.autoCapturePackages.first())
+                .takeIf { SettingField.AutoCapturePackages in fields },
+        )
+    }
+}
+
+/** Called after sign-in / sign-up / session restore. Best-effort: on failure local values stay as they are. */
 suspend fun hydrateSettingsFromBackend(
     financeRepository: FinanceRepository,
     sessionDataStore: SessionDataStore,
 ) {
-    val result = financeRepository.getSettings()
-    if (result is AuthResult.Success) {
-        val settings = result.data
-        sessionDataStore.updateDarkMode(settings.darkMode)
-        sessionDataStore.updateNotifications(settings.pushNotifications)
-        sessionDataStore.updateAutoBackup(settings.autoBackup)
-        sessionDataStore.updateAccentColor(settings.accentColor)
-        sessionDataStore.updateLanguage(settings.language)
-        sessionDataStore.updateDateFormat(settings.dateFormat)
-    }
+    SettingsSynchronizer(sessionDataStore, financeRepository).pull()
 }
 
 /**

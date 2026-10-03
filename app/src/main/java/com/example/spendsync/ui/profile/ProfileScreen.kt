@@ -1,6 +1,38 @@
 package com.example.spendsync.ui.profile
 
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import android.content.Intent
+import com.example.spendsync.data.repository.SettingField
+import com.example.spendsync.data.repository.SettingsSynchronizer
+import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.components.ButtonSize
+import com.example.spendsync.ui.components.ButtonVariant
+import com.example.spendsync.ui.components.Skeleton
+import com.example.spendsync.ui.i18n.AppLanguage
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import com.example.spendsync.ui.settings.SettingsActions
+import com.example.spendsync.ui.settings.SettingsBackdrop
+import com.example.spendsync.ui.settings.SettingsContentWidth
+import com.example.spendsync.ui.settings.SettingsHub
+import com.example.spendsync.ui.settings.SettingsModel
+import com.example.spendsync.ui.settings.SettingsPage
+import com.example.spendsync.ui.settings.SettingsPageScreen
+import com.example.spendsync.ui.settings.cascadeIn
 import android.Manifest
 import android.os.Build
 import android.provider.Settings
@@ -49,7 +81,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import com.example.spendsync.ui.components.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -58,7 +90,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.Text
+import com.example.spendsync.ui.components.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -86,7 +118,6 @@ import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.remote.model.DashboardSummaryDto
 import androidx.compose.runtime.LaunchedEffect
 import com.example.spendsync.notifications.NotificationAppAllowlist
-import com.example.spendsync.ui.components.SkeletonLine
 import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.MaskableAmountText
 import com.example.spendsync.ui.shared.PinSetupDialog
@@ -101,6 +132,7 @@ import com.example.spendsync.ui.theme.NeutralWhite
 import com.example.spendsync.ui.theme.SemanticError
 import com.example.spendsync.utils.LocalizationUtils
 import com.example.spendsync.utils.TransactionExporter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -135,11 +167,11 @@ fun ProfileScreen(
     var isSignedIn by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { isSignedIn = repository.hasLocalSession() }
 
-    val language by sessionDataStore.language.collectAsState(initial = "English")
-
-    // Read reactive preference flows from DataStore
-    val darkMode by sessionDataStore.darkMode.collectAsState(initial = false)
+    val themeMode by sessionDataStore.themeMode.collectAsState(initial = "System")
+    val accent by sessionDataStore.accentColor.collectAsState(initial = "Brand Blue")
+    val languageName by sessionDataStore.language.collectAsState(initial = "English")
     val notifications by sessionDataStore.notificationsEnabled.collectAsState(initial = true)
+    val emailNotifications by sessionDataStore.emailNotifications.collectAsState(initial = true)
     val autoBackup by sessionDataStore.autoBackup.collectAsState(initial = true)
     val dateFormat by sessionDataStore.dateFormat.collectAsState(initial = "DD / MM / YYYY")
     val autoCaptureEnabled by sessionDataStore.autoCaptureEnabled.collectAsState(initial = false)
@@ -147,6 +179,25 @@ fun ProfileScreen(
     val amountMaskingEnabled by sessionDataStore.amountMaskingEnabled.collectAsState(initial = false)
     val amountVisibilityDurationSeconds by sessionDataStore.amountVisibilityDurationSeconds.collectAsState(initial = 60)
     val pinHash by sessionDataStore.pinHash.collectAsState(initial = null)
+    val assistantConsent by sessionDataStore.assistantConsent.collectAsState(initial = false)
+    val assistantPrefs by sessionDataStore.assistantPrefs.collectAsState(initial = com.example.spendsync.data.assistant.AssistantPrefs())
+    var assistantModels by remember { mutableStateOf<List<com.example.spendsync.ui.settings.AssistantModelInfo>?>(null) }
+    val assistantRepository = remember { com.example.spendsync.data.assistant.AssistantRepository(sessionDataStore) }
+    val chatStore = remember { com.example.spendsync.data.assistant.ChatStore(context.applicationContext) }
+
+    // Notification-listener access is granted in system settings, so re-check on every resume.
+    var notificationAccessGranted by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalView.current.context as? LifecycleOwner
+    DisposableEffect(lifecycleOwner) {
+        fun refresh() {
+            notificationAccessGranted = context.packageName in
+                NotificationManagerCompat.getEnabledListenerPackages(context)
+        }
+        refresh()
+        val observer = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) refresh() }
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose { lifecycleOwner?.lifecycle?.removeObserver(observer) }
+    }
 
     val today = remember { LocalDate.now() }
 
@@ -174,6 +225,9 @@ fun ProfileScreen(
     // Dialog / overlay state controllers
     var showEditProfile by remember { mutableStateOf(false) }
     var showDateFormatDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var deletingAccount by remember { mutableStateOf(false) }
+    var deleteAccountError by remember { mutableStateOf<String?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showAutoCaptureExplainer by remember { mutableStateOf(false) }
     var showPinSetupDialog by remember { mutableStateOf(false) }
@@ -191,453 +245,151 @@ fun ProfileScreen(
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
 
-    // Global search's "open settings" jump scrolls straight to Preferences —
-    // there's no separate screen to navigate to any more.
-    val preferencesAnchor = remember { BringIntoViewRequester() }
+    // Which settings page is open; null = Profile home (hero + hub).
+    var page by remember { mutableStateOf<SettingsPage?>(null) }
+    BackHandler(enabled = page != null) { page = null }
+    // Global search's "open settings" jump lands on the hub.
     LaunchedEffect(openSettingsRequestId) {
-        if (openSettingsRequestId > 0) preferencesAnchor.bringIntoView()
+        if (openSettingsRequestId > 0) page = null
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(NeutralOffWhite),
-    ) {
-        // ── Blue header band ──────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(BrandBlue, BrandBlueDark),
-                    )
-                )
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-        ) {
-            Column(
-                modifier            = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // Avatar circle with initials
-                Box(
-                    modifier         = Modifier
-                        .size(88.dp)
-                        .clip(CircleShape)
-                        .background(NeutralWhite.copy(alpha = 0.20f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text       = (userName?.firstOrNull() ?: "?")
-                            .toString().uppercase(),
-                        color      = NeutralWhite,
-                        fontSize   = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    text       = userName?.ifBlank { "Guest" } ?: "Guest",
-                    color      = NeutralWhite,
-                    fontSize   = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text     = userEmail ?: "",
-                    color    = NeutralWhite.copy(alpha = 0.78f),
-                    fontSize = 12.sp,
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                // Yellow accent bar
-                Box(
-                    modifier = Modifier
-                        .size(width = 60.dp, height = 3.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(BrandYellow),
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                // Edit profile chip
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(NeutralWhite.copy(alpha = 0.18f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication        = ripple(bounded = true, color = NeutralWhite),
-                            onClick           = { showEditProfile = true },
-                        )
-                        .padding(horizontal = 16.dp, vertical = 7.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector        = Icons.Default.Edit,
-                            contentDescription = "Edit profile",
-                            tint               = NeutralWhite,
-                            modifier           = Modifier.size(14.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text      = "Edit Profile",
-                            color     = NeutralWhite,
-                            fontSize  = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
+    // Every preference is written here first, then pushed to the account. If the push fails it
+    // stays queued and is retried on the next launch / sign-in (see SettingsSynchronizer).
+    val synchronizer = remember { SettingsSynchronizer(sessionDataStore, financeRepository) { repository.hasLocalSession() } }
+    fun commit(vararg fields: SettingField, local: suspend () -> Unit) {
+        scope.launch {
+            local()
+            if (!synchronizer.changed(*fields)) {
+                Toast.makeText(context, tr(R.string.saved_on_this_phone_it_will), Toast.LENGTH_SHORT).show()
             }
-        }
-
-        // ── Dynamic stats strip ───────────────────────────────────────────────
-        val totalTransactionsCount = dashboardSummary?.totals?.totalTransactions ?: 0
-        val currentMonthSpent = dashboardSummary?.totals?.totalSpent ?: 0.0
-        val savingsAccumulated = dashboardSummary?.totals?.netAmount ?: 0.0
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(NeutralWhite)
-                .padding(vertical = 16.dp),
-        ) {
-            if (isStatsLoading) {
-                repeat(3) { index ->
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        SkeletonLine(modifier = Modifier.width(48.dp), height = 18.dp)
-                        Spacer(Modifier.height(6.dp))
-                        SkeletonLine(modifier = Modifier.width(64.dp), height = 11.dp)
-                    }
-                    if (index < 2) {
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(36.dp)
-                                .background(NeutralLight)
-                                .align(Alignment.CenterVertically),
-                        )
-                    }
-                }
-            } else {
-            StatItem(
-                label  = "Transactions",
-                value  = totalTransactionsCount.toString(),
-                modifier = Modifier.weight(1f),
-            )
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(36.dp)
-                    .background(NeutralLight)
-                    .align(Alignment.CenterVertically),
-            )
-            StatItem(
-                label  = "This Month",
-                value  = currentMonthSpent,
-                amountVisibility = amountVisibility,
-                modifier = Modifier.weight(1f),
-            )
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(36.dp)
-                    .background(NeutralLight)
-                    .align(Alignment.CenterVertically),
-            )
-            StatItem(
-                label  = "Savings",
-                value  = savingsAccumulated,
-                amountVisibility = amountVisibility,
-                modifier = Modifier.weight(1f),
-            )
-            }
-        }
-
-        HorizontalDivider(color = NeutralLight, thickness = 1.dp)
-
-        // ── Everything else (pull-to-refresh) ────────────────────────────────
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = {
-                scope.launch {
-                    isRefreshing = true
-                    loadStats(forceRefresh = true)
-                    isRefreshing = false
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-        ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-        ) {
-            Spacer(Modifier.height(20.dp))
-
-            // ── Account ──────────────────────────────────────────────────────
-            SectionHeader("Account")
-            val formattedJoinedDate = remember(userCreatedAt) {
-                try {
-                    val parsed = java.time.ZonedDateTime.parse(userCreatedAt)
-                    val formatter = java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy")
-                    parsed.format(formatter)
-                } catch (e: Exception) {
-                    if (userCreatedAt.isNullOrBlank()) "Just now" else userCreatedAt.orEmpty()
-                }
-            }
-            ProfileMenuCard {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    AccountInfoRow(label = "User ID", value = (userId ?: "").ifBlank { "Guest Mode" })
-                    AccountInfoRow(label = "Profile Name", value = userName?.ifBlank { "Guest" } ?: "Guest")
-                    AccountInfoRow(label = "Email", value = userEmail ?: "guest@example.com")
-                    AccountInfoRow(label = "Joined SpendSync", value = formattedJoinedDate)
-                    AccountInfoRow(label = "Subscription Tier", value = if (isSignedIn) "Premium Account" else "Free Basic Plan")
-                    AccountInfoRow(label = "Cloud Sync Status", value = if (isSignedIn) "Active / Secured" else "Offline / Not Synced")
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── Preferences ──────────────────────────────────────────────────
-            Column(modifier = Modifier.bringIntoViewRequester(preferencesAnchor)) {
-                SectionHeader("Preferences")
-            }
-            ProfileMenuCard {
-                SettingsToggleRow(
-                    icon    = Icons.Default.DarkMode,
-                    label   = LocalizationUtils.getTranslation("dark_mode", language),
-                    sub     = "Switch to a dark colour theme",
-                    checked = darkMode,
-                    onToggle = {
-                        scope.launch {
-                            sessionDataStore.updateDarkMode(it)
-                            if (isSignedIn) financeRepository.updateSettings(darkMode = it)
-                        }
-                    },
-                )
-                SettingsDivider()
-                SettingsToggleRow(
-                    icon    = Icons.Default.NotificationsActive,
-                    label   = LocalizationUtils.getTranslation("push_notifications", language),
-                    sub     = "Reminders and alerts",
-                    checked = notifications,
-                    onToggle = {
-                        scope.launch {
-                            sessionDataStore.updateNotifications(it)
-                            if (isSignedIn) financeRepository.updateSettings(pushNotifications = it)
-                        }
-                    },
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    icon  = Icons.Default.Tune,
-                    label = LocalizationUtils.getTranslation("date_format", language),
-                    sub   = dateFormat,
-                    onClick = { showDateFormatDialog = true }
-                )
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── Privacy ──────────────────────────────────────────────────────
-            SectionHeader("Privacy")
-            ProfileMenuCard {
-                SettingsToggleRow(
-                    icon    = Icons.Default.Lock,
-                    label   = "Hide large amounts",
-                    sub     = "Mask amounts over ₹1,000 behind a PIN",
-                    checked = amountMaskingEnabled,
-                    onToggle = { turningOn ->
-                        if (turningOn) {
-                            showPinSetupDialog = true
-                        } else {
-                            scope.launch { sessionDataStore.updateAmountMaskingEnabled(false) }
-                        }
-                    },
-                )
-                if (amountMaskingEnabled) {
-                    SettingsDivider()
-                    SettingsNavigationRow(
-                        icon = Icons.Default.Lock,
-                        label = "Change PIN",
-                        onClick = { showChangePinDialog = true }
-                    )
-                    SettingsDivider()
-                    SettingsNavigationRow(
-                        icon = Icons.Default.Timer,
-                        label = "Visibility duration",
-                        sub = when (amountVisibilityDurationSeconds) {
-                            30 -> "30 seconds"
-                            300 -> "5 minutes"
-                            900 -> "15 minutes"
-                            else -> "1 minute"
-                        },
-                        onClick = { showVisibilityDurationDialog = true }
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── Automation ───────────────────────────────────────────────────
-            SectionHeader("Automation")
-            ProfileMenuCard {
-                SettingsToggleRow(
-                    icon = Icons.Default.NotificationsActive,
-                    label = "Auto-detect transactions",
-                    sub = "Reads payment notifications from apps you choose below",
-                    checked = autoCaptureEnabled,
-                    onToggle = { turningOn ->
-                        if (turningOn) {
-                            showAutoCaptureExplainer = true
-                        } else {
-                            scope.launch { sessionDataStore.updateAutoCaptureEnabled(false) }
-                        }
-                    },
-                )
-                if (autoCaptureEnabled) {
-                    NotificationAppAllowlist.APPS.forEach { app ->
-                        SettingsDivider()
-                        SettingsToggleRow(
-                            icon = Icons.Default.NotificationsActive,
-                            label = app.displayName,
-                            checked = app.packageName in autoCapturePackages,
-                            onToggle = { checked ->
-                                val updated = if (checked) autoCapturePackages + app.packageName
-                                    else autoCapturePackages - app.packageName
-                                scope.launch { sessionDataStore.updateAutoCapturePackages(updated) }
-                            },
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── Data ──────────────────────────────────────────────────────────
-            SectionHeader("Data")
-            ProfileMenuCard {
-                SettingsToggleRow(
-                    icon    = Icons.Default.Backup,
-                    label   = LocalizationUtils.getTranslation("auto_backup", language),
-                    sub     = "Back up data to the cloud daily",
-                    checked = autoBackup,
-                    onToggle = {
-                        scope.launch {
-                            sessionDataStore.updateAutoBackup(it)
-                            if (isSignedIn) financeRepository.updateSettings(autoBackup = it)
-                        }
-                    },
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    icon  = Icons.Default.DataUsage,
-                    label = LocalizationUtils.getTranslation("export_data", language),
-                    sub   = "Download as CSV or PDF",
-                    onClick = { showExportDialog = true }
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    icon      = Icons.Default.DeleteSweep,
-                    label     = LocalizationUtils.getTranslation("clear_data", language),
-                    sub       = "Clear cached data and local categories",
-                    textColor = SemanticError,
-                    iconTint  = SemanticError,
-                    onClick = { showClearDataDialog = true }
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    icon  = Icons.Default.PrivacyTip,
-                    label = LocalizationUtils.getTranslation("privacy_policy", language),
-                    onClick = { showPrivacyDialog = true }
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    icon      = Icons.Default.DeleteForever,
-                    label     = LocalizationUtils.getTranslation("delete_account", language),
-                    sub       = "Permanently remove all data",
-                    textColor = SemanticError,
-                    iconTint  = SemanticError,
-                    onClick = { showDeleteAccountDialog = true }
-                )
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── Support ───────────────────────────────────────────────────────
-            SectionHeader("Support")
-            ProfileMenuCard {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FAQItem(
-                        question = "How do I back up my transactions?",
-                        answer = "Auto Backup is enabled by default above. Your data is synced automatically to our secure cloud daily."
-                    )
-                    FAQItem(
-                        question = "Is my financial data secure?",
-                        answer = "Absolutely. We encrypt all transactions on-device and transit data to ensure your info stays private."
-                    )
-                    FAQItem(
-                        question = "How to delete my account permanently?",
-                        answer = "Use Delete Account under Data above. This wipes all your data permanently off our cloud databases."
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(BrandBlue)
-                            .clickable { /* Simulate email support launch */ }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Contact Email Support",
-                            color = NeutralWhite,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // Logout standalone card
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(NeutralWhite),
-            ) {
-                ProfileMenuItem(
-                    icon      = Icons.AutoMirrored.Filled.Logout,
-                    label     = "Sign Out",
-                    sub       = "You can always sign back in",
-                    iconTint  = SemanticError,
-                    textColor = SemanticError,
-                    onClick   = {
-                        scope.launch {
-                            repository.signOut()
-                            onSignOut()
-                        }
-                    },
-                    showChevron = false,
-                )
-            }
-
-            Spacer(Modifier.height(100.dp))
-        }
         }
     }
 
-    // ── Dialog 1: Edit Profile Dialog ────────────────────────────────────────
+    val joinedDate = remember(userCreatedAt) {
+        try {
+            java.time.ZonedDateTime.parse(userCreatedAt)
+                .format(java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy"))
+        } catch (e: Exception) {
+            if (userCreatedAt.isNullOrBlank()) tr(R.string.just_now) else userCreatedAt.orEmpty()
+        }
+    }
+
+    val model = SettingsModel(
+        userName = userName.orEmpty(),
+        userEmail = userEmail.orEmpty(),
+        userId = userId.orEmpty(),
+        joinedDate = joinedDate,
+        isSignedIn = isSignedIn,
+        themeMode = themeMode,
+        accent = accent,
+        language = AppLanguage.fromStored(languageName),
+        dateFormat = dateFormat,
+        pushNotifications = notifications,
+        emailNotifications = emailNotifications,
+        autoBackup = autoBackup,
+        autoCapture = autoCaptureEnabled,
+        autoCapturePackages = autoCapturePackages,
+        notificationAccessGranted = notificationAccessGranted,
+        maskingEnabled = amountMaskingEnabled,
+        visibilitySeconds = amountVisibilityDurationSeconds,
+        assistantEnabled = assistantConsent,
+        assistant = assistantPrefs,
+        assistantModels = assistantModels,
+    )
+
+    val actions = SettingsActions(
+        editProfile = { showEditProfile = true },
+        setThemeMode = { mode -> commit(SettingField.Theme) { sessionDataStore.updateThemeMode(mode) } },
+        setAccent = { name -> commit(SettingField.Accent) { sessionDataStore.updateAccentColor(name) } },
+        pickLanguage = { showLanguageDialog = true },
+        pickDateFormat = { showDateFormatDialog = true },
+        setPush = { v -> commit(SettingField.Push) { sessionDataStore.updateNotifications(v) } },
+        setEmail = { v -> commit(SettingField.Email) { sessionDataStore.updateEmailNotifications(v) } },
+        setAutoBackup = { v -> commit(SettingField.Backup) { sessionDataStore.updateAutoBackup(v) } },
+        setAutoCapture = { turningOn ->
+            if (turningOn) showAutoCaptureExplainer = true
+            else commit(SettingField.AutoCapture) { sessionDataStore.updateAutoCaptureEnabled(false) }
+        },
+        setCapturePackage = { pkg, on ->
+            val updated = if (on) autoCapturePackages + pkg else autoCapturePackages - pkg
+            commit(SettingField.AutoCapturePackages) { sessionDataStore.updateAutoCapturePackages(updated) }
+        },
+        openNotificationAccess = {
+            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        },
+        setMasking = { turningOn ->
+            if (turningOn) showPinSetupDialog = true
+            else commit(SettingField.Masking) { sessionDataStore.updateAmountMaskingEnabled(false) }
+        },
+        setAssistant = { v -> scope.launch { sessionDataStore.updateAssistantConsent(v) } },
+        setAssistantPrefs = { p -> commit(SettingField.Assistant) { sessionDataStore.updateAssistantPrefs(p) } },
+        refreshAssistantStatus = { scope.launch { assistantModels = assistantRepository.models() } },
+        clearAssistantHistory = { scope.launch { chatStore.clear(sessionDataStore.userId.first().orEmpty()) } },
+        changePin = { showChangePinDialog = true },
+        pickVisibility = { showVisibilityDurationDialog = true },
+        export = { showExportDialog = true },
+        clearLocalData = { showClearDataDialog = true },
+        privacyPolicy = { showPrivacyDialog = true },
+        deleteAccount = { showDeleteAccountDialog = true },
+        signOut = {
+            scope.launch {
+                repository.signOut()
+                onSignOut()
+            }
+        },
+    )
+
+    AnimatedContent(
+        targetState = page,
+        transitionSpec = {
+            val forward = targetState != null
+            val enter = slideInHorizontally(tween(320)) { if (forward) it / 4 else -it / 4 } + fadeIn(tween(320))
+            val exit = slideOutHorizontally(tween(320)) { if (forward) -it / 4 else it / 4 } + fadeOut(tween(200))
+            enter togetherWith exit
+        },
+        label = "settings_nav",
+    ) { current ->
+        if (current != null) {
+            SettingsPageScreen(current, model, actions, onBack = { page = null })
+        } else {
+            SettingsBackdrop {
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = {
+                        scope.launch {
+                            isRefreshing = true
+                            loadStats(forceRefresh = true)
+                            isRefreshing = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                        SettingsContentWidth {
+                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Spacer(Modifier.statusBarsPadding().height(12.dp))
+                                ProfileHero(
+                                    name = model.userName,
+                                    email = model.userEmail,
+                                    isStatsLoading = isStatsLoading,
+                                    transactions = dashboardSummary?.totals?.totalTransactions ?: 0,
+                                    spent = dashboardSummary?.totals?.totalSpent ?: 0.0,
+                                    net = dashboardSummary?.totals?.netAmount ?: 0.0,
+                                    amountVisibility = amountVisibility,
+                                    onEdit = { showEditProfile = true },
+                                    modifier = Modifier.cascadeIn(0),
+                                )
+                                Box(Modifier.cascadeIn(1)) { SettingsHub(model, onOpen = { page = it }) }
+                                Spacer(Modifier.height(110.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Dialogs ──────────────────────────────────────────────────────────────
     if (showEditProfile) {
         EditProfileDialog(
             currentName = userName ?: "",
@@ -649,82 +401,52 @@ fun ProfileScreen(
                     sessionDataStore.updateUserEmail(newEmail)
                     showEditProfile = false
                 }
-            }
+            },
         )
     }
 
-    // ── Dialog 2: Date Format Dialog ────────────────────────────────────────
+    if (showLanguageDialog) {
+        LanguageDialog(
+            selected = AppLanguage.fromStored(languageName),
+            onSelect = { lang ->
+                showLanguageDialog = false
+                commit(SettingField.Language) { sessionDataStore.updateLanguage(lang.storedName) }
+            },
+            onDismiss = { showLanguageDialog = false },
+        )
+    }
+
     if (showDateFormatDialog) {
-        OptionSelectionDialog(
-            title = "Select Date Format",
-            options = listOf("DD / MM / YYYY", "MM / DD / YYYY", "YYYY - MM - DD"),
-            selectedOption = dateFormat,
+        DateFormatDialog(
+            selected = dateFormat,
+            onSelect = { picked ->
+                showDateFormatDialog = false
+                commit(SettingField.DateFormat) { sessionDataStore.updateDateFormat(picked) }
+            },
             onDismiss = { showDateFormatDialog = false },
-            onSelect = {
-                scope.launch {
-                    sessionDataStore.updateDateFormat(it)
-                    if (isSignedIn) financeRepository.updateSettings(dateFormat = it)
-                    showDateFormatDialog = false
-                }
-            }
         )
     }
 
-    // ── Dialog 3: Export Data Dialog ────────────────────────────────────────
     if (showExportDialog) {
-        ExportDataDialog(
-            financeRepository = financeRepository,
-            onDismiss = { showExportDialog = false }
+        ExportDataDialog(financeRepository = financeRepository, onDismiss = { showExportDialog = false })
+    }
+
+    if (showAutoCaptureExplainer) {
+        AutoCaptureExplainerDialog(
+            onDismiss = { showAutoCaptureExplainer = false },
+            onContinue = {
+                showAutoCaptureExplainer = false
+                commit(SettingField.AutoCapture) { sessionDataStore.updateAutoCaptureEnabled(true) }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    // The launcher's callback opens Notification Access.
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                }
+            },
         )
     }
 
-    // ── Dialog: Notification Access Explainer ───────────────────────────────
-    if (showAutoCaptureExplainer) {
-        BasicAlertDialog(onDismissRequest = { showAutoCaptureExplainer = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
-            ) {
-                Column(modifier = Modifier.padding(24.dp)) {
-                    Text(
-                        text = "Notification Access Required",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = NeutralBlack,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = "SpendSync needs permission to read notifications so it can detect payments " +
-                            "automatically. Only the apps you select below are read — nothing else, and " +
-                            "nothing is sent anywhere else.",
-                        fontSize = 13.sp,
-                        color = NeutralMid,
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { showAutoCaptureExplainer = false }) {
-                            Text("Cancel")
-                        }
-                        TextButton(onClick = {
-                            showAutoCaptureExplainer = false
-                            scope.launch { sessionDataStore.updateAutoCaptureEnabled(true) }
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                // The launcher's callback opens Notification Access.
-                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                            }
-                        }) {
-                            Text("Continue")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // ── Dialog 4: Clear Data Confirmation Dialog ────────────────────────────
     if (showClearDataDialog) {
         ClearDataConfirmationDialog(
             onDismiss = { showClearDataDialog = false },
@@ -732,47 +454,53 @@ fun ProfileScreen(
                 scope.launch {
                     sessionDataStore.clearLocalData()
                     financeRepository.clearCache()
-                    showClearDataDialog = false
                 }
-            }
+            },
         )
     }
 
-    // ── Dialog 5: Privacy Policy Dialog ─────────────────────────────────────
     if (showPrivacyDialog) {
-        PrivacyPolicyDialog(
-            onDismiss = { showPrivacyDialog = false }
-        )
+        PrivacyPolicyDialog(onDismiss = { showPrivacyDialog = false })
     }
 
-    // ── Dialog 6: Delete Account Warning Dialog ──────────────────────────────
     if (showDeleteAccountDialog) {
         DeleteAccountWarningDialog(
-            onDismiss = { showDeleteAccountDialog = false },
+            loading = deletingAccount,
+            error = deleteAccountError,
+            onDismiss = { if (!deletingAccount) { showDeleteAccountDialog = false; deleteAccountError = null } },
             onDelete = {
                 scope.launch {
-                    sessionDataStore.clearSession()
-                    showDeleteAccountDialog = false
-                    onSignOut()
+                    deletingAccount = true
+                    deleteAccountError = null
+                    // Guests have nothing on the server; signed-in users are deleted there first,
+                    // so a failed request never leaves them signed out of an account that still exists.
+                    val result = if (isSignedIn) financeRepository.deleteAccount() else AuthResult.Success(Unit)
+                    deletingAccount = false
+                    when (result) {
+                        is AuthResult.Success -> {
+                            sessionDataStore.clearSession()
+                            showDeleteAccountDialog = false
+                            onSignOut()
+                        }
+                        is AuthResult.Error -> deleteAccountError = result.message
+                    }
                 }
-            }
+            },
         )
     }
 
-    // ── Dialog 7: PIN Setup Dialog (enabling masking) ────────────────────────
     if (showPinSetupDialog) {
         PinSetupDialog(
             sessionDataStore = sessionDataStore,
             requireCurrentPin = pinHash != null,
             onDone = {
                 showPinSetupDialog = false
-                scope.launch { sessionDataStore.updateAmountMaskingEnabled(true) }
+                commit(SettingField.Masking) { sessionDataStore.updateAmountMaskingEnabled(true) }
             },
             onDismiss = { showPinSetupDialog = false },
         )
     }
 
-    // ── Dialog 8: Change PIN Dialog ───────────────────────────────────────────
     if (showChangePinDialog) {
         PinSetupDialog(
             sessionDataStore = sessionDataStore,
@@ -782,30 +510,14 @@ fun ProfileScreen(
         )
     }
 
-    // ── Dialog 9: Visibility Duration Dialog ─────────────────────────────────
     if (showVisibilityDurationDialog) {
-        OptionSelectionDialog(
-            title = "Visibility duration",
-            options = listOf("30 seconds", "1 minute", "5 minutes", "15 minutes"),
-            selectedOption = when (amountVisibilityDurationSeconds) {
-                30 -> "30 seconds"
-                300 -> "5 minutes"
-                900 -> "15 minutes"
-                else -> "1 minute"
+        VisibilityDurationDialog(
+            selectedSeconds = amountVisibilityDurationSeconds,
+            onSelect = { seconds ->
+                showVisibilityDurationDialog = false
+                commit(SettingField.MaskingSeconds) { sessionDataStore.updateAmountVisibilityDurationSeconds(seconds) }
             },
             onDismiss = { showVisibilityDurationDialog = false },
-            onSelect = { picked ->
-                val seconds = when (picked) {
-                    "30 seconds" -> 30
-                    "5 minutes" -> 300
-                    "15 minutes" -> 900
-                    else -> 60
-                }
-                scope.launch {
-                    sessionDataStore.updateAmountVisibilityDurationSeconds(seconds)
-                    showVisibilityDurationDialog = false
-                }
-            }
         )
     }
 }
@@ -869,238 +581,7 @@ private fun StatItem(
 }
 
 @Composable
-private fun SectionHeader(title: String) {
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    Text(
-        text      = title.uppercase(),
-        fontSize  = 11.sp,
-        fontWeight = FontWeight.Bold,
-        color     = NeutralMid,
-        modifier  = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
-    )
-    Spacer(Modifier.height(8.dp))
-}
-
-@Composable
-private fun ProfileMenuCard(content: @Composable () -> Unit) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(NeutralWhite),
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun MenuDivider() {
-    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
-    HorizontalDivider(
-        modifier  = Modifier.padding(horizontal = 16.dp),
-        color     = NeutralLight,
-        thickness = 0.8.dp,
-    )
-}
-
-@Composable
-private fun SettingsDivider() = MenuDivider()
-
-@Composable
-private fun ProfileMenuItem(
-    icon: ImageVector,
-    label: String,
-    sub: String? = null,
-    iconTint: Color = BrandBlue,
-    textColor: Color = MaterialTheme.colorScheme.onBackground,
-    showChevron: Boolean = true,
-    onClick: () -> Unit,
-) {
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        modifier          = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication        = ripple(bounded = true),
-                onClick           = onClick,
-            )
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier         = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(iconTint.copy(alpha = 0.10f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector        = icon,
-                contentDescription = label,
-                tint               = iconTint,
-                modifier           = Modifier.size(22.dp),
-            )
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text       = label,
-                fontSize   = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color      = textColor,
-            )
-            if (sub != null) {
-                Text(text = sub, fontSize = 12.sp, color = NeutralMid)
-            }
-        }
-        if (showChevron) {
-            Icon(
-                imageVector        = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                contentDescription = null,
-                tint               = NeutralMid,
-                modifier           = Modifier.size(14.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun SettingsNavigationRow(
-    icon: ImageVector,
-    label: String,
-    sub: String? = null,
-    textColor: Color = Color.Unspecified,
-    iconTint: Color = BrandBlue,
-    onClick: () -> Unit
-) {
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val actualTextColor = if (textColor == Color.Unspecified) NeutralBlack else textColor
-    Row(
-        modifier          = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication        = ripple(bounded = true),
-                onClick           = onClick,
-            )
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(iconTint.copy(alpha = 0.10f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector        = icon,
-                contentDescription = label,
-                tint               = iconTint,
-                modifier           = Modifier.size(20.dp),
-            )
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text       = label,
-                fontSize   = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color      = actualTextColor,
-            )
-            if (sub != null) {
-                Text(text = sub, fontSize = 12.sp, color = NeutralMid)
-            }
-        }
-        Icon(
-            imageVector        = Icons.AutoMirrored.Filled.ArrowForwardIos,
-            contentDescription = null,
-            tint               = NeutralMid,
-            modifier           = Modifier.size(14.dp),
-        )
-    }
-}
-
-@Composable
-private fun SettingsToggleRow(
-    icon: ImageVector,
-    label: String,
-    sub: String? = null,
-    checked: Boolean,
-    onToggle: (Boolean) -> Unit,
-) {
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val BrandBlue = MaterialTheme.colorScheme.primary
-    Row(
-        modifier          = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier         = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(BrandBlue.copy(alpha = 0.10f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector        = icon,
-                contentDescription = label,
-                tint               = BrandBlue,
-                modifier           = Modifier.size(20.dp),
-            )
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text       = label,
-                fontSize   = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color      = NeutralBlack,
-            )
-            if (sub != null) {
-                Text(text = sub, fontSize = 12.sp, color = NeutralMid)
-            }
-        }
-        Switch(
-            checked         = checked,
-            onCheckedChange = onToggle,
-            colors          = SwitchDefaults.colors(
-                checkedThumbColor       = NeutralWhite,
-                checkedTrackColor       = BrandBlue,
-                uncheckedThumbColor     = NeutralWhite,
-                uncheckedTrackColor     = NeutralLight,
-                uncheckedBorderColor    = NeutralLight,
-            ),
-        )
-    }
-}
-
-@Composable
-private fun AccountInfoRow(label: String, value: String) {
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = label, color = NeutralMid, fontSize = 12.sp)
-        Text(text = value, color = NeutralBlack, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun FAQItem(question: String, answer: String) {
+internal fun FAQItem(question: String, answer: String) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1130,633 +611,71 @@ private fun FAQItem(question: String, answer: String) {
     }
 }
 
-// ── Dialog Components ────────────────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
+/** Identity card + this-month stats. Colours come from the theme so it follows light/dark and the accent. */
 @Composable
-private fun EditProfileDialog(
-    currentName: String,
-    currentEmail: String,
-    onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit
+private fun ProfileHero(
+    name: String,
+    email: String,
+    isStatsLoading: Boolean,
+    transactions: Int,
+    spent: Double,
+    net: Double,
+    amountVisibility: AmountVisibilityState,
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    var name by remember { mutableStateOf(currentName) }
-    var email by remember { mutableStateOf(currentEmail) }
-
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier = modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(scheme.surface.copy(alpha = 0.88f))
+            .border(BorderStroke(0.5.dp, scheme.outlineVariant.copy(alpha = 0.6f)), RoundedCornerShape(28.dp))
+            .padding(vertical = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
+        Box(
             modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth()
+                .size(84.dp)
+                .clip(CircleShape)
+                .background(Brush.linearGradient(listOf(scheme.primary, scheme.tertiary, scheme.secondary))),
+            contentAlignment = Alignment.Center,
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp)
+            Box(
+                modifier = Modifier.size(76.dp).clip(CircleShape).background(scheme.primary),
+                contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "Edit Profile",
-                    fontSize = 18.sp,
+                    text = (name.firstOrNull() ?: '?').toString().uppercase(),
+                    color = scheme.onPrimary,
+                    fontSize = 30.sp,
                     fontWeight = FontWeight.Bold,
-                    color = NeutralBlack
                 )
-
-                Spacer(Modifier.height(16.dp))
-
-                // Name Input
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name", fontSize = 14.sp) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BrandBlue,
-                        unfocusedBorderColor = NeutralLight,
-                        cursorColor = BrandBlue,
-                        focusedLabelColor = BrandBlue
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                // Email Input
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email Address", fontSize = 14.sp) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BrandBlue,
-                        unfocusedBorderColor = NeutralLight,
-                        cursorColor = BrandBlue,
-                        focusedLabelColor = BrandBlue
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(24.dp))
-
-                // Action buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = "Cancel",
-                        color = NeutralMid,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onDismiss() }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "Save Changes",
-                        color = NeutralWhite,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(BrandBlue)
-                            .clickable(enabled = name.isNotBlank() && email.isNotBlank()) {
-                                onSave(name, email)
-                            }
-                            .padding(horizontal = 20.dp, vertical = 8.dp)
-                    )
-                }
             }
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun OptionSelectionDialog(
-    title: String,
-    options: List<String>,
-    selectedOption: String,
-    onDismiss: () -> Unit,
-    onSelect: (String) -> Unit
-) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val BrandBlue = MaterialTheme.colorScheme.primary
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-            modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = NeutralBlack
-                )
-                Spacer(Modifier.height(16.dp))
-
-                options.forEach { option ->
-                    val isSelected = option == selectedOption
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) BrandBlue.copy(alpha = 0.10f) else Color.Transparent)
-                            .clickable { onSelect(option) }
-                            .padding(vertical = 14.dp, horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = option,
-                            fontSize = 14.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) BrandBlue else NeutralBlack
-                        )
-                        if (isSelected) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(BrandBlue)
-                            )
-                        }
-                    }
-                }
-            }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = name.ifBlank { tr(R.string.guest) },
+            color = scheme.onSurface,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        if (email.isNotBlank()) {
+            Text(text = email, color = scheme.onSurfaceVariant, fontSize = 13.sp)
         }
-    }
-}
+        Spacer(Modifier.height(12.dp))
+        AppButton(tr(R.string.edit_profile), onClick = onEdit, variant = ButtonVariant.Tonal, size = ButtonSize.Small, leadingIcon = Icons.Default.Edit)
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ExportDataDialog(
-    financeRepository: FinanceRepository,
-    onDismiss: () -> Unit
-) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
-    val BrandBlue = MaterialTheme.colorScheme.primary
-    var format by remember { mutableStateOf("CSV") }
-    var isExporting by remember { mutableStateOf(false) }
-    var isSuccess by remember { mutableStateOf(false) }
-    var exportError by remember { mutableStateOf<String?>(null) }
+        Spacer(Modifier.height(18.dp))
+        HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.6f), thickness = 0.6.dp)
+        Spacer(Modifier.height(16.dp))
 
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-            modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = "Export Transaction Data",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = NeutralBlack
-                )
-                Spacer(Modifier.height(16.dp))
-
-                if (!isExporting && !isSuccess && exportError == null) {
-                    Text(
-                        text = "Choose your preferred layout format below:",
-                        fontSize = 12.sp,
-                        color = NeutralMid
-                    )
-                    Spacer(Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        listOf("CSV", "PDF").forEach { fmt ->
-                            val isSelected = format == fmt
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isSelected) BrandBlue.copy(alpha = 0.10f) else Color.Transparent)
-                                    .border(
-                                        BorderStroke(1.dp, if (isSelected) BrandBlue else NeutralLight),
-                                        RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable { format = fmt }
-                                    .padding(vertical = 12.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = fmt,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) BrandBlue else NeutralBlack
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(24.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Text(
-                            text = "Cancel",
-                            color = NeutralMid,
-                            modifier = Modifier
-                                .clickable { onDismiss() }
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Export Now",
-                            color = NeutralWhite,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(BrandBlue)
-                                .clickable {
-                                    isExporting = true
-                                    scope.launch {
-                                        when (val res = financeRepository.getTransactions(limit = 2000)) {
-                                            is AuthResult.Success -> {
-                                                val intent = if (format == "CSV") {
-                                                    TransactionExporter.exportCsv(context, res.data)
-                                                } else {
-                                                    TransactionExporter.exportPdf(context, res.data)
-                                                }
-                                                context.startActivity(Intent.createChooser(intent, "Export transactions"))
-                                                isExporting = false
-                                                isSuccess = true
-                                            }
-                                            is AuthResult.Error -> {
-                                                isExporting = false
-                                                exportError = res.message
-                                            }
-                                        }
-                                    }
-                                }
-                                .padding(horizontal = 20.dp, vertical = 8.dp)
-                        )
-                    }
-                } else if (isExporting) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("Compiling layout data...", color = NeutralBlack, fontSize = 14.sp)
-                        Spacer(Modifier.height(16.dp))
-                        LinearProgressIndicator(color = BrandBlue, modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(16.dp))
-                    }
-                } else if (exportError != null) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Export failed",
-                            fontWeight = FontWeight.Bold,
-                            color = SemanticError,
-                            fontSize = 14.sp
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = exportError.orEmpty(),
-                            color = NeutralMid,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(24.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(BrandBlue)
-                                .clickable { exportError = null }
-                                .padding(horizontal = 24.dp, vertical = 10.dp)
-                        ) {
-                            Text("Try Again", color = NeutralWhite, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Data Export Successful!",
-                            fontWeight = FontWeight.Bold,
-                            color = NeutralBlack,
-                            fontSize = 14.sp
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = "Your $format file is ready — choose where to save or send it.",
-                            color = NeutralMid,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(24.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(BrandBlue)
-                                .clickable { onDismiss() }
-                                .padding(horizontal = 24.dp, vertical = 10.dp)
-                        ) {
-                            Text("Done", color = NeutralWhite, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ClearDataConfirmationDialog(
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    var cleared by remember { mutableStateOf(false) }
-
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-            modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                if (!cleared) {
-                    Text(
-                        text = "Clear Local Data?",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SemanticError
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = "This clears cached data and custom categories saved on this device. " +
-                            "Your account and cloud-synced data won't be affected.",
-                        fontSize = 12.sp,
-                        color = NeutralMid
-                    )
-                    Spacer(Modifier.height(24.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Text(
-                            text = "Cancel",
-                            color = NeutralMid,
-                            modifier = Modifier
-                                .clickable { onDismiss() }
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Clear Data",
-                            color = NeutralWhite,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(SemanticError)
-                                .clickable {
-                                    onConfirm()
-                                    cleared = true
-                                }
-                                .padding(horizontal = 20.dp, vertical = 8.dp)
-                        )
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Local Data Cleared",
-                            fontWeight = FontWeight.Bold,
-                            color = NeutralBlack,
-                            fontSize = 14.sp
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = "Cached data and custom categories have been removed from this device.",
-                            color = NeutralMid,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(24.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(SemanticError)
-                                .clickable { onDismiss() }
-                                .padding(horizontal = 24.dp, vertical = 10.dp)
-                        ) {
-                            Text("Done", color = NeutralWhite, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PrivacyPolicyDialog(
-    onDismiss: () -> Unit
-) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-            modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(24.dp)
-                    .heightIn(max = 320.dp)
-            ) {
-                Text(
-                    text = "Privacy Policy",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = NeutralBlack
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "1. Information Collection\nWe encrypt and store all transaction data locally on your device. Selected settings and sync preferences are backed up to secure DataStore directories.",
-                        fontSize = 12.sp,
-                        color = NeutralMid
-                    )
-                    Text(
-                        text = "2. Data Protection\nYour transaction statistics are completely private and never shared with third parties. Authentication sessions are managed using safe tokens.",
-                        fontSize = 12.sp,
-                        color = NeutralMid
-                    )
-                    Text(
-                        text = "3. Local Storage\nCached data and custom categories can be cleared at any time from the Data section, independent of your account and cloud-synced records.",
-                        fontSize = 12.sp,
-                        color = NeutralMid
-                    )
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.End)
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { onDismiss() }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text("Close", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DeleteAccountWarningDialog(
-    onDismiss: () -> Unit,
-    onDelete: () -> Unit
-) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
-    var confirmationText by remember { mutableStateOf("") }
-    val isValid = confirmationText.trim().equals("DELETE", ignoreCase = false)
-
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-            modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = "Delete Account Permanently?",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SemanticError
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = "WARNING: This deletes your credentials and database logs permanently. This action cannot be undone.",
-                    fontSize = 12.sp,
-                    color = NeutralMid
-                )
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    text = "To confirm, type \"DELETE\" below:",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = NeutralBlack
-                )
-                Spacer(Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = confirmationText,
-                    onValueChange = { confirmationText = it },
-                    placeholder = { Text("Type DELETE here", color = NeutralMid, fontSize = 12.sp) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = SemanticError,
-                        unfocusedBorderColor = NeutralLight,
-                        cursorColor = SemanticError
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(24.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = "Cancel",
-                        color = NeutralMid,
-                        modifier = Modifier
-                            .clickable { onDismiss() }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "Delete Account",
-                        color = if (isValid) NeutralWhite else NeutralMid,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (isValid) SemanticError else NeutralLight)
-                            .clickable(enabled = isValid) { onDelete() }
-                            .padding(horizontal = 20.dp, vertical = 8.dp)
-                    )
-                }
+        Skeleton(loading = isStatsLoading) {
+            Row(Modifier.fillMaxWidth()) {
+                StatItem(label = tr(R.string.transactions), value = if (isStatsLoading) "000" else transactions.toString(), modifier = Modifier.weight(1f))
+                StatItem(label = tr(R.string.this_month), value = if (isStatsLoading) 12345.0 else spent, amountVisibility = amountVisibility, modifier = Modifier.weight(1f))
+                StatItem(label = tr(R.string.net), value = if (isStatsLoading) 12345.0 else net, amountVisibility = amountVisibility, modifier = Modifier.weight(1f))
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.example.spendsync.ui.holds
 
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,72 +12,80 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogProperties
+import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.remote.model.HoldDto
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.notifications.HoldReminderWorker
+import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.components.AppConfirmDialog
+import com.example.spendsync.ui.components.AppDialog
+import com.example.spendsync.ui.components.AppTextField
+import com.example.spendsync.ui.components.ButtonSize
+import com.example.spendsync.ui.components.ButtonVariant
+import com.example.spendsync.ui.components.DialogAction
+import com.example.spendsync.ui.components.Text
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
+import com.example.spendsync.ui.home.glassCard
+import com.example.spendsync.ui.settings.SettingsBackdrop
+import com.example.spendsync.ui.settings.SettingsTopBar
 import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.MaskableAmountText
 import com.example.spendsync.ui.shared.MonthPickerDialog
+import com.example.spendsync.ui.theme.expenseColor
+import com.example.spendsync.ui.theme.incomeColor
+import com.example.spendsync.utils.LocalizationUtils
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** One person's holds: what they owe or are owed, when it's due, and the actions for each. */
 @Composable
 fun HoldDetailScreen(
     personName: String,
     holds: List<HoldDto>,
     financeRepository: FinanceRepository,
+    sessionDataStore: SessionDataStore,
     amountVisibility: AmountVisibilityState,
     onBack: () -> Unit,
     onHoldsChanged: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val NeutralOffWhite = MaterialTheme.colorScheme.background
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val BrandBlue = MaterialTheme.colorScheme.primary
-    val SemanticError = MaterialTheme.colorScheme.error
+    val dateFormat by sessionDataStore.dateFormat.collectAsState(initial = "DD / MM / YYYY")
+    val datePattern = remember(dateFormat) { LocalizationUtils.getDateFormatPattern(dateFormat) }
+    val locale = Locale.getDefault()
 
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     var holdToEdit by remember { mutableStateOf<HoldDto?>(null) }
     var holdToDelete by remember { mutableStateOf<HoldDto?>(null) }
+    var deleting by remember { mutableStateOf(false) }
 
     fun rescheduleReminder(hold: HoldDto, newPersonName: String, newDate: LocalDate) {
         HoldReminderWorker.cancel(context, hold.id)
@@ -105,12 +115,7 @@ fun HoldDetailScreen(
 
     fun saveEdit(hold: HoldDto, newPersonName: String, newDate: LocalDate) {
         scope.launch {
-            val isoDate = "${newDate}T00:00:00.000Z"
-            when (val res = financeRepository.updateHold(
-                id = hold.id,
-                personName = newPersonName,
-                expectedReturnDate = isoDate,
-            )) {
+            when (val res = financeRepository.updateHold(id = hold.id, personName = newPersonName, expectedReturnDate = "${newDate}T00:00:00.000Z")) {
                 is AuthResult.Success -> {
                     rescheduleReminder(hold, newPersonName, newDate)
                     holdToEdit = null
@@ -123,6 +128,7 @@ fun HoldDetailScreen(
 
     fun deleteHold(hold: HoldDto) {
         scope.launch {
+            deleting = true
             when (val res = financeRepository.deleteHold(hold.id)) {
                 is AuthResult.Success -> {
                     HoldReminderWorker.cancel(context, hold.id)
@@ -131,69 +137,28 @@ fun HoldDetailScreen(
                 }
                 is AuthResult.Error -> toast = ToastMessage(res.message, isError = true)
             }
+            deleting = false
         }
     }
 
     ToastHost(toast = toast, onDismiss = { toast = null }) {
-        Column(modifier = Modifier.fillMaxSize().background(NeutralOffWhite)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(16.dp),
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = NeutralBlack)
-                }
-                Spacer(Modifier.width(8.dp))
-                Text(personName, fontSize = 20.sp, color = NeutralBlack)
-            }
-
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                items(holds) { hold ->
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text(
-                                    text = if (hold.direction == "owed_to_me") "Owed to you" else "You owe",
-                                    fontSize = 13.sp,
-                                    color = NeutralMid,
-                                )
-                                MaskableAmountText(
-                                    amount = hold.amount.toDoubleOrNull() ?: 0.0,
-                                    visibility = amountVisibility,
-                                    fontSize = 16.sp,
-                                    color = NeutralBlack,
-                                )
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "Expected: ${hold.expectedReturnDate.take(10)} · ${hold.status}",
-                                fontSize = 12.sp,
-                                color = NeutralMid,
+        SettingsBackdrop {
+            Column(Modifier.fillMaxSize()) {
+                SettingsTopBar(personName, onBack)
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                    LazyColumn(Modifier.widthIn(max = 600.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(holds, key = { it.id }) { hold ->
+                            HoldCard(
+                                hold = hold,
+                                datePattern = datePattern,
+                                locale = locale,
+                                amountVisibility = amountVisibility,
+                                onEdit = { holdToEdit = hold },
+                                onSettle = { markSettled(hold) },
+                                onDelete = { holdToDelete = hold },
                             )
-                            Spacer(Modifier.height(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(onClick = { holdToEdit = hold }) {
-                                    Text("Edit")
-                                }
-                                if (hold.status == "pending") {
-                                    Button(
-                                        onClick = { markSettled(hold) },
-                                        colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
-                                    ) {
-                                        Text("Mark as settled")
-                                    }
-                                }
-                                TextButton(onClick = { holdToDelete = hold }) {
-                                    Text("Delete", color = SemanticError)
-                                }
-                            }
                         }
+                        item { Spacer(Modifier.height(110.dp)) }
                     }
                 }
             }
@@ -209,51 +174,74 @@ fun HoldDetailScreen(
     }
 
     holdToDelete?.let { hold ->
-        BasicAlertDialog(
-            onDismissRequest = { holdToDelete = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
-            ) {
-                Column(modifier = Modifier.padding(24.dp)) {
-                    Text("Delete this hold?", fontSize = 18.sp, color = NeutralBlack)
-                    Spacer(Modifier.height(8.dp))
-                    Row {
-                        Text("This removes tracking for ", fontSize = 13.sp, color = NeutralMid)
-                        MaskableAmountText(
-                            amount = hold.amount.toDoubleOrNull() ?: 0.0,
-                            visibility = amountVisibility,
-                            fontSize = 13.sp,
-                            color = NeutralMid,
-                        )
-                        Text(" with $personName. This can't be undone.", fontSize = 13.sp, color = NeutralMid)
-                    }
-                    Spacer(Modifier.height(20.dp))
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { holdToDelete = null }) { Text("Cancel") }
-                        TextButton(onClick = { deleteHold(hold) }) { Text("Delete", color = SemanticError) }
-                    }
-                }
-            }
+        AppConfirmDialog(
+            title = tr(R.string.delete_this_hold),
+            message = tr(R.string.you_ll_stop_tracking_this_money, personName),
+            confirmLabel = tr(R.string.delete),
+            cancelLabel = tr(R.string.keep_it),
+            destructive = true,
+            loading = deleting,
+            onConfirm = { deleteHold(hold) },
+            onDismiss = { if (!deleting) holdToDelete = null },
+        )
+    }
+}
+
+@Composable
+private fun HoldCard(
+    hold: HoldDto,
+    datePattern: String,
+    locale: Locale,
+    amountVisibility: AmountVisibilityState,
+    onEdit: () -> Unit,
+    onSettle: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val owedToYou = hold.direction == "owed_to_me"
+    val tint = if (owedToYou) incomeColor() else expenseColor()
+    val settled = hold.status != "pending"
+    val due = remember(hold.expectedReturnDate, datePattern, locale) {
+        try {
+            java.time.ZonedDateTime.parse(hold.expectedReturnDate).toLocalDate().format(DateTimeFormatter.ofPattern(datePattern, locale))
+        } catch (e: Exception) {
+            hold.expectedReturnDate.take(10)
+        }
+    }
+
+    Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassCard().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (owedToYou) tr(R.string.owes_you) else tr(R.string.you_owe),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = tint,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(tint.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+            MaskableAmountText(hold.amount.toDoubleOrNull() ?: 0.0, amountVisibility, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            tr(R.string.due_and_status, due, if (settled) tr(R.string.settled) else tr(R.string.pending)),
+            fontSize = 13.sp,
+            color = scheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            AppButton(tr(R.string.edit), onEdit, variant = ButtonVariant.Tonal, size = ButtonSize.Small, leadingIcon = Icons.Default.Edit)
+            if (!settled) AppButton(tr(R.string.mark_as_settled), onSettle, size = ButtonSize.Small, leadingIcon = Icons.Default.Handshake)
+            AppButton(tr(R.string.delete), onDelete, variant = ButtonVariant.DangerText, size = ButtonSize.Small)
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditHoldDialog(
     hold: HoldDto,
     onDismiss: () -> Unit,
     onSave: (personName: String, expectedReturnDate: LocalDate) -> Unit,
 ) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
-    val BrandBlue = MaterialTheme.colorScheme.primary
-
+    val scheme = MaterialTheme.colorScheme
     var personName by remember { mutableStateOf(hold.personName) }
     var expectedDate by remember {
         mutableStateOf(
@@ -266,55 +254,35 @@ private fun EditHoldDialog(
     }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+    AppDialog(
+        onDismiss = onDismiss,
+        title = tr(R.string.edit_this_hold),
+        message = tr(R.string.change_who_it_s_with_or),
+        icon = Icons.Default.Handshake,
+        primary = DialogAction(tr(R.string.save), { onSave(personName.trim(), expectedDate) }, enabled = personName.isNotBlank()),
+        secondary = DialogAction(tr(R.string.cancel), onDismiss),
     ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-            modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
+        AppTextField(personName, { personName = it }, label = tr(R.string.person), leadingIcon = Icons.Default.Person)
+        Spacer(Modifier.height(12.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(scheme.surfaceVariant.copy(alpha = 0.5f))
+                .padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text("Edit hold", fontSize = 18.sp, color = NeutralBlack)
-                Spacer(Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = personName,
-                    onValueChange = { personName = it },
-                    label = { Text("Person") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BrandBlue,
-                        unfocusedBorderColor = NeutralLight,
-                        cursorColor = BrandBlue,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
+            Column(Modifier.weight(1f)) {
+                Text(tr(R.string.expected_return), fontSize = 12.sp, color = scheme.onSurfaceVariant)
+                Text(
+                    expectedDate.format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy", Locale.getDefault())),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = scheme.onSurface,
                 )
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(NeutralLight.copy(alpha = 0.3f))
-                        .padding(12.dp),
-                ) {
-                    Text(
-                        text = "Expected return: $expectedDate",
-                        color = NeutralBlack,
-                    )
-                }
-                TextButton(onClick = { showDatePicker = true }) {
-                    Text("Change date")
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
-                    TextButton(
-                        onClick = { onSave(personName, expectedDate) },
-                        enabled = personName.isNotBlank(),
-                    ) { Text("Save") }
-                }
             }
+            AppButton(tr(R.string.change), { showDatePicker = true }, variant = ButtonVariant.Text, size = ButtonSize.Small, leadingIcon = Icons.Default.CalendarMonth)
         }
     }
 

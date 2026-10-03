@@ -1,5 +1,7 @@
 package com.example.spendsync.utils
 
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import android.content.Context
 import android.content.Intent
 import android.graphics.Paint
@@ -19,9 +21,9 @@ object TransactionExporter {
     fun exportCsv(context: Context, transactions: List<TransactionDto>): Intent {
         val file = File(context.cacheDir, "spendsync_transactions.csv")
         file.bufferedWriter().use { writer ->
-            writer.appendLine("Date,Type,Category,Merchant,Amount,Note")
+            writer.appendLine(tr(R.string.csv_header))
             transactions.forEach { tx ->
-                val row = listOf(tx.createdAt, tx.type, tx.category, tx.merchant, tx.amount, tx.note.orEmpty())
+                val row = listOf(tx.createdAt, if (tx.type == "credit") tr(R.string.money_in) else tr(R.string.money_out), tx.category, tx.merchant, tx.amount, tx.note.orEmpty())
                 writer.appendLine(row.joinToString(",") { "\"${it.replace("\"", "\"\"")}\"" })
             }
         }
@@ -40,7 +42,7 @@ object TransactionExporter {
         var page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
         var canvas = page.canvas
         var y = margin
-        canvas.drawText("SpendSync Transactions", margin, y, titlePaint)
+        canvas.drawText(tr(R.string.pdf_title), margin, y, titlePaint)
         y += 28f
 
         transactions.forEach { tx ->

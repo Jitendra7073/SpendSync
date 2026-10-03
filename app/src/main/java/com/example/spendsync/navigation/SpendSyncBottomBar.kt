@@ -1,5 +1,7 @@
 package com.example.spendsync.navigation
 
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -23,9 +25,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Icon
+import com.example.spendsync.ui.components.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.example.spendsync.ui.components.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -41,7 +43,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendsync.data.local.SessionDataStore
-import com.example.spendsync.utils.LocalizationUtils
 
 /**
  * Floating pill-shaped bottom navigation bar that dynamically inherits colors and language preferences.
@@ -52,7 +53,6 @@ fun SpendSyncBottomBar(
     currentRoute: String,
     onItemSelected: (BottomNavItem) -> Unit,
 ) {
-    val language by sessionDataStore.language.collectAsState(initial = "English")
 
     val navBgColor = MaterialTheme.colorScheme.surface
     val shadowColor = MaterialTheme.colorScheme.onBackground
@@ -84,14 +84,7 @@ fun SpendSyncBottomBar(
                 if (item.isFab) {
                     FabNavItem(onClick = { onItemSelected(item) })
                 } else {
-                    val labelKey = when (item.route) {
-                        BottomNavItem.Home.route -> "home"
-                        BottomNavItem.Analytics.route -> "analytics"
-                        BottomNavItem.Budget.route -> "budget"
-                        BottomNavItem.Profile.route -> "profile"
-                        else -> item.label.lowercase()
-                    }
-                    val translatedLabel = LocalizationUtils.getTranslation(labelKey, language)
+                    val translatedLabel = item.label
 
                     RegularNavItem(
                         item = item,
@@ -200,7 +193,7 @@ private fun FabNavItem(onClick: () -> Unit) {
     ) {
         Icon(
             imageVector = Icons.Default.Add,
-            contentDescription = "Add transaction",
+            contentDescription = tr(R.string.add_transaction),
             tint = onPrimaryColor,
             modifier = Modifier.size(28.dp),
         )

@@ -1,5 +1,8 @@
 package com.example.spendsync.ui.search
 
+import com.example.spendsync.ui.i18n.categoryLabel
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +26,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
@@ -31,12 +36,12 @@ import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
+import com.example.spendsync.ui.components.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
+import com.example.spendsync.ui.components.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -67,7 +72,9 @@ import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.ui.transaction.builtInCategoryIcon
 import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.MaskableAmountText
-import com.example.spendsync.ui.theme.BrandBlue
+import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.components.AppIconButton
+import com.example.spendsync.ui.components.ButtonSize
 
 private data class SettingsSearchItem(
     val label: String,
@@ -75,14 +82,16 @@ private data class SettingsSearchItem(
     val icon: ImageVector,
 )
 
-private val SETTINGS_ITEMS = listOf(
-    SettingsSearchItem("Dark Mode", listOf("theme", "appearance", "night"), Icons.Default.DarkMode),
-    SettingsSearchItem("Push Notifications", listOf("alerts"), Icons.Default.NotificationsActive),
-    SettingsSearchItem("Auto Backup", listOf("backup", "sync"), Icons.Default.Backup),
-    SettingsSearchItem("Date Format", listOf("date"), Icons.Default.CalendarMonth),
-    SettingsSearchItem("Privacy Policy", listOf("legal", "data"), Icons.Default.PrivacyTip),
-    SettingsSearchItem("Support & FAQs", listOf("help", "contact"), Icons.AutoMirrored.Filled.HelpOutline),
-    SettingsSearchItem("Sign Out", listOf("logout", "log out"), Icons.AutoMirrored.Filled.Logout),
+private fun settingsItems() = listOf(
+    SettingsSearchItem(tr(R.string.theme_light_dark), listOf(tr(R.string.dark_mode), "appearance", "night", "accent", "colour"), Icons.Default.DarkMode),
+    SettingsSearchItem(tr(R.string.language), listOf("translate", "hindi", "spanish", "french", "german", "english"), Icons.Default.Language),
+    SettingsSearchItem(tr(R.string.hide_amounts_pin), listOf("privacy", "mask", "security", "pin"), Icons.Default.Lock),
+    SettingsSearchItem(tr(R.string.push_notifications), listOf("alerts"), Icons.Default.NotificationsActive),
+    SettingsSearchItem(tr(R.string.auto_backup), listOf("backup", "sync"), Icons.Default.Backup),
+    SettingsSearchItem(tr(R.string.date_format), listOf("date"), Icons.Default.CalendarMonth),
+    SettingsSearchItem(tr(R.string.privacy_policy), listOf("legal", "data"), Icons.Default.PrivacyTip),
+    SettingsSearchItem(tr(R.string.support_faqs), listOf("help", "contact"), Icons.AutoMirrored.Filled.HelpOutline),
+    SettingsSearchItem(tr(R.string.sign_out), listOf("logout", tr(R.string.log_out)), Icons.AutoMirrored.Filled.Logout),
 )
 
 /**
@@ -140,7 +149,7 @@ fun GlobalSearchDialog(
     }
 
     val matchingSettings = remember(query) {
-        if (query.isBlank()) emptyList() else SETTINGS_ITEMS.filter { item ->
+        if (query.isBlank()) emptyList() else settingsItems().filter { item ->
             item.label.contains(query, ignoreCase = true) ||
                 item.keywords.any { it.contains(query, ignoreCase = true) }
         }
@@ -163,23 +172,15 @@ fun GlobalSearchDialog(
                     .statusBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 8.dp),
             ) {
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Close search",
-                        tint = NeutralBlack,
-                    )
-                }
+                AppIconButton(Icons.AutoMirrored.Filled.ArrowBack, tr(R.string.close_search), onClick = onDismiss)
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Search transactions, settings...", color = NeutralMid, fontSize = 14.sp) },
+                    placeholder = { Text(tr(R.string.search_transactions_settings), color = NeutralMid, fontSize = 14.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = NeutralMid) },
                     trailingIcon = {
                         if (query.isNotEmpty()) {
-                            IconButton(onClick = { query = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = NeutralMid)
-                            }
+                            AppIconButton(Icons.Default.Close, tr(R.string.clear_search), onClick = { query = "" }, tint = NeutralMid)
                         }
                     },
                     singleLine = true,
@@ -187,8 +188,8 @@ fun GlobalSearchDialog(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = NeutralWhite,
                         unfocusedContainerColor = NeutralWhite,
-                        focusedBorderColor = BrandBlue,
-                        unfocusedBorderColor = Color(0xFFE2E8F0),
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                     ),
                     modifier = Modifier
                         .weight(1f)
@@ -202,7 +203,7 @@ fun GlobalSearchDialog(
                     contentAlignment = Alignment.TopCenter,
                 ) {
                     Text(
-                        text = "Search transactions and settings",
+                        text = tr(R.string.search_transactions_and_settings),
                         fontSize = 14.sp,
                         color = NeutralMid,
                     )
@@ -211,27 +212,27 @@ fun GlobalSearchDialog(
                     modifier = Modifier.fillMaxSize().padding(top = 48.dp),
                     contentAlignment = Alignment.TopCenter,
                 ) {
-                    CircularProgressIndicator(color = BrandBlue)
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
                 matchingSettings.isEmpty() && matchingTransactions.isEmpty() -> Box(
                     modifier = Modifier.fillMaxSize().padding(top = 48.dp),
                     contentAlignment = Alignment.TopCenter,
                 ) {
                     Text(
-                        text = "No results for \"$query\"",
+                        text = tr(R.string.no_results_for_1, query),
                         fontSize = 14.sp,
                         color = NeutralMid,
                     )
                 }
                 else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                     if (matchingSettings.isNotEmpty()) {
-                        item { SectionHeader("Settings") }
+                        item { SectionHeader(tr(R.string.settings)) }
                         items(matchingSettings) { settingsItem ->
                             SettingsResultRow(settingsItem, onClick = onOpenSettings)
                         }
                     }
                     if (matchingTransactions.isNotEmpty()) {
-                        item { SectionHeader("Transactions") }
+                        item { SectionHeader(tr(R.string.transactions)) }
                         items(matchingTransactions) { tx ->
                             TransactionResultRow(tx, customCategoryIcons, amountVisibility) { onTransactionSelected(tx) }
                         }
@@ -269,10 +270,10 @@ private fun SettingsResultRow(item: SettingsSearchItem, onClick: () -> Unit) {
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(BrandBlue.copy(alpha = 0.12f)),
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(item.icon, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
+            Icon(item.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(12.dp))
         Text(text = item.label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = NeutralBlack)
@@ -289,7 +290,7 @@ private fun TransactionResultRow(
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
     val isCredit = transaction.type == "credit"
-    val iconTint = if (isCredit) Color(0xFF15803D) else Color(0xFF475569)
+    val iconTint = if (isCredit) com.example.spendsync.ui.theme.incomeColor() else com.example.spendsync.ui.theme.expenseColor()
     val customIconId = customCategoryIcons[transaction.category]
 
     Row(
@@ -303,7 +304,7 @@ private fun TransactionResultRow(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(if (isCredit) Color(0xFFDCFCE7) else Color(0xFFF1F5F9)),
+                .background(iconTint.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center,
         ) {
             if (customIconId != null) {
@@ -328,12 +329,12 @@ private fun TransactionResultRow(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = transaction.merchant.ifBlank { transaction.category },
+                text = transaction.merchant.ifBlank { categoryLabel(transaction.category) },
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = NeutralBlack,
             )
-            Text(text = transaction.category, fontSize = 12.sp, color = NeutralMid)
+            Text(text = categoryLabel(transaction.category), fontSize = 12.sp, color = NeutralMid)
         }
         MaskableAmountText(
             amount = transaction.amount.toDoubleOrNull() ?: 0.0,
@@ -341,7 +342,7 @@ private fun TransactionResultRow(
             prefix = if (isCredit) "+ " else "- ",
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (isCredit) Color(0xFF16A34A) else Color(0xFFDC2626),
+            color = iconTint,
         )
     }
 }

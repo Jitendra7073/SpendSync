@@ -1,5 +1,9 @@
 package com.example.spendsync.ui.home
 
+import com.example.spendsync.ui.i18n.LanguageManager
+import com.example.spendsync.ui.settings.SegmentOption
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -39,10 +43,10 @@ import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import com.example.spendsync.ui.components.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
+import com.example.spendsync.ui.components.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -74,8 +78,7 @@ import com.example.spendsync.data.remote.model.TransactionDto
 import com.example.spendsync.data.repository.AuthResult
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
-import com.example.spendsync.ui.components.SkeletonBox
-import com.example.spendsync.ui.components.SkeletonLine
+import com.example.spendsync.ui.components.Skeleton
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
 import com.example.spendsync.ui.search.GlobalSearchDialog
@@ -93,6 +96,31 @@ import com.example.spendsync.ui.theme.NeutralOffWhite
 import com.example.spendsync.ui.theme.NeutralWhite
 import com.example.spendsync.ui.theme.SemanticError
 import kotlinx.coroutines.launch
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.SwapHoriz
+import com.example.spendsync.ui.settings.SettingsBackdrop
+import com.example.spendsync.ui.settings.SettingsContentWidth
+import com.example.spendsync.ui.settings.SettingsDivider
+import com.example.spendsync.ui.settings.SettingsGroup
+import com.example.spendsync.ui.settings.SettingsGroupLabel
+import com.example.spendsync.ui.settings.SettingsNavRow
+import com.example.spendsync.ui.settings.SettingsSegmented
+import com.example.spendsync.ui.settings.SettingsTopBar
+import com.example.spendsync.ui.settings.cascadeIn
+import com.example.spendsync.ui.theme.expenseColor
+import com.example.spendsync.ui.theme.incomeColor
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -115,12 +143,105 @@ data class DayGroup(val date: LocalDate, val transactions: List<TransactionDto>)
 
 /** "Today" / "Yesterday" / "EEE, d MMM" — the label shown on each day's sticky header. */
 fun LocalDate.toRelativeLabel(): String = when (this) {
-    LocalDate.now() -> "Today"
-    LocalDate.now().minusDays(1) -> "Yesterday"
+    LocalDate.now() -> tr(R.string.today)
+    LocalDate.now().minusDays(1) -> tr(R.string.yesterday)
     else -> format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault()))
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+/** Fake rows rendered inside [Skeleton] so the loading state has the exact shape of real rows. */
+private val PlaceholderGroups: List<DayGroup> by lazy {
+    val now = java.time.ZonedDateTime.now().toString()
+    fun tx(i: Int, type: String) = TransactionDto(
+        id = "placeholder_$i", userId = "", amount = "1250.00", type = type,
+        merchant = "Merchant name", category = "Category name", sourceApp = null, note = null,
+        createdAt = now, updatedAt = null,
+    )
+    listOf(DayGroup(LocalDate.now(), listOf(tx(1, "debit"), tx(2, "debit"), tx(3, "credit"))))
+}
+
+/** "Today" / "Yesterday" / weekday + the user's chosen date format (Settings → Appearance). */
+private fun dayLabel(date: LocalDate, datePattern: String): String = when (date.also { LanguageManager.current }) {
+    LocalDate.now() -> tr(R.string.today)
+    LocalDate.now().minusDays(1) -> tr(R.string.yesterday)
+    else -> date.format(DateTimeFormatter.ofPattern("EEE, $datePattern", Locale.getDefault()))
+}
+
+private fun List<TransactionDto>.toDayGroups(): List<DayGroup> =
+    groupBy {
+        try {
+            java.time.ZonedDateTime.parse(it.createdAt).toLocalDate()
+        } catch (e: Exception) {
+            LocalDate.now()
+        }
+    }
+        .map { (date, txns) -> DayGroup(date, txns.sortedByDescending { it.createdAt }) }
+        .sortedByDescending { it.date }
+
+private fun List<TransactionDto>.sumType(type: String): Double =
+    filter { it.type == type }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+
+/** The real day-card layout, filled with placeholder rows and wrapped in [Skeleton]. */
+private fun LazyListScope.skeletonDayGroups(
+    datePattern: String,
+    customCategoryIcons: Map<String, String>,
+    amountVisibility: AmountVisibilityState,
+) {
+    item(key = "skeleton_groups") {
+        Skeleton(loading = true) {
+            Column {
+                PlaceholderGroups.forEach { group ->
+                    DayHeader(dayLabel(group.date, datePattern), 1250.0, 1250.0, amountVisibility)
+                    DayCard {
+                        group.transactions.forEachIndexed { i, tx ->
+                            TransactionRow(tx, customCategoryIcons, amountVisibility, onDelete = {}, onEdit = {}, onInfo = {})
+                            if (i != group.transactions.lastIndex) RowDivider()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** One card per day with its header — shared by Home's "Recent" and the Transactions page. */
+private fun LazyListScope.dayGroupItems(
+    groups: List<DayGroup>,
+    datePattern: String,
+    customCategoryIcons: Map<String, String>,
+    amountVisibility: AmountVisibilityState,
+    onDelete: (TransactionDto) -> Unit,
+    onEdit: (TransactionDto) -> Unit,
+    onInfo: (TransactionDto) -> Unit,
+) {
+    groups.forEach { group ->
+        item(key = "day_${group.date}") {
+            Column(Modifier.animateItem()) {
+                DayHeader(
+                    label = dayLabel(group.date, datePattern),
+                    creditTotal = group.transactions.sumType("credit"),
+                    debitTotal = group.transactions.sumType("debit"),
+                    amountVisibility = amountVisibility,
+                )
+                DayCard {
+                    group.transactions.forEachIndexed { index, tx ->
+                        TransactionRow(
+                            transaction = tx,
+                            customCategoryIcons = customCategoryIcons,
+                            amountVisibility = amountVisibility,
+                            onDelete = { onDelete(tx) },
+                            onEdit = { onEdit(tx) },
+                            onInfo = { onInfo(tx) },
+                        )
+                        if (index != group.transactions.lastIndex) RowDivider()
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     repository: AuthRepository,
@@ -131,6 +252,7 @@ fun HomeScreen(
     onEditTransaction: (TransactionDto) -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenHolds: () -> Unit = {},
+    onOpenAssistant: () -> Unit = {},
     amountVisibility: AmountVisibilityState,
     // Set when a search result is picked from a different tab (Analytics/
     // Budget) — each request uses a distinct id so repeat-selecting the same
@@ -141,12 +263,9 @@ fun HomeScreen(
 ) {
     val scope = rememberCoroutineScope()
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
-    val NeutralOffWhite = MaterialTheme.colorScheme.background
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralLight = MaterialTheme.colorScheme.outlineVariant
 
-    val language by sessionDataStore.language.collectAsState(initial = "English")
+    val dateFormat by sessionDataStore.dateFormat.collectAsState(initial = "DD / MM / YYYY")
+    val datePattern = remember(dateFormat) { LocalizationUtils.getDateFormatPattern(dateFormat) }
 
     // Custom categories' icons live only in local storage (iconId, from the
     // Iconify picker) — a transaction only carries the category name, so it
@@ -160,19 +279,15 @@ fun HomeScreen(
     }
 
     var monthlyTransactions by remember { mutableStateOf<List<TransactionDto>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
 
     suspend fun loadTransactions(forceRefresh: Boolean) {
         val start = dateFilterState.selectedDate.withDayOfMonth(1).toString() + "T00:00:00.000Z"
         val end = dateFilterState.selectedDate.withDayOfMonth(dateFilterState.selectedDate.lengthOfMonth()).toString() + "T23:59:59.999Z"
         when (val res = financeRepository.getTransactions(startDate = start, endDate = end, limit = 500, forceRefresh = forceRefresh)) {
-            is AuthResult.Success -> {
-                monthlyTransactions = res.data
-            }
-            is AuthResult.Error -> {
-                // handle error
-            }
+            is AuthResult.Success -> monthlyTransactions = res.data
+            is AuthResult.Error -> Unit
         }
     }
 
@@ -184,7 +299,7 @@ fun HomeScreen(
 
     // ── All-time balance (independent of the selected month) ─────────────────
     var allTimeBalance by remember { mutableStateOf<Double?>(null) }
-    var isBalanceLoading by remember { mutableStateOf(false) }
+    var isBalanceLoading by remember { mutableStateOf(true) }
     var balanceRefreshKey by remember { mutableStateOf(0) }
 
     suspend fun loadAllTimeBalance(forceRefresh: Boolean) {
@@ -194,7 +309,10 @@ fun HomeScreen(
         }
     }
 
-    var holdMoney by remember { mutableStateOf(0.0) }
+    // Pending holds, split by direction; net hold money = owed to me − owed by me.
+    var holdsOwedToMe by remember { mutableStateOf(0.0) }
+    var holdsOwedByMe by remember { mutableStateOf(0.0) }
+    val holdMoney = holdsOwedToMe - holdsOwedByMe
 
     LaunchedEffect(refreshKey, balanceRefreshKey) {
         isBalanceLoading = true
@@ -203,22 +321,27 @@ fun HomeScreen(
 
         when (val res = financeRepository.getHolds(status = "pending")) {
             is AuthResult.Success -> {
-                holdMoney = res.data.sumOf { hold ->
-                    val amt = hold.amount.toDoubleOrNull() ?: 0.0
-                    if (hold.direction == "owed_to_me") amt else -amt
-                }
+                fun sum(direction: String) = res.data
+                    .filter { it.direction == direction }
+                    .sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                holdsOwedToMe = sum("owed_to_me")
+                holdsOwedByMe = sum("owed_by_me")
             }
-            // holdMoney intentionally left at its last known value rather than
-            // reset to 0 — a transient fetch failure shouldn't make Hold Money
-            // appear to vanish, just go stale. Silent like loadAllTimeBalance's
-            // own failure branch above, deliberately: these two numbers sit side
-            // by side in the balance card and should degrade the same way.
+            // Left at the last known values rather than reset to 0 — a transient
+            // fetch failure should make Hold Money go stale, not vanish. Silent,
+            // like loadAllTimeBalance's own failure branch.
             is AuthResult.Error -> Unit
         }
     }
 
-    // Dynamic Filter State
-    var selectedTypeFilter by remember { mutableStateOf("ALL") } // ALL, CREDIT, DEBIT
+    // Nested pages + the Transactions page's type filter.
+    var page by remember { mutableStateOf<HomePage?>(null) }
+    var typeFilter by remember { mutableStateOf(TypeFilter.All) }
+    BackHandler(enabled = page != null) { page = null }
+
+    // Plays Home's entrance once; lives here (not in the lazy list) so scrolling doesn't replay it.
+    var intro by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { intro = true }
 
     // Global search modal + per-row action state
     var showGlobalSearch by remember { mutableStateOf(false) }
@@ -229,301 +352,197 @@ fun HomeScreen(
         if (externalViewTransactionId > 0) externalViewTransaction?.let { transactionToView = it }
     }
 
-    // Summary tiles now cover the whole selected month — monthlyTransactions
-    // is already fetched scoped to dateFilterState.selectedDate's month
-    // (see loadTransactions above), so no further date filtering is needed.
-    val totalIncome = remember(monthlyTransactions) {
-        monthlyTransactions.filter { it.type == "credit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-    }
-    val totalExpenses = remember(monthlyTransactions) {
-        monthlyTransactions.filter { it.type == "debit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+    val totalIncome = remember(monthlyTransactions) { monthlyTransactions.sumType("credit") }
+    val totalExpenses = remember(monthlyTransactions) { monthlyTransactions.sumType("debit") }
+    val monthLabel = remember(dateFilterState.selectedDate, LanguageManager.current) {
+        dateFilterState.selectedDate.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()))
     }
 
-    // 2. Full month, grouped by day and sorted newest-first — the type filter
-    // (tapping the Income/Expense tile above) applies here, not to the summary tiles.
-    val groupedByDay = remember(monthlyTransactions, selectedTypeFilter) {
-        monthlyTransactions
-            .filter { transaction ->
-                when (selectedTypeFilter) {
-                    "CREDIT" -> transaction.type == "credit"
-                    "DEBIT" -> transaction.type == "debit"
-                    else -> true
-                }
-            }
-            .groupBy {
-                try {
-                    java.time.ZonedDateTime.parse(it.createdAt).toLocalDate()
-                } catch (e: Exception) {
-                    LocalDate.now()
-                }
-            }
-            .map { (date, txns) -> DayGroup(date, txns.sortedByDescending { it.createdAt }) }
-            .sortedByDescending { it.date }
+    // Home previews only the newest few; the Transactions page shows the whole (filtered) month.
+    val recentGroups = remember(monthlyTransactions) {
+        monthlyTransactions.sortedByDescending { it.createdAt }.take(5).toDayGroups()
     }
+    val filteredGroups = remember(monthlyTransactions, typeFilter) {
+        monthlyTransactions
+            .filter {
+                when (typeFilter) {
+                    TypeFilter.Income -> it.type == "credit"
+                    TypeFilter.Expense -> it.type == "debit"
+                    TypeFilter.All -> true
+                }
+            }
+            .toDayGroups()
+    }
+
+    val onDeleteTx: (TransactionDto) -> Unit = { transactionToDelete = it }
+    val onEditTx: (TransactionDto) -> Unit = { onEditTransaction(it) }
+    val onInfoTx: (TransactionDto) -> Unit = { transactionToView = it }
 
     ToastHost(toast = toast, onDismiss = { toast = null }) {
-    PullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = {
-            scope.launch {
-                isRefreshing = true
-                loadTransactions(forceRefresh = true)
-                loadAllTimeBalance(forceRefresh = true)
-                isRefreshing = false
-            }
+    AnimatedContent(
+        targetState = page,
+        transitionSpec = {
+            val forward = targetState != null
+            val enter = slideInHorizontally(tween(320)) { if (forward) it / 4 else -it / 4 } + fadeIn(tween(320))
+            val exit = slideOutHorizontally(tween(320)) { if (forward) -it / 4 else it / 4 } + fadeOut(tween(200))
+            enter togetherWith exit
         },
-        modifier = Modifier.fillMaxSize(),
-    ) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(NeutralOffWhite),
-    ) {
-        // ── Header — blue section + all-time balance card ────────────────────
-        item {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(BrandBlue)
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-        ) {
-            // Top Bar Header inside the Home Screen (adapts to blue background)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Left Side: App Name
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Savings,
-                        contentDescription = "App Logo",
-                        tint = NeutralWhite,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "SpendSync",
-                        color = NeutralWhite,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 18.sp
-                    )
-                }
-
-                // Right Side: Calendar + global search, grouped together.
-                TopBarDateSearchGroup(
-                    selectedDate = dateFilterState.selectedDate,
-                    onCalendarClick = { dateFilterState.showMonthPicker = true },
-                    onSearchClick = { showGlobalSearch = true },
-                    contentColor = NeutralWhite,
-                    groupBackgroundColor = NeutralWhite.copy(alpha = 0.15f),
-                )
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── Balance card — shows the all-time net balance, not just today ──
-            Card(
-                shape     = RoundedCornerShape(20.dp),
-                colors    = CardDefaults.cardColors(
-                    containerColor = NeutralWhite.copy(alpha = 0.15f),
-                ),
-                elevation = CardDefaults.cardElevation(0.dp),
-                modifier  = Modifier.fillMaxWidth(),
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
-                ) {
-                    Text(
-                        text     = "Net Balance",
-                        color    = NeutralWhite.copy(alpha = 0.80f),
-                        fontSize = 12.sp,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    if (isBalanceLoading) {
-                        SkeletonLine(modifier = Modifier.width(160.dp), height = 32.dp)
-                    } else {
-                        MaskableAmountText(
-                            amount     = allTimeBalance ?: 0.0,
-                            visibility = amountVisibility,
-                            color      = NeutralWhite,
-                            fontSize   = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    // Yellow accent bar
-                    Box(
-                        modifier = Modifier
-                            .size(width = 80.dp, height = 3.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(BrandYellow),
-                    )
-                    if (!isBalanceLoading) {
-                        Spacer(Modifier.height(16.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Column {
-                                Text(
-                                    text = LocalizationUtils.getTranslation("total_balance", language),
-                                    color = NeutralWhite.copy(alpha = 0.70f),
-                                    fontSize = 11.sp,
-                                )
-                                MaskableAmountText(
-                                    amount = (allTimeBalance ?: 0.0) + holdMoney,
-                                    visibility = amountVisibility,
-                                    color = NeutralWhite,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            }
-                            Column(
-                                modifier = Modifier.clickable { onOpenHolds() },
-                                horizontalAlignment = Alignment.End,
-                            ) {
-                                Text("Hold Money →", color = NeutralWhite.copy(alpha = 0.70f), fontSize = 11.sp)
-                                MaskableAmountText(
-                                    amount = holdMoney,
-                                    visibility = amountVisibility,
-                                    color = NeutralWhite,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
+        label = "home_nav",
+    ) { current ->
+        when (current) {
+            HomePage.Balance -> SettingsBackdrop {
+                Column(Modifier.fillMaxSize()) {
+                    SettingsTopBar(tr(R.string.balance), onBack = { page = null })
+                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                        SettingsContentWidth {
+                            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                SettingsGroupLabel(tr(R.string.all_time))
+                                SettingsGroup(Modifier.cascadeIn(0)) {
+                                    AmountRow(tr(R.string.net_balance), allTimeBalance ?: 0.0, amountVisibility, hint = tr(R.string.everything_earned_minus_everything_spent))
+                                    SettingsDivider()
+                                    AmountRow(tr(R.string.owed_to_you), holdsOwedToMe, amountVisibility, color = incomeColor(), hint = tr(R.string.pending_holds))
+                                    SettingsDivider()
+                                    AmountRow(tr(R.string.you_owe), holdsOwedByMe, amountVisibility, color = expenseColor(), hint = tr(R.string.pending_holds))
+                                    SettingsDivider()
+                                    AmountRow(tr(R.string.total_incl_holds), (allTimeBalance ?: 0.0) + holdMoney, amountVisibility)
+                                }
+                                SettingsGroupLabel(monthLabel)
+                                SettingsGroup(Modifier.cascadeIn(1)) {
+                                    AmountRow(tr(R.string.income), totalIncome, amountVisibility, color = incomeColor())
+                                    SettingsDivider()
+                                    AmountRow(tr(R.string.expenses), totalExpenses, amountVisibility, color = expenseColor())
+                                    SettingsDivider()
+                                    val saved = totalIncome - totalExpenses
+                                    AmountRow(
+                                        tr(R.string.saved), saved, amountVisibility,
+                                        color = if (saved >= 0) incomeColor() else expenseColor(),
+                                        hint = if (totalIncome > 0) tr(R.string.s_1_of_income, (saved / totalIncome * 100).toInt().coerceAtLeast(0)) else null,
+                                    )
+                                }
+                                SettingsGroup(Modifier.cascadeIn(2)) {
+                                    SettingsNavRow(Icons.Default.SwapHoriz, tr(R.string.open_holds), tr(R.string.money_you_ve_lent_or_borrowed), onClick = onOpenHolds)
+                                }
+                                Spacer(Modifier.height(110.dp))
                             }
                         }
                     }
                 }
             }
-        }
-        }
 
-        item { Spacer(Modifier.height(16.dp)) }
-
-        // ── Responsive & Premium Summary tiles (Income & Expenses) ───────────
-        // Tapping a tile filters the list below by that type — tap again to
-        // clear the filter. Replaces the separate ALL/Income/Expense pills.
-        item {
-        Row(
-            modifier              = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (isLoading) {
-                SkeletonBox(modifier = Modifier.weight(1f).height(78.dp), shape = RoundedCornerShape(16.dp))
-                SkeletonBox(modifier = Modifier.weight(1f).height(78.dp), shape = RoundedCornerShape(16.dp))
-            } else {
-            // Premium Income Card
-            SummaryTile(
-                label = LocalizationUtils.getTranslation("income", language),
-                amount = totalIncome,
-                amountVisibility = amountVisibility,
-                icon = Icons.Default.ArrowUpward,
-                cardColor = Color(0xFFF0FDF4),       // Soft light green tint
-                borderColor = Color(0xFFDCFCE7),     // Soft green border
-                accentColor = Color(0xFF15803D),     // Deep green icon/text
-                isSelected = selectedTypeFilter == "CREDIT",
-                onClick = { selectedTypeFilter = if (selectedTypeFilter == "CREDIT") "ALL" else "CREDIT" },
-                modifier = Modifier.weight(1f)
-            )
-
-            // Premium Expenses Card
-            SummaryTile(
-                label = LocalizationUtils.getTranslation("expenses", language),
-                amount = totalExpenses,
-                amountVisibility = amountVisibility,
-                icon = Icons.Default.ArrowDownward,
-                cardColor = Color(0xFFFEF2F2),       // Soft light red tint
-                borderColor = Color(0xFFFEE2E2),     // Soft red border
-                accentColor = Color(0xFFB91C1C),     // Deep red icon/text
-                isSelected = selectedTypeFilter == "DEBIT",
-                onClick = { selectedTypeFilter = if (selectedTypeFilter == "DEBIT") "ALL" else "DEBIT" },
-                modifier = Modifier.weight(1f)
-            )
-            }
-        }
-        }
-
-        item { Spacer(Modifier.height(24.dp)) }
-
-        // ── Transactions List Section ─────────────────────────────────────────
-        item {
-        Text(
-            text       = LocalizationUtils.getTranslation("recent_transactions", language),
-            fontSize   = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color      = NeutralBlack,
-            modifier   = Modifier.padding(horizontal = 20.dp),
-        )
-        }
-
-        item { Spacer(Modifier.height(8.dp)) }
-
-        if (isLoading) {
-            items(3) { TransactionRowSkeleton() }
-        } else if (groupedByDay.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text     = "No transactions found for this period.",
-                        fontSize = 14.sp,
-                        color    = NeutralMid,
-                    )
+            HomePage.Transactions -> SettingsBackdrop {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                    LazyColumn(Modifier.widthIn(max = 600.dp).fillMaxSize()) {
+                        item { SettingsTopBar(tr(R.string.transactions), onBack = { page = null }) }
+                        item {
+                            SettingsGroup {
+                                SettingsSegmented(
+                                    options = listOf(
+                                        SegmentOption(TypeFilter.All.name, TypeFilter.All.label, Icons.Default.FilterList),
+                                        SegmentOption(TypeFilter.Income.name, TypeFilter.Income.label, Icons.Default.ArrowUpward),
+                                        SegmentOption(TypeFilter.Expense.name, TypeFilter.Expense.label, Icons.Default.ArrowDownward),
+                                    ),
+                                    selected = typeFilter.name,
+                                    onSelect = { key -> typeFilter = TypeFilter.valueOf(key) },
+                                )
+                            }
+                            Text(
+                                tr(R.string.s_1_2_transactions, monthLabel, filteredGroups.sumOf { it.transactions.size }),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
+                            )
+                        }
+                        if (isLoading) {
+                            skeletonDayGroups(datePattern, customCategoryIcons, amountVisibility)
+                        } else if (filteredGroups.isEmpty()) {
+                            item { HomeEmptyState(tr(R.string.nothing_here), tr(R.string.no_1_transactions_in_2, typeFilter.label.lowercase(), monthLabel)) }
+                        } else {
+                            dayGroupItems(filteredGroups, datePattern, customCategoryIcons, amountVisibility, onDeleteTx, onEditTx, onInfoTx)
+                        }
+                        item { Spacer(Modifier.height(110.dp)) }
+                    }
                 }
             }
-        } else {
-            groupedByDay.forEach { group ->
-                item(key = "day_${group.date}") {
-                    DayHeader(
-                        label = group.date.toRelativeLabel(),
-                        creditTotal = group.transactions.filter { it.type == "credit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 },
-                        debitTotal = group.transactions.filter { it.type == "debit" }.sumOf { it.amount.toDoubleOrNull() ?: 0.0 },
-                        amountVisibility = amountVisibility,
-                    )
-                    // No spacer here — the header sits flush against the card.
-                    // One card per day — all its transactions grouped together
-                    // with thin dividers between rows, not separate cards with
-                    // gaps between every single transaction.
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-                        elevation = CardDefaults.cardElevation(1.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                    ) {
-                        Column {
-                            group.transactions.forEachIndexed { index, transaction ->
-                                TransactionRow(
-                                    transaction = transaction,
-                                    customCategoryIcons = customCategoryIcons,
-                                    amountVisibility = amountVisibility,
-                                    onDelete = { transactionToDelete = transaction },
-                                    onEdit = { onEditTransaction(transaction) },
-                                    onInfo = { transactionToView = transaction },
-                                )
-                                if (index != group.transactions.lastIndex) {
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.8.dp)
+
+            null -> SettingsBackdrop {
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = {
+                        scope.launch {
+                            isRefreshing = true
+                            loadTransactions(forceRefresh = true)
+                            loadAllTimeBalance(forceRefresh = true)
+                            isRefreshing = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                        LazyColumn(Modifier.widthIn(max = 600.dp).fillMaxSize()) {
+                            item {
+                                Column(Modifier.statusBarsPadding()) {
+                                    HomeTopBar(
+                                        selectedDate = dateFilterState.selectedDate,
+                                        datePattern = datePattern,
+                                        onCalendarClick = { dateFilterState.showMonthPicker = true },
+                                        onSearchClick = { showGlobalSearch = true },
+                                        onAssistantClick = onOpenAssistant,
+                                    )
                                 }
                             }
+                            item {
+                                BalanceHero(
+                                    balance = allTimeBalance ?: 0.0,
+                                    holdNet = holdMoney,
+                                    isLoading = isBalanceLoading,
+                                    amountVisibility = amountVisibility,
+                                    onOpenBalance = { page = HomePage.Balance },
+                                    onOpenHolds = onOpenHolds,
+                                    modifier = Modifier.introIn(intro, 0),
+                                )
+                            }
+                            item { Spacer(Modifier.height(14.dp)) }
+                            item {
+                                MonthSummaryCard(
+                                    monthLabel = monthLabel,
+                                    income = totalIncome,
+                                    expenses = totalExpenses,
+                                    isLoading = isLoading,
+                                    amountVisibility = amountVisibility,
+                                    onIncome = { typeFilter = TypeFilter.Income; page = HomePage.Transactions },
+                                    onExpenses = { typeFilter = TypeFilter.Expense; page = HomePage.Transactions },
+                                    modifier = Modifier.introIn(intro, 1),
+                                )
+                            }
+                            item { Spacer(Modifier.height(22.dp)) }
+                            item {
+                                Column(Modifier.introIn(intro, 2)) {
+                                    HomeSectionHeader(
+                                        title = tr(R.string.recent_transactions),
+                                        actionLabel = if (monthlyTransactions.isNotEmpty()) tr(R.string.see_all) else null,
+                                        onAction = { typeFilter = TypeFilter.All; page = HomePage.Transactions },
+                                    )
+                                }
+                            }
+                            if (isLoading) {
+                                skeletonDayGroups(datePattern, customCategoryIcons, amountVisibility)
+                            } else if (recentGroups.isEmpty()) {
+                                item {
+                                    HomeEmptyState(
+                                        title = tr(R.string.no_transactions_in_1, monthLabel),
+                                        body = tr(R.string.tap_to_add_one_it_ll),
+                                    )
+                                }
+                            } else {
+                                dayGroupItems(recentGroups, datePattern, customCategoryIcons, amountVisibility, onDeleteTx, onEditTx, onInfoTx)
+                            }
+                            // Keeps the last row clear of the floating bottom bar.
+                            item { Spacer(Modifier.height(110.dp)) }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
                 }
             }
         }
-
-        // Bottom padding to ensure content isn't hidden behind the floating bottom navigation bar
-        item { Spacer(Modifier.height(100.dp)) }
-    }
     }
 
     // ── Delete confirmation ───────────────────────────────────────────────────
@@ -538,7 +557,7 @@ fun HomeScreen(
                     if (res is AuthResult.Success) {
                         monthlyTransactions = monthlyTransactions.filter { it.id != tx.id }
                         balanceRefreshKey++
-                        toast = ToastMessage("Transaction deleted", isError = false)
+                        toast = ToastMessage(tr(R.string.transaction_deleted), isError = false)
                     } else {
                         toast = ToastMessage((res as AuthResult.Error).message, isError = true)
                     }
@@ -574,510 +593,5 @@ fun HomeScreen(
             },
         )
     }
-    }
-}
-
-
-// ── Sticky day-group header — shows the day's net flow, split when it has ───
-// both income and expenses (matches "+200 -518" style), a single total
-// otherwise, so a glance at the header already answers "how did this day go."
-@Composable
-private fun DayHeader(
-    label: String,
-    creditTotal: Double,
-    debitTotal: Double,
-    amountVisibility: AmountVisibilityState,
-) {
-    val NeutralOffWhite = MaterialTheme.colorScheme.background
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(NeutralOffWhite)
-            .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = NeutralMid,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (creditTotal > 0.0) {
-                MaskableAmountText(
-                    amount = creditTotal,
-                    visibility = amountVisibility,
-                    prefix = "+",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF16A34A),
-                )
-            }
-            if (debitTotal > 0.0) {
-                MaskableAmountText(
-                    amount = debitTotal,
-                    visibility = amountVisibility,
-                    prefix = "-",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFDC2626),
-                )
-            }
-        }
-    }
-}
-
-// ── Premium Summary Card Component ──────────────────────────────────────────
-@Composable
-private fun SummaryTile(
-    label: String,
-    amount: Double,
-    amountVisibility: AmountVisibilityState,
-    icon: ImageVector,
-    cardColor: Color,
-    borderColor: Color,
-    accentColor: Color,
-    isSelected: Boolean = false,
-    onClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
-) {
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        border = BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) accentColor else borderColor),
-        elevation = CardDefaults.cardElevation(0.dp),
-        modifier = modifier.then(
-            if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                        tint = accentColor,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                Text(
-                    text = label,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = NeutralMid
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            MaskableAmountText(
-                amount = amount,
-                visibility = amountVisibility,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = accentColor,
-            )
-        }
-    }
-}
-
-// ── Transaction Row Skeleton (shown while the month's data is loading) ───────
-@Composable
-private fun TransactionRowSkeleton() {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-        elevation = CardDefaults.cardElevation(1.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SkeletonBox(modifier = Modifier.size(40.dp), shape = CircleShape)
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                SkeletonBox(modifier = Modifier.width(120.dp).height(14.dp))
-                Spacer(modifier = Modifier.height(6.dp))
-                SkeletonBox(modifier = Modifier.width(80.dp).height(11.dp))
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            SkeletonBox(modifier = Modifier.width(60.dp).height(15.dp))
-        }
-    }
-}
-
-// ── Transaction Row Component ────────────────────────────────────────────────
-// Tap to edit; swipe left to delete; swipe right for details — no per-row
-// icon buttons, the gesture IS the action. Swiping always snaps back
-// (confirmValueChange returns false): delete still goes through the existing
-// confirmation dialog, and info is just a peek, neither actually dismisses
-// the row itself — HomeScreen's own state removes it once deletion succeeds.
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TransactionRow(
-    transaction: TransactionDto,
-    customCategoryIcons: Map<String, String>,
-    amountVisibility: AmountVisibilityState,
-    onDelete: () -> Unit,
-    onEdit: () -> Unit,
-    onInfo: () -> Unit,
-) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-
-    val amountVal = remember(transaction.amount) {
-        transaction.amount.toDoubleOrNull() ?: 0.0
-    }
-
-    val isCredit = transaction.type == "credit"
-
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.EndToStart -> onDelete()
-                SwipeToDismissBoxValue.StartToEnd -> onInfo()
-                SwipeToDismissBoxValue.Settled -> Unit
-            }
-            false
-        },
-    )
-
-    // Lives inside the shared per-day Card (HomeScreen groups every day's
-    // rows into one card with dividers) — no card/shape/margin of its own here.
-    SwipeToDismissBox(
-        state = dismissState,
-        modifier = Modifier.fillMaxWidth(),
-        backgroundContent = {
-            val (bgColor, icon, alignment) = when (dismissState.dismissDirection) {
-                SwipeToDismissBoxValue.EndToStart -> Triple(Color(0xFFDC2626), Icons.Default.Delete, Alignment.CenterEnd)
-                SwipeToDismissBoxValue.StartToEnd -> Triple(BrandBlue, Icons.Default.Info, Alignment.CenterStart)
-                SwipeToDismissBoxValue.Settled -> Triple(Color.Transparent, null, Alignment.Center)
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(bgColor),
-                contentAlignment = alignment,
-            ) {
-                if (icon != null) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier
-                            .padding(horizontal = 24.dp)
-                            .size(22.dp),
-                    )
-                }
-            }
-        },
-    ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(NeutralWhite)
-            .clickable(onClick = onEdit)
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                // Category Icon Badge — a custom category's icon lives in
-                // customCategoryIcons (Iconify), rendered remotely; built-ins
-                // resolve via the shared category → icon table; unknown/
-                // deleted categories are the only ones that fall back to Star.
-                // Income = green background/tint; expense = its own red
-                // background/tint (not a neutral gray) — same color language
-                // the amount below already uses, just applied to the badge too.
-                val iconBg = if (isCredit) Color(0xFFDCFCE7) else Color(0xFFFEE2E2)
-                val iconTint = if (isCredit) Color(0xFF15803D) else Color(0xFFDC2626)
-                val customIconId = customCategoryIcons[transaction.category]
-
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(iconBg),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (customIconId != null) {
-                        AsyncImage(
-                            model = IconifyApiClient.iconUrl(
-                                customIconId,
-                                colorHex = "#%06X".format(0xFFFFFF and iconTint.toArgb()),
-                            ),
-                            contentDescription = null,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    } else {
-                        Icon(
-                            imageVector = builtInCategoryIcon(transaction.category) ?: Icons.Default.Star,
-                            contentDescription = null,
-                            tint = iconTint,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Column {
-                    // Category is the title (matches the day-grouped design —
-                    // the date already lives in the day header above, so it's
-                    // not repeated per row); merchant/note is the subtitle.
-                    Text(
-                        text = transaction.category,
-                        color = NeutralBlack,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
-                    )
-                    if (transaction.merchant.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(1.dp))
-                        Text(
-                            text = transaction.merchant,
-                            color = NeutralMid,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            }
-
-            val amountColor = if (isCredit) Color(0xFF16A34A) else Color(0xFFDC2626)
-
-            // Deliberately not bold/large — the card shouldn't shout the
-            // amount, the category + icon already carry the row's identity.
-            MaskableAmountText(
-                amount = amountVal,
-                visibility = amountVisibility,
-                prefix = if (isCredit) "+ " else "- ",
-                color = amountColor,
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
-            )
-        }
-        }
-    }
-}
-
-// ── Delete Confirmation Dialog ───────────────────────────────────────────────
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-private fun DeleteTransactionDialog(
-    transaction: TransactionDto,
-    amountVisibility: AmountVisibilityState,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val amountVal = transaction.amount.toDoubleOrNull() ?: 0.0
-
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-            modifier = Modifier
-                .padding(horizontal = 32.dp)
-                .fillMaxWidth(),
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = SemanticError,
-                    modifier = Modifier.size(36.dp),
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = "Delete transaction?",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = NeutralBlack,
-                )
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "${transaction.merchant.ifBlank { transaction.category }} — ",
-                        fontSize = 12.sp,
-                        color = NeutralMid,
-                    )
-                    MaskableAmountText(
-                        amount = amountVal,
-                        visibility = amountVisibility,
-                        fontSize = 12.sp,
-                        color = NeutralMid,
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "This can't be undone.",
-                    fontSize = 12.sp,
-                    color = NeutralMid,
-                )
-                Spacer(Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .border(BorderStroke(1.dp, Color(0xFFE2E8F0)), RoundedCornerShape(12.dp))
-                            .clickable(onClick = onDismiss)
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("Cancel", color = NeutralBlack, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(SemanticError)
-                            .clickable(onClick = onConfirm)
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("Delete", color = NeutralWhite, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ── Transaction Info Dialog ──────────────────────────────────────────────────
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-private fun TransactionInfoDialog(
-    transaction: TransactionDto,
-    amountVisibility: AmountVisibilityState,
-    onDismiss: () -> Unit,
-) {
-    val NeutralWhite = MaterialTheme.colorScheme.surface
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    val amountVal = transaction.amount.toDoubleOrNull() ?: 0.0
-    val isCredit = transaction.type == "credit"
-
-    val createdDate = remember(transaction.createdAt) {
-        try {
-            java.time.ZonedDateTime.parse(transaction.createdAt)
-                .format(DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.getDefault()))
-        } catch (e: Exception) {
-            transaction.createdAt
-        }
-    }
-
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = NeutralWhite),
-            modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth(),
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Transaction Details",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = NeutralBlack,
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = NeutralMid)
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(text = "Amount", fontSize = 12.sp, color = NeutralMid)
-                    Spacer(Modifier.width(12.dp))
-                    MaskableAmountText(
-                        amount = amountVal,
-                        visibility = amountVisibility,
-                        prefix = if (isCredit) "+ " else "- ",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = NeutralBlack,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                    )
-                }
-                InfoRow("Type", if (isCredit) "Income" else "Expense")
-                InfoRow("Merchant / Note", transaction.merchant.ifBlank { "—" })
-                InfoRow("Category", transaction.category)
-                if (!transaction.note.isNullOrBlank()) InfoRow("Note", transaction.note)
-                if (!transaction.sourceApp.isNullOrBlank()) InfoRow("Source", transaction.sourceApp)
-                InfoRow("Date", createdDate)
-            }
-        }
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    val NeutralBlack = MaterialTheme.colorScheme.onBackground
-    val NeutralMid = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(text = label, fontSize = 12.sp, color = NeutralMid)
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = value,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = NeutralBlack,
-            textAlign = androidx.compose.ui.text.style.TextAlign.End,
-        )
     }
 }

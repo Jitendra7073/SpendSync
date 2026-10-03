@@ -7,7 +7,11 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.spendsync.data.assistant.AssistantPrefs
+import com.example.spendsync.data.assistant.parseToolSet
+import com.example.spendsync.data.assistant.serializeToolSet
 import com.example.spendsync.notifications.PendingCapture
 import com.example.spendsync.notifications.parsePendingCaptures
 import com.example.spendsync.notifications.serializePendingCaptures
@@ -59,7 +63,11 @@ class SessionDataStore(private val context: Context) {
         private val KEY_USER_CREATED_AT = stringPreferencesKey("user_created_at")
 
         // Preference settings
+        private val KEY_ASSISTANT_CONSENT = booleanPreferencesKey("assistant_consent")
+        private val KEY_SETTINGS_DIRTY      = stringSetPreferencesKey("settings_pending_sync")
         private val KEY_DARK_MODE           = booleanPreferencesKey("settings_dark_mode")
+        private val KEY_THEME_MODE          = stringPreferencesKey("settings_theme_mode")
+        private val KEY_EMAIL_NOTIFICATIONS = booleanPreferencesKey("settings_email_notifications")
         private val KEY_NOTIFICATIONS       = booleanPreferencesKey("settings_notifications")
         private val KEY_AUTO_BACKUP         = booleanPreferencesKey("settings_auto_backup")
         private val KEY_ACCENT_COLOR        = stringPreferencesKey("settings_accent_color")
@@ -73,6 +81,11 @@ class SessionDataStore(private val context: Context) {
 
         private val KEY_AUTO_CAPTURE_ENABLED  = booleanPreferencesKey("auto_capture_enabled")
         private val KEY_AUTO_CAPTURE_PACKAGES = stringPreferencesKey("auto_capture_packages")
+        private val KEY_ASSISTANT_MODEL = stringPreferencesKey("assistant_model")
+        private val KEY_ASSISTANT_STYLE = stringPreferencesKey("assistant_style")
+        private val KEY_ASSISTANT_TONE = stringPreferencesKey("assistant_tone")
+        private val KEY_ASSISTANT_INSTRUCTIONS = stringPreferencesKey("assistant_instructions")
+        private val KEY_ASSISTANT_DISABLED_TOOLS = stringPreferencesKey("assistant_disabled_tools")
 
         private val KEY_PENDING_CAPTURES = stringPreferencesKey("pending_captures")
 
@@ -109,6 +122,25 @@ class SessionDataStore(private val context: Context) {
         prefs[KEY_DARK_MODE] ?: false
     }
 
+    /** "System" | "Light" | "Dark". Falls back to the legacy [darkMode] flag for users who never picked one. */
+    val themeMode: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_THEME_MODE] ?: if (prefs[KEY_DARK_MODE] == true) "Dark" else "System"
+    }
+
+    /** Settings changed on this device whose server copy hasn't been confirmed yet (see SettingsSynchronizer). */
+    val settingsPendingSync: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        prefs[KEY_SETTINGS_DIRTY] ?: emptySet()
+    }
+
+    /** Has the user agreed to let the assistant use their data? Device-local on purpose. */
+    val assistantConsent: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_ASSISTANT_CONSENT] ?: false
+    }
+
+    val emailNotifications: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_EMAIL_NOTIFICATIONS] ?: true
+    }
+
     val notificationsEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_NOTIFICATIONS] ?: true
     }
@@ -143,6 +175,17 @@ class SessionDataStore(private val context: Context) {
 
     val autoCapturePackages: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         parseAutoCapturePackages(prefs[KEY_AUTO_CAPTURE_PACKAGES])
+    }
+
+    /** What the user chose in Settings -> Assistant. Synced to the backend as one unit. */
+    val assistantPrefs: Flow<AssistantPrefs> = context.dataStore.data.map { prefs ->
+        AssistantPrefs(
+            model = prefs[KEY_ASSISTANT_MODEL] ?: "auto",
+            style = prefs[KEY_ASSISTANT_STYLE] ?: "balanced",
+            tone = prefs[KEY_ASSISTANT_TONE] ?: "friendly",
+            instructions = prefs[KEY_ASSISTANT_INSTRUCTIONS] ?: "",
+            disabledTools = parseToolSet(prefs[KEY_ASSISTANT_DISABLED_TOOLS]),
+        )
     }
 
     val pendingCaptures: Flow<List<PendingCapture>> = context.dataStore.data.map { prefs ->
@@ -197,6 +240,8 @@ class SessionDataStore(private val context: Context) {
             prefs.remove(KEY_AUTO_CAPTURE_PACKAGES)
             prefs.remove(KEY_PIN_HASH)
             prefs.remove(KEY_PIN_SALT)
+            // Unsynced edits belong to the account that made them.
+            prefs.remove(KEY_SETTINGS_DIRTY)
         }
     }
 
@@ -216,6 +261,31 @@ class SessionDataStore(private val context: Context) {
     suspend fun updateDarkMode(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_DARK_MODE] = enabled
+        }
+    }
+
+    suspend fun updateAssistantConsent(agreed: Boolean) {
+        context.dataStore.edit { prefs -> prefs[KEY_ASSISTANT_CONSENT] = agreed }
+    }
+
+    suspend fun markSettingsPending(fields: Set<String>) {
+        context.dataStore.edit { prefs -> prefs[KEY_SETTINGS_DIRTY] = (prefs[KEY_SETTINGS_DIRTY] ?: emptySet()) + fields }
+    }
+
+    suspend fun clearSettingsPending(fields: Set<String>) {
+        context.dataStore.edit { prefs -> prefs[KEY_SETTINGS_DIRTY] = (prefs[KEY_SETTINGS_DIRTY] ?: emptySet()) - fields }
+    }
+
+    suspend fun updateThemeMode(mode: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_THEME_MODE] = mode
+            prefs[KEY_DARK_MODE] = mode == "Dark"
+        }
+    }
+
+    suspend fun updateEmailNotifications(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_EMAIL_NOTIFICATIONS] = enabled
         }
     }
 
@@ -273,6 +343,16 @@ class SessionDataStore(private val context: Context) {
 
     suspend fun updateAutoCapturePackages(packages: Set<String>) {
         context.dataStore.edit { prefs -> prefs[KEY_AUTO_CAPTURE_PACKAGES] = serializeAutoCapturePackages(packages) }
+    }
+
+    suspend fun updateAssistantPrefs(p: AssistantPrefs) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_ASSISTANT_MODEL] = p.model
+            prefs[KEY_ASSISTANT_STYLE] = p.style
+            prefs[KEY_ASSISTANT_TONE] = p.tone
+            prefs[KEY_ASSISTANT_INSTRUCTIONS] = p.instructions
+            prefs[KEY_ASSISTANT_DISABLED_TOOLS] = serializeToolSet(p.disabledTools)
+        }
     }
 
     suspend fun addPendingCapture(capture: PendingCapture) {

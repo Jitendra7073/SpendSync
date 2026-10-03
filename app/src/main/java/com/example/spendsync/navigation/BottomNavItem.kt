@@ -1,5 +1,8 @@
 package com.example.spendsync.navigation
 
+import androidx.annotation.StringRes
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
@@ -15,38 +18,40 @@ import androidx.compose.ui.graphics.vector.ImageVector
  */
 sealed class BottomNavItem(
     val route: String,
-    val label: String,
+    @StringRes val labelRes: Int,
     val icon: ImageVector,
     val isFab: Boolean = false,
 ) {
+    val label: String get() = tr(labelRes)
+
     object Home : BottomNavItem(
         route = "tab_home",
-        label = "Home",
+        labelRes = R.string.home,
         icon  = Icons.Default.Home,
     )
 
     object Analytics : BottomNavItem(
         route = "tab_analytics",
-        label = "Analytics",
+        labelRes = R.string.analytics,
         icon  = Icons.Default.BarChart,
     )
 
     object AddTransaction : BottomNavItem(
         route  = "tab_add",
-        label  = "Add",
+        labelRes = R.string.add,
         icon   = Icons.Default.Add,
         isFab  = true,
     )
 
     object Budget : BottomNavItem(
         route = "tab_budget",
-        label = "Budget",
+        labelRes = R.string.budget,
         icon  = Icons.Default.Wallet,
     )
 
     object Profile : BottomNavItem(
         route = "tab_profile",
-        label = "Profile",
+        labelRes = R.string.profile,
         icon  = Icons.Default.AccountCircle,
     )
 

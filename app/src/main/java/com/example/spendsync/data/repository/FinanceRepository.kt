@@ -1,5 +1,8 @@
 package com.example.spendsync.data.repository
 
+import com.example.spendsync.data.ServerMessages
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.remote.ApiClient
 import com.example.spendsync.data.remote.model.*
@@ -322,28 +325,28 @@ class FinanceRepository(
         }
     }
 
-    suspend fun updateSettings(
-        darkMode: Boolean? = null,
-        pushNotifications: Boolean? = null,
-        autoBackup: Boolean? = null,
-        accentColor: String? = null,
-        language: String? = null,
-        dateFormat: String? = null,
-    ): AuthResult<SettingsDto> {
+    suspend fun updateSettings(request: UpdateSettingsRequest): AuthResult<SettingsDto> {
         return try {
-            val request = UpdateSettingsRequest(
-                darkMode = darkMode,
-                pushNotifications = pushNotifications,
-                autoBackup = autoBackup,
-                accentColor = accentColor,
-                language = language,
-                dateFormat = dateFormat,
-            )
             val response = api.updateSettings(getAuthHeader(), request)
             if (response.isSuccessful && response.body() != null) {
                 val data = response.body()!!.data
                 cache["settings"] = data
                 AuthResult.Success(data)
+            } else {
+                AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    /** Permanently deletes the account on the server (all data cascades). */
+    suspend fun deleteAccount(): AuthResult<Unit> {
+        return try {
+            val response = api.deleteAccount(getAuthHeader())
+            if (response.isSuccessful) {
+                cache.clear()
+                AuthResult.Success(Unit)
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
             }
@@ -416,26 +419,26 @@ class FinanceRepository(
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun parseErrorMessage(errorBody: String?): String {
-        if (errorBody.isNullOrBlank()) return "An unexpected error occurred."
+        if (errorBody.isNullOrBlank()) return tr(R.string.an_unexpected_error_occurred)
         return try {
             val json = gson.fromJson(errorBody, JsonObject::class.java)
             val errorObj = json.getAsJsonObject("error")
-            errorObj?.get("message")?.asString
-                ?: json.get("message")?.asString
-                ?: json.get("error")?.asString
-                ?: "An unexpected error occurred."
+            ServerMessages.localize(
+                message = errorObj?.get("message")?.asString ?: json.get("message")?.asString ?: json.get("error")?.takeIf { it.isJsonPrimitive }?.asString,
+                code = errorObj?.get("code")?.asString ?: json.get("code")?.asString,
+            )
         } catch (e: Exception) {
-            "An unexpected error occurred."
+            tr(R.string.an_unexpected_error_occurred)
         }
     }
 
     private fun Exception.toUserMessage(): String = when {
         message?.contains("Unable to resolve host", ignoreCase = true) == true ->
-            "No internet connection. Please check your network."
+            tr(R.string.no_internet_connection_please_check_your)
         message?.contains("timeout", ignoreCase = true) == true ->
-            "Request timed out. Please try again."
+            tr(R.string.request_timed_out_please_try_again)
         message?.contains("Connection refused", ignoreCase = true) == true ->
-            "Cannot reach the server. Please try again later."
-        else -> message ?: "An unexpected error occurred."
+            tr(R.string.cannot_reach_the_server_please_try)
+        else -> message ?: tr(R.string.an_unexpected_error_occurred)
     }
 }

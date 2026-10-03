@@ -1,5 +1,7 @@
 package com.example.spendsync.ui.transaction
 
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,12 +29,12 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
+import com.example.spendsync.ui.components.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
+import com.example.spendsync.ui.components.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +55,9 @@ import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.example.spendsync.data.remote.IconifyApiClient
 import com.example.spendsync.data.repository.AuthResult
+import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.components.AppIconButton
+import com.example.spendsync.ui.components.ButtonSize
 import com.example.spendsync.data.repository.IconifyRepository
 import kotlinx.coroutines.delay
 
@@ -146,11 +151,9 @@ fun CategoryIconPickerScreen(
                     .statusBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 8.dp),
             ) {
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = NeutralBlack)
-                }
+                AppIconButton(Icons.AutoMirrored.Filled.ArrowBack, tr(R.string.back), onClick = onDismiss)
                 Text(
-                    text = "Add Category",
+                    text = tr(R.string.add_category),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = NeutralBlack,
@@ -158,16 +161,16 @@ fun CategoryIconPickerScreen(
             }
 
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                Text(text = "Category Name", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NeutralMid)
+                Text(text = tr(R.string.category_name), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NeutralMid)
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = { Text("e.g. Friday Takeout", color = NeutralMid, fontSize = 14.sp) },
+                    placeholder = { Text(tr(R.string.e_g_friday_takeout), color = NeutralMid, fontSize = 14.sp) },
                     singleLine = true,
                     isError = nameAlreadyExists,
                     supportingText = if (nameAlreadyExists) {
-                        { Text("\"${name.trim()}\" already exists", color = errorColor, fontSize = 12.sp) }
+                        { Text(tr(R.string.s_1_already_exists, name.trim()), color = errorColor, fontSize = 12.sp) }
                     } else null,
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -182,18 +185,16 @@ fun CategoryIconPickerScreen(
 
                 Spacer(Modifier.height(14.dp))
 
-                Text(text = "Search Icons", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NeutralMid)
+                Text(text = tr(R.string.search_icons), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NeutralMid)
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchTouched = true; searchQuery = it },
-                    placeholder = { Text("e.g. pizza, rent, gift...", color = NeutralMid, fontSize = 14.sp) },
+                    placeholder = { Text(tr(R.string.e_g_pizza_rent_gift), color = NeutralMid, fontSize = 14.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = NeutralMid) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchTouched = true; searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = NeutralMid)
-                            }
+                            AppIconButton(Icons.Default.Close, tr(R.string.clear_search), onClick = { searchTouched = true; searchQuery = "" }, tint = NeutralMid)
                         }
                     },
                     singleLine = true,
@@ -214,12 +215,12 @@ fun CategoryIconPickerScreen(
             // never pushes the confirm button below the visible screen ───────
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when {
-                    searchQuery.trim().length < 2 -> CenteredHint("Keep typing to search icons", NeutralMid)
+                    searchQuery.trim().length < 2 -> CenteredHint(tr(R.string.keep_typing_to_search_icons), NeutralMid)
                     isSearching -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = accentColor)
                     }
                     searchError != null -> CenteredHint(searchError!!, NeutralMid)
-                    results.isEmpty() -> CenteredHint("No icons found for \"$searchQuery\"", NeutralMid)
+                    results.isEmpty() -> CenteredHint(tr(R.string.no_icons_found_for_1, searchQuery), NeutralMid)
                     else -> LazyVerticalGrid(
                         columns = GridCells.Fixed(5),
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
@@ -262,7 +263,7 @@ fun CategoryIconPickerScreen(
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Text(
-                                            text = "In use",
+                                            text = tr(R.string.in_use),
                                             color = Color.White,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold,
@@ -279,8 +280,8 @@ fun CategoryIconPickerScreen(
                                     ) {
                                         Icon(
                                             Icons.Default.Check,
-                                            contentDescription = "Selected",
-                                            tint = Color.White,
+                                            contentDescription = tr(R.string.selected),
+                                            tint = MaterialTheme.colorScheme.background,
                                             modifier = Modifier.padding(2.dp).height(12.dp),
                                         )
                                     }
@@ -293,26 +294,14 @@ fun CategoryIconPickerScreen(
 
             // ── Confirm button — always visible, fixed at the bottom ──────────
             val canConfirm = name.trim().isNotBlank() && selectedIcon != null && !nameAlreadyExists
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(20.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (canConfirm) accentColor else NeutralLight)
-                    .clickable(enabled = canConfirm) {
-                        onCategoryCreated(name.trim(), selectedIcon!!)
-                    }
-                    .padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "Add Category",
-                    color = if (canConfirm) Color.White else NeutralMid,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            AppButton(
+                text = tr(R.string.add_category_2),
+                onClick = { onCategoryCreated(name.trim(), selectedIcon!!) },
+                modifier = Modifier.navigationBarsPadding().padding(20.dp),
+                size = ButtonSize.Large,
+                enabled = canConfirm,
+                fullWidth = true,
+            )
         }
     }
 }

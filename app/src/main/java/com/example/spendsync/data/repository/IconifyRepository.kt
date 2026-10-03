@@ -1,5 +1,7 @@
 package com.example.spendsync.data.repository
 
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import com.example.spendsync.data.remote.IconifyApiClient
 
 /**
@@ -28,8 +30,8 @@ class IconifyRepository {
             AuthResult.Error(
                 when {
                     e.message?.contains("Unable to resolve host", ignoreCase = true) == true ->
-                        "No internet connection. Please check your network."
-                    else -> "Couldn't search icons. Please try again."
+                        tr(R.string.no_internet_connection_please_check_your)
+                    else -> tr(R.string.couldn_t_search_icons_please_try)
                 }
             )
         }

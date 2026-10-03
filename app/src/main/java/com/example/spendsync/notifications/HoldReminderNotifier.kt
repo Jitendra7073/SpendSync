@@ -1,5 +1,6 @@
 package com.example.spendsync.notifications
 
+import com.example.spendsync.ui.i18n.tr
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -16,7 +17,7 @@ object HoldReminderNotifier {
         manager.createNotificationChannel(
             NotificationChannel(
                 HoldReminderIds.CHANNEL_ID,
-                "Money hold reminders",
+                tr(R.string.money_hold_reminders),
                 NotificationManager.IMPORTANCE_DEFAULT,
             )
         )
@@ -26,14 +27,14 @@ object HoldReminderNotifier {
         ensureChannel(context)
 
         val message = if (direction == "owed_to_me") {
-            "$personName was expected to return ${formatInr(amount)} today"
+            tr(R.string.s_1_was_expected_to_return_2, personName, formatInr(amount))
         } else {
-            "You were expected to pay back ${formatInr(amount)} to $personName today"
+            tr(R.string.you_were_expected_to_pay_back, formatInr(amount), personName)
         }
 
         val notification = NotificationCompat.Builder(context, HoldReminderIds.CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Money hold reminder")
+            .setContentTitle(tr(R.string.money_hold_reminder))
             .setContentText(message)
             .setAutoCancel(true)
             .build()

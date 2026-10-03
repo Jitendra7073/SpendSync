@@ -1,5 +1,7 @@
 package com.example.spendsync.ui.auth
 
+import com.example.spendsync.R
+import com.example.spendsync.ui.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +26,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.example.spendsync.ui.components.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,8 +45,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendsync.ui.components.AuthTextField
-import com.example.spendsync.ui.components.PrimaryButton
-import com.example.spendsync.ui.components.TextLinkButton
+import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.components.ButtonSize
+import com.example.spendsync.ui.components.ButtonVariant
 import com.example.spendsync.ui.components.ToastHost
 import com.example.spendsync.ui.components.ToastMessage
 import com.example.spendsync.ui.theme.BrandBlue
@@ -96,7 +99,7 @@ fun LoginScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text          = "SpendSync",
-                        color         = NeutralWhite,
+                        color         = MaterialTheme.colorScheme.onPrimary,
                         fontSize      = 28.sp,
                         fontWeight    = FontWeight.Bold,
                         letterSpacing = 1.sp,
@@ -128,14 +131,14 @@ fun LoginScreen(
                     verticalArrangement = Arrangement.Top,
                 ) {
                     Text(
-                        text       = "WELCOME BACK",
+                        text       = tr(R.string.welcome_back_2),
                         color      = BrandBlue,
                         fontSize   = 18.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text     = "Login to your SpendSync account",
+                        text     = tr(R.string.login_to_your_spendsync_account),
                         color    = NeutralMid,
                         fontSize = 12.sp,
                     )
@@ -146,7 +149,7 @@ fun LoginScreen(
                     AuthTextField(
                         value           = uiState.email,
                         onValueChange   = viewModel::onEmailChanged,
-                        label           = "Email Address",
+                        label           = tr(R.string.email_address),
                         leadingIcon     = Icons.Default.Email,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Email,
@@ -164,7 +167,7 @@ fun LoginScreen(
                     AuthTextField(
                         value                   = uiState.password,
                         onValueChange           = viewModel::onPasswordChanged,
-                        label                   = "Password",
+                        label                   = tr(R.string.password),
                         leadingIcon             = Icons.Default.Lock,
                         isPassword              = true,
                         passwordVisible         = uiState.passwordVisible,
@@ -172,7 +175,7 @@ fun LoginScreen(
                             Icons.Default.VisibilityOff else Icons.Default.Visibility,
                         onTrailingIconClick     = viewModel::togglePasswordVisibility,
                         trailingIconDescription = if (uiState.passwordVisible)
-                            "Hide password" else "Show password",
+                            tr(R.string.hide_password) else tr(R.string.show_password),
                         keyboardOptions         = KeyboardOptions(
                             keyboardType = KeyboardType.Password,
                             imeAction    = ImeAction.Done,
@@ -186,33 +189,20 @@ fun LoginScreen(
                         enabled = !uiState.isLoading,
                     )
 
-                    Spacer(Modifier.height(8.dp))
-
-                    // Forgot password — proper ripple via TextLinkButton
-                    Row(
-                        modifier              = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        TextLinkButton(
-                            text       = "Forgot Password?",
-                            onClick    = { /* TODO */ },
-                            color      = BrandBlue,
-                            fontWeight = FontWeight.Medium,
-                            fontSize   = 12,
-                        )
-                    }
 
                     Spacer(Modifier.height(20.dp))
 
                     // Primary action
-                    PrimaryButton(
-                        text      = "Log In",
-                        onClick   = {
+                    AppButton(
+                        text = tr(R.string.log_in),
+                        onClick = {
                             focusManager.clearFocus()
                             viewModel.signIn()
                         },
-                        isLoading = uiState.isLoading,
-                        enabled   = !uiState.isLoading,
+                        size = ButtonSize.Large,
+                        loading = uiState.isLoading,
+                        enabled = !uiState.isLoading,
+                        fullWidth = true,
                     )
 
                     Spacer(Modifier.height(28.dp))
@@ -224,14 +214,15 @@ fun LoginScreen(
                         verticalAlignment     = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text     = "Don't have an account?",
+                            text     = tr(R.string.don_t_have_an_account),
                             color    = NeutralDark,
                             fontSize = 14.sp,
                         )
-                        TextLinkButton(
-                            text    = "Sign Up",
+                        AppButton(
+                            text = tr(R.string.sign_up),
                             onClick = { viewModel.navigateToRegister() },
-                            color   = BrandBlue,
+                            variant = ButtonVariant.Text,
+                            size = ButtonSize.Small,
                         )
                     }
 

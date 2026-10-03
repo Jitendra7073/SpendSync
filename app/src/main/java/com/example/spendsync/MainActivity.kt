@@ -19,7 +19,11 @@ import com.example.spendsync.data.repository.AuthRepository
 import com.example.spendsync.navigation.AppNavigation
 import com.example.spendsync.navigation.Route
 import com.example.spendsync.ui.theme.SpendSyncTheme
+import com.example.spendsync.ui.i18n.AppLanguage
+import com.example.spendsync.ui.i18n.LanguageManager
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,6 +34,13 @@ class MainActivity : ComponentActivity() {
 
         val sessionDataStore = SessionDataStore(applicationContext)
         val authRepository = AuthRepository(sessionDataStore)
+
+        // The app speaks the saved language from the very first frame, and follows the
+        // setting live afterwards (also when it arrives from the account on sign-in).
+        LanguageManager.apply(this, AppLanguage.fromStored(runBlocking { sessionDataStore.language.first() }))
+        lifecycleScope.launch {
+            sessionDataStore.language.collect { LanguageManager.apply(this@MainActivity, AppLanguage.fromStored(it)) }
+        }
 
         // No branded splash UI — the system splash (plain background, no
         // logo) stays up for this one quick local-session check, then we
@@ -42,12 +53,16 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val darkMode by sessionDataStore.darkMode.collectAsState(initial = false)
+            val themeMode by sessionDataStore.themeMode.collectAsState(initial = "System")
             val accentColor by sessionDataStore.accentColor.collectAsState(initial = "Brand Blue")
             val resolvedStart = startDestination
 
             SpendSyncTheme(
-                darkTheme = darkMode,
+                darkTheme = when (themeMode) {
+                    "Dark"  -> true
+                    "Light" -> false
+                    else    -> androidx.compose.foundation.isSystemInDarkTheme()
+                },
                 accentColorName = accentColor
             ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
