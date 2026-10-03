@@ -130,11 +130,11 @@ describe('provider chain', () => {
   it('only activates providers whose key is set, in order, and never paid ones by default', () => {
     const ids = buildProviders({ GEMINI_API_KEY: 'a', GROQ_API_KEY: 'b', ANTHROPIC_API_KEY: 'c' }).map((p) => p.id);
     expect(ids).toEqual([
-      'gemini:gemma-4-26b-a4b-it',
-      'gemini:gemma-4-31b-it',
-      'gemini:gemini-2.5-flash-lite',
       'groq:openai/gpt-oss-120b',
+      'gemini:gemini-2.5-flash-lite',
+      'gemini:gemma-4-26b-a4b-it',
       'groq:qwen/qwen3.8-27b',
+      'gemini:gemma-4-31b-it',
       'groq:openai/gpt-oss-20b',
     ]);
   });

@@ -86,7 +86,7 @@ describe('assistant loop', () => {
     const requests: LlmRequest[] = [];
     await run([fakeProvider('gemini:g', [{ chunks: [text('Hi'), end()] }], requests)]);
     const user = requests[0].messages.at(-1) as { text: string };
-    expect(user.text).toContain('reply_language: English');
+    expect(user.text).toContain('default_reply_language: English');
     expect(requests[0].system).not.toContain('2026-10-03');
   });
 

@@ -91,7 +91,7 @@ describe('tool registry', () => {
 
   it('exposes no blocked or write tools', () => {
     for (const t of tools.ASSISTANT_TOOLS) {
-      expect(['read', 'navigate']).toContain(t.tier);
+      expect(['read', 'navigate', 'propose']).toContain(t.tier);
       expect(looksBlocked(t.name)).toBe(false);
     }
     const sent = tools.toolSpecs().map((t) => t.name);

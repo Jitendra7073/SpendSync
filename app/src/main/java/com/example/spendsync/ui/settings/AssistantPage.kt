@@ -44,6 +44,7 @@ private fun toolIcon(tool: AssistantToolInfo): ImageVector = when (tool) {
     AssistantToolInfo.SearchTransactions -> Icons.Default.Search
     AssistantToolInfo.GetBudgetStatus, AssistantToolInfo.ListHolds -> Icons.Default.Notifications
     AssistantToolInfo.GetSettings -> Icons.Default.SettingsSuggest
+    AssistantToolInfo.ProposeEntry -> Icons.Default.Edit
     AssistantToolInfo.OpenScreen -> Icons.Default.AutoAwesome
 }
 
@@ -57,6 +58,7 @@ private fun toolTitle(tool: AssistantToolInfo): String = tr(
         AssistantToolInfo.ListHolds -> R.string.asst_tool_list_holds
         AssistantToolInfo.GetTopMerchants -> R.string.asst_tool_get_top_merchants
         AssistantToolInfo.GetSettings -> R.string.asst_tool_get_settings
+        AssistantToolInfo.ProposeEntry -> R.string.asst_tool_propose_entry
         AssistantToolInfo.OpenScreen -> R.string.asst_tool_open_screen
     },
 )
@@ -71,6 +73,7 @@ private fun toolSub(tool: AssistantToolInfo): String = tr(
         AssistantToolInfo.ListHolds -> R.string.asst_tool_list_holds_sub
         AssistantToolInfo.GetTopMerchants -> R.string.asst_tool_get_top_merchants_sub
         AssistantToolInfo.GetSettings -> R.string.asst_tool_get_settings_sub
+        AssistantToolInfo.ProposeEntry -> R.string.asst_tool_propose_entry_sub
         AssistantToolInfo.OpenScreen -> R.string.asst_tool_open_screen_sub
     },
 )

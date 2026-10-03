@@ -3,6 +3,7 @@ import { withApi, corsPreflight } from '@/lib/api-handler';
 import { runAssistant, type AssistantEvent } from '@/assistant/loop';
 import { checkAssistantLimit } from '@/assistant/limiter';
 import { chatRequestSchema, todayIn } from '@/assistant/request';
+import { loadFeedbackHints } from '@/assistant/feedback';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,8 @@ export const POST = withApi(
     const abort = new AbortController();
     request.signal.addEventListener('abort', () => abort.abort());
 
+    const hints = await loadFeedbackHints(userId);
+
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         const send = (event: AssistantEvent) => {
@@ -36,7 +39,7 @@ export const POST = withApi(
             userId,
             conversationId: body.conversationId,
             messages: body.messages,
-            context: { today: todayIn(body.timezone), language: body.language, screen: body.screen, prefs: body.prefs },
+            context: { today: todayIn(body.timezone), language: body.language, screen: body.screen, prefs: body.prefs, hints },
             emit: send,
             signal: abort.signal,
           });

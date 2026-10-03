@@ -17,18 +17,17 @@ export interface ChainEntry {
  *   ASSISTANT_CHAIN="gemini:gemma-4-31b-it,groq:llama-3.3-70b-versatile,..."
  */
 export const DEFAULT_CHAIN: ChainEntry[] = [
-  // Checked live against the real APIs (Oct 2026). Gemma 26B is steady; 31B is sometimes slow or errors, so it comes second.
-  { provider: 'gemini', model: 'gemma-4-26b-a4b-it', label: 'Gemma 4 26B · Google' },
-  { provider: 'gemini', model: 'gemma-4-31b-it', label: 'Gemma 4 31B · Google' },
-  { provider: 'gemini', model: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite · Google' },
+  // Ordered for speed first (checked live, Oct 2026). Gemma is still in the chain and can be chosen in Settings -> Assistant.
   { provider: 'groq', model: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B · Groq' },
+  { provider: 'gemini', model: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite · Google' },
+  { provider: 'gemini', model: 'gemma-4-26b-a4b-it', label: 'Gemma 4 26B · Google' },
   { provider: 'groq', model: 'qwen/qwen3.8-27b', label: 'Qwen 3.8 27B · Groq' },
-  { provider: 'openrouter', model: 'google/gemma-4-26b-a4b-it:free', label: 'Gemma 4 26B · OpenRouter' },
+  { provider: 'gemini', model: 'gemma-4-31b-it', label: 'Gemma 4 31B · Google' },
   { provider: 'openrouter', model: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super · OpenRouter' },
+  { provider: 'openrouter', model: 'google/gemma-4-26b-a4b-it:free', label: 'Gemma 4 26B · OpenRouter' },
   // Not checked yet (no key at the time of writing); a wrong name just parks the entry.
   { provider: 'cerebras', model: 'llama-3.3-70b', label: 'Llama 3.3 70B · Cerebras' },
   { provider: 'mistral', model: 'mistral-small-latest', label: 'Mistral Small · Mistral' },
-  // Smallest and fastest, with a big free allowance: the last AI safety net.
   { provider: 'groq', model: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B · Groq' },
 ];
 

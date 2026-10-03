@@ -3,17 +3,19 @@
  *
  *  - read      looks something up. Runs automatically.
  *  - navigate  asks the phone to open a screen. Harmless; the app does the opening.
- *  - write     changes data. NOT enabled yet — will need a confirm card + undo (step 3).
+ *  - propose   prepares a change (e.g. a new expense) and shows the user a confirm card. The assistant
+ *              writes NOTHING: the app saves only after the user taps Confirm.
+ *  - write     changes data directly. NOT enabled — would need a confirm card + undo.
  *  - blocked   never available to the assistant, ever. These have no tool at all; the assistant
  *              can only explain where the user does them by hand.
  */
-export type ToolTier = 'read' | 'navigate' | 'write' | 'blocked';
+export type ToolTier = 'read' | 'navigate' | 'propose' | 'write' | 'blocked';
 
 /** Actions the assistant must never perform. Kept as data so tests can prove no tool matches. */
 export const BLOCKED_ACTIONS = ['clear_data', 'sign_out', 'delete_account'] as const;
 
-/** Tiers that may execute right now. Add 'write' only together with the confirm/undo flow. */
-const RUNNABLE_TIERS: ReadonlySet<ToolTier> = new Set<ToolTier>(['read', 'navigate']);
+/** Tiers that may execute right now. 'propose' only shows a confirm card. Add 'write' only together with confirm + undo. */
+const RUNNABLE_TIERS: ReadonlySet<ToolTier> = new Set<ToolTier>(['read', 'navigate', 'propose']);
 
 export function canRun(tier: ToolTier): boolean {
   return RUNNABLE_TIERS.has(tier);

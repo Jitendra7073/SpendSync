@@ -6,7 +6,7 @@
  *
  * `screen` is the screen the answer is about; the app turns it into an "Open …" button.
  */
-export type ScreenId = 'home' | 'analytics' | 'budget' | 'profile' | 'holds' | 'add_transaction';
+export type ScreenId = 'home' | 'analytics' | 'budget' | 'profile' | 'holds' | 'add_transaction' | 'support';
 
 export interface HelpEntry {
   id: string;

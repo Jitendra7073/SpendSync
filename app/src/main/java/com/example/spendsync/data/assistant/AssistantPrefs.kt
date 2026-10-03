@@ -34,6 +34,7 @@ enum class AssistantToolInfo(val id: String) {
     ListHolds("list_holds"),
     GetTopMerchants("get_top_merchants"),
     GetSettings("get_settings"),
+    ProposeEntry("propose_entry"),
     OpenScreen("open_screen"),
 }
 

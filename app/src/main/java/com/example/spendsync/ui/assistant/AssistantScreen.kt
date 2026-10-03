@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -33,7 +34,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.AddComment
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.SupportAgent
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -78,6 +82,19 @@ import com.example.spendsync.ui.settings.SettingsBackdrop
 import com.example.spendsync.ui.settings.SettingsContentWidth
 import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.utils.maskAmountsInText
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.graphics.graphicsLayer
+import com.example.spendsync.data.assistant.Proposal
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -100,6 +117,17 @@ fun AssistantScreen(
     val listState = rememberLazyListState()
     var input by rememberSaveable { mutableStateOf("") }
     var confirmClear by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
+    var showSupport by remember { mutableStateOf(false) }
+    var feedbackFor by remember { mutableStateOf<UiMessage?>(null) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    fun copy(text: String) {
+        // Copying follows the same privacy rule as the screen: hidden amounts stay hidden.
+        val safe = maskAmountsInText(text, amountVisibility.isMaskingEnabled, amountVisibility.isVisible).text
+        clipboard.setText(androidx.compose.ui.text.AnnotatedString(safe))
+        android.widget.Toast.makeText(context, tr(R.string.asst_copied), android.widget.Toast.LENGTH_SHORT).show()
+    }
 
     LaunchedEffect(Unit) { viewModel.load() }
 
@@ -109,6 +137,12 @@ fun AssistantScreen(
         val count = listState.layoutInfo.totalItemsCount
         if (count > 0) listState.animateScrollToItem(count - 1)
     }
+
+    val displayed = state.messages + listOfNotNull(
+        state.live?.let {
+            UiMessage(Long.MIN_VALUE, false, it.text, source = it.source, offline = it.offline, animate = true, live = true, tool = it.tool, steps = it.steps)
+        },
+    )
 
     fun submit(text: String) {
         if (text.isBlank()) return
@@ -120,8 +154,10 @@ fun AssistantScreen(
         Column(Modifier.fillMaxSize()) {
             TopBar(
                 onBack = onBack,
-                onClear = { confirmClear = true },
-                canClear = state.messages.isNotEmpty() && !state.busy,
+                onNewChat = { viewModel.newChat(); input = "" },
+                onHistory = { viewModel.loadHistory(); showHistory = true },
+                onSupport = { showSupport = true },
+                canNew = state.messages.isNotEmpty() || state.busy,
             )
 
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
@@ -134,11 +170,23 @@ fun AssistantScreen(
                     if (state.loaded && state.messages.isEmpty() && state.live == null) {
                         item(key = "welcome") { Welcome(currentScreen) { submit(it) } }
                     }
-                    items(state.messages, key = { it.id }) { msg ->
-                        MessageBubble(msg, amountVisibility, onOpenScreen)
-                    }
-                    state.live?.let { live ->
-                        item(key = "live") { LiveBubble(live.text, live.tool, amountVisibility) }
+                    items(displayed, key = { it.key }) { msg ->
+                        MessageBubble(
+                            msg = msg,
+                            status = state.proposalStatus,
+                            vis = amountVisibility,
+                            onOpenScreen = { screen -> if (screen == "support") showSupport = true else onOpenScreen(screen) },
+                            askedAt = state.askedAtMs,
+                            canEdit = !state.busy,
+                            onEdit = { m -> viewModel.edit(m.id) { text -> input = text } },
+                            onCopy = ::copy,
+                            onUp = { m -> viewModel.rate(m, "up") },
+                            onDown = { m -> feedbackFor = m },
+                            onConfirm = viewModel::confirm,
+                            onRetry = viewModel::retryProposal,
+                            onDismiss = viewModel::dismissProposal,
+                            onProgress = { scope.launch { listState.scrollBy(10_000f) } },
+                        )
                     }
                     state.failure?.let { failure ->
                         item(key = "failure") {
@@ -186,6 +234,35 @@ fun AssistantScreen(
         )
     }
 
+    if (showHistory) {
+        HistorySheet(
+            chats = state.history,
+            currentId = state.conversationId,
+            onOpen = { viewModel.openChat(it); showHistory = false },
+            onDelete = viewModel::deleteChat,
+            onClearAll = { confirmClear = true },
+            onDismiss = { showHistory = false },
+        )
+    }
+    if (showSupport) {
+        SupportSheet(
+            hasChat = state.messages.any { it.text.isNotBlank() },
+            submit = { category, message, includeChat -> viewModel.submitTicket(category, message, includeChat, currentScreen) },
+            loadTickets = { viewModel.tickets() },
+            onDismiss = { showSupport = false },
+        )
+    }
+    feedbackFor?.let { target ->
+        FeedbackDialog(
+            onDismiss = { feedbackFor = null },
+            onSend = { reasons, comment ->
+                viewModel.rate(target, "down", reasons, comment)
+                feedbackFor = null
+                android.widget.Toast.makeText(context, tr(R.string.asst_fb_thanks), android.widget.Toast.LENGTH_SHORT).show()
+            },
+        )
+    }
+
     if (confirmClear) {
         AppConfirmDialog(
             title = tr(R.string.assistant_clear_title),
@@ -193,7 +270,7 @@ fun AssistantScreen(
             confirmLabel = tr(R.string.assistant_clear_confirm),
             cancelLabel = tr(R.string.cancel),
             destructive = true,
-            onConfirm = { viewModel.clear(); confirmClear = false },
+            onConfirm = { viewModel.clearAll(); confirmClear = false; showHistory = false },
             onDismiss = { confirmClear = false },
         )
     }
@@ -202,7 +279,7 @@ fun AssistantScreen(
 // ── Pieces ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun TopBar(onBack: () -> Unit, onClear: () -> Unit, canClear: Boolean) {
+private fun TopBar(onBack: () -> Unit, onNewChat: () -> Unit, onHistory: () -> Unit, onSupport: () -> Unit, canNew: Boolean) {
     val scheme = MaterialTheme.colorScheme
     Row(
         Modifier.statusBarsPadding().fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
@@ -219,7 +296,9 @@ private fun TopBar(onBack: () -> Unit, onClear: () -> Unit, canClear: Boolean) {
             color = scheme.onBackground,
             modifier = Modifier.weight(1f).padding(start = 10.dp),
         )
-        AppIconButton(Icons.Default.DeleteSweep, tr(R.string.assistant_clear), onClick = onClear, enabled = canClear)
+        AppIconButton(Icons.Default.SupportAgent, tr(R.string.asst_sup_title), onClick = onSupport)
+        AppIconButton(Icons.Default.History, tr(R.string.asst_history), onClick = onHistory)
+        AppIconButton(Icons.Default.AddComment, tr(R.string.asst_new_chat), onClick = onNewChat, enabled = canNew)
     }
 }
 
@@ -251,12 +330,164 @@ private fun Welcome(screen: String?, onPick: (String) -> Unit) {
 }
 
 @Composable
-private fun MessageBubble(msg: UiMessage, vis: AmountVisibilityState, onOpenScreen: (String) -> Unit) {
-    val text = msg.fast?.let { fastText(it) } ?: msg.text
+private fun MessageBubble(
+    msg: UiMessage,
+    status: Map<String, ProposalStatus>,
+    vis: AmountVisibilityState,
+    onOpenScreen: (String) -> Unit,
+    askedAt: Long,
+    canEdit: Boolean,
+    onEdit: (UiMessage) -> Unit,
+    onCopy: (String) -> Unit,
+    onUp: (UiMessage) -> Unit,
+    onDown: (UiMessage) -> Unit,
+    onConfirm: (String, Proposal) -> Unit,
+    onRetry: (String) -> Unit,
+    onDismiss: (String) -> Unit,
+    onProgress: () -> Unit,
+) {
+    val full = msg.fast?.let { fastText(it) } ?: msg.text
     if (msg.fromUser) {
-        UserBubble(text)
-    } else {
-        AssistantBubble(text, msg.actions, vis, onOpenScreen, source = msg.source, offline = msg.offline)
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            UserBubble(full)
+            UserMessageActions(onEdit = { onEdit(msg) }, onCopy = { onCopy(full) }, enabled = canEdit)
+        }
+        return
+    }
+    if (msg.live && msg.text.isBlank()) {
+        ActivityPanel(msg.steps, footer = tr(R.string.asst_working_for, rememberElapsed(askedAt)))
+        return
+    }
+    val shown = rememberTyped(full, msg.animate, onProgress)
+    val done = shown.length >= full.length
+    var showSteps by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        AssistantBubble(
+            text = shown,
+            actions = if (done) msg.actions else emptyList(),
+            vis = vis,
+            onOpenScreen = onOpenScreen,
+            source = if (done) msg.source else null,
+            offline = done && msg.offline,
+            elapsedMs = if (done) msg.elapsedMs else 0,
+        )
+        if (msg.live) {
+            // Still working (e.g. checking a tool after the first words): show only what is running.
+            val running = msg.steps.filter { it.state == com.example.spendsync.data.assistant.StepState.Running && it.kind != com.example.spendsync.data.assistant.StepKind.Write }
+            if (running.isNotEmpty()) ActivityPanel(running)
+        }
+        if (done && !msg.live) {
+            msg.proposals.forEachIndexed { i, proposal ->
+                val key = "${msg.id}:$i"
+                ProposalCard(proposal, status[key], vis, onConfirm = { onConfirm(key, proposal) }, onRetry = { onRetry(key) }, onDismiss = { onDismiss(key) })
+            }
+            if (msg.fast == null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AnswerActions(msg.feedback, onCopy = { onCopy(full) }, onUp = { onUp(msg) }, onDown = { onDown(msg) })
+                    if (msg.steps.size > 1) {
+                        Text(
+                            tr(if (showSteps) R.string.asst_steps_hide else R.string.asst_steps_show),
+                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { showSteps = !showSteps }.padding(horizontal = 8.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+                if (showSteps) ActivityPanel(msg.steps)
+            }
+        }
+    }
+}
+
+/**
+ * Reveals [full] a few characters at a time, faster when far behind, so every answer types out the
+ * same way whether the model streamed it or sent it in one piece. Old messages show at once.
+ */
+@Composable
+private fun rememberTyped(full: String, animate: Boolean, onProgress: () -> Unit): String {
+    var count by remember { mutableIntStateOf(if (animate) 0 else full.length) }
+    val latest by rememberUpdatedState(full)
+    val progress by rememberUpdatedState(onProgress)
+    LaunchedEffect(animate) {
+        if (!animate) return@LaunchedEffect
+        var reported = 0
+        while (isActive) {
+            val target = latest.length
+            if (count > target) count = target
+            if (count < target) {
+                count = (count + maxOf(1, (target - count) / 14)).coerceAtMost(target)
+                if (count - reported >= 24) { reported = count; progress() }
+                delay(16)
+            } else {
+                if (reported != count) { reported = count; progress() }
+                delay(50)
+            }
+        }
+    }
+    return full.take(count.coerceAtMost(full.length))
+}
+
+/** What the assistant prepared. Nothing is saved until Confirm. */
+@Composable
+private fun ProposalCard(
+    p: Proposal,
+    status: ProposalStatus?,
+    vis: AmountVisibilityState,
+    onConfirm: () -> Unit,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(18.dp)
+    val amount = "₹" + java.text.NumberFormat.getNumberInstance(java.util.Locale("en", "IN")).apply { maximumFractionDigits = 2 }.format(p.amount)
+    val shownAmount = maskAmountsInText(amount, vis.isMaskingEnabled, vis.isVisible).text
+    val lent = p.kind == "expense"
+
+    @Composable
+    fun line(label: String, value: String) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, fontSize = 13.sp, color = scheme.onSurfaceVariant)
+            Spacer(Modifier.width(12.dp))
+            Text(value, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = scheme.onSurface)
+        }
+    }
+
+    Column(
+        Modifier
+            .widthIn(max = 520.dp)
+            .clip(shape)
+            .background(scheme.primary.copy(alpha = 0.07f))
+            .border(1.dp, scheme.primary.copy(alpha = 0.35f), shape)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            tr(if (p.kind == "income") R.string.asst_card_income else R.string.asst_card_expense),
+            fontSize = 15.sp, fontWeight = FontWeight.Bold, color = scheme.primary,
+        )
+        line(tr(R.string.asst_card_amount), shownAmount)
+        line(tr(R.string.asst_card_category), p.category)
+        p.note?.takeIf { it.isNotBlank() }?.let { line(tr(R.string.asst_card_note), it) }
+        p.person?.let { line(tr(if (lent) R.string.asst_card_gave_to else R.string.asst_card_took_from), it) }
+        p.returnDate?.let { line(tr(R.string.asst_card_return_on), it) }
+        line(tr(R.string.asst_card_date), p.date)
+
+        when (status) {
+            null -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppButton(tr(R.string.asst_card_confirm), onClick = onConfirm, size = ButtonSize.Small)
+                AppButton(tr(R.string.asst_card_dismiss), onClick = onDismiss, variant = ButtonVariant.Outline, size = ButtonSize.Small)
+            }
+            ProposalStatus.Saving -> Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = scheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text(tr(R.string.asst_card_saving), fontSize = 13.sp, color = scheme.onSurfaceVariant)
+            }
+            ProposalStatus.Saved -> Text(tr(R.string.asst_card_saved), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = scheme.primary)
+            ProposalStatus.Dismissed -> Text(tr(R.string.asst_card_skipped), fontSize = 13.sp, color = scheme.onSurfaceVariant)
+            is ProposalStatus.Failed -> {
+                Text(tr(R.string.asst_card_failed, status.reason), fontSize = 13.sp, color = scheme.error)
+                AppButton(tr(R.string.asst_card_retry), onClick = onRetry, variant = ButtonVariant.Tonal, size = ButtonSize.Small)
+            }
+        }
     }
 }
 
@@ -288,6 +519,7 @@ private fun AssistantBubble(
     onOpenScreen: (String) -> Unit,
     source: String? = null,
     offline: Boolean = false,
+    elapsedMs: Long = 0,
 ) {
     val scheme = MaterialTheme.colorScheme
     val masked = maskAmountsInText(text, vis.isMaskingEnabled, vis.isVisible)
@@ -305,46 +537,15 @@ private fun AssistantBubble(
             if (masked.hidSomething) {
                 AppButton(tr(R.string.show_amounts), onClick = { vis.requestUnlock() }, variant = ButtonVariant.Tonal, size = ButtonSize.Small)
             }
-            val caption = if (offline) tr(R.string.asst_answered_offline) else source?.let { tr(R.string.asst_answered_by, it) }
-            if (caption != null) Text(caption, fontSize = 11.sp, color = scheme.onSurfaceVariant)
+            val who = if (offline) tr(R.string.asst_answered_offline) else source?.let { tr(R.string.asst_answered_by, it) }
+            val caption = listOfNotNull(who, if (elapsedMs > 0) com.example.spendsync.data.assistant.formatElapsed(elapsedMs) else null).joinToString(" · ")
+            if (caption.isNotEmpty()) Text(caption, fontSize = 11.sp, color = scheme.onSurfaceVariant)
             if (actions.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     actions.forEach { screen ->
                         val label = screenLabel(screen) ?: return@forEach
                         AppButton(label, onClick = { onOpenScreen(screen) }, variant = ButtonVariant.Outline, size = ButtonSize.Small)
                     }
-                }
-            }
-        }
-    }
-}
-
-/** The reply being written: placeholder bones until the first word, then the live text plus what it is checking. */
-@Composable
-private fun LiveBubble(text: String, tool: String?, vis: AmountVisibilityState) {
-    val scheme = MaterialTheme.colorScheme
-    if (text.isBlank()) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Skeleton(loading = true) {
-                AssistantBubble("Placeholder answer line one two three four five six seven eight nine ten eleven.", emptyList(), vis, onOpenScreen = {})
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp)) {
-                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = scheme.primary)
-                Text(
-                    tool?.let { toolLabel(it) } ?: tr(R.string.assistant_thinking),
-                    fontSize = 12.sp,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
-        }
-    } else {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            AssistantBubble(text, emptyList(), vis, onOpenScreen = {})
-            if (tool != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp)) {
-                    CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = scheme.primary)
-                    Text(toolLabel(tool), fontSize = 12.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp))
                 }
             }
         }
@@ -426,7 +627,7 @@ private fun fastText(reply: FastReply): String = when (reply) {
     FastReply.Capabilities -> tr(R.string.assistant_fast_capabilities)
 }
 
-private fun toolLabel(name: String): String = tr(
+internal fun toolLabel(name: String): String = tr(
     when (name) {
         "search_help" -> R.string.assistant_tool_help
         "get_balance" -> R.string.assistant_tool_balance
@@ -447,6 +648,7 @@ internal fun screenLabel(screen: String): String? = when (screen) {
     "profile" -> tr(R.string.assistant_open_profile)
     "holds" -> tr(R.string.assistant_open_holds)
     "add_transaction" -> tr(R.string.assistant_open_add)
+    "support" -> tr(R.string.asst_sup_title)
     else -> null
 }
 

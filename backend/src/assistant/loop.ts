@@ -1,5 +1,6 @@
 import { logToolCall } from './audit';
 import { FollowupFilter } from './followups';
+import { ToolTagFilter } from './tagfilter';
 import { offlineAnswer, prefetchData } from './fallback';
 import { buildProviders } from './llm/chain';
 import { AllProvidersFailed, ProviderRouter, type Mode } from './llm/router';
@@ -71,6 +72,18 @@ export async function runAssistant(opts: RunOptions): Promise<void> {
   const tools = toolSpecs(disabled);
   const usage = { input: 0, output: 0, cacheRead: 0 };
   let filter = new FollowupFilter();
+  let tags = new ToolTagFilter();
+  const offered = new Set<string>();
+  /** Text -> tag filter (drops fake tool tags, turns open_screen into a button) -> follow-up filter. */
+  const showText = (raw: string): string => {
+    const t = tags.push(raw);
+    for (const screen of t.screens) {
+      if (offered.has(screen)) continue;
+      offered.add(screen);
+      emit({ type: 'ui_action', action: { type: 'open_screen', screen } });
+    }
+    return filter.push(t.text);
+  };
   let spoke = false;
   let lastSource = '';
 
@@ -124,9 +137,10 @@ export async function runAssistant(opts: RunOptions): Promise<void> {
           roundText = '';
           calls.length = 0;
           filter = new FollowupFilter();
+          tags = new ToolTagFilter();
         } else if (ev.chunk.type === 'text') {
           roundText += ev.chunk.text;
-          const visible = filter.push(ev.chunk.text);
+          const visible = showText(ev.chunk.text);
           if (visible) {
             spoke = true;
             emit({ type: 'delta', text: visible });
@@ -181,6 +195,8 @@ export async function runAssistant(opts: RunOptions): Promise<void> {
       history.push({ role: 'tool', results });
     }
 
+    const tail = showText(tags.finish().text);
+    if (tail) emit({ type: 'delta', text: tail });
     const rest = filter.finish();
     if (rest.text) emit({ type: 'delta', text: rest.text });
     if (rest.followups.length) emit({ type: 'followups', items: rest.followups });

@@ -67,6 +67,49 @@ class AssistantLogicTest {
     }
 
     @Test
+    fun activityStepsShowWhatTheAssistantIsDoing() {
+        var s = ReplyState()
+        assertEquals(listOf(StepKind.Understand), s.steps.map { it.kind })
+        s = reduceReply(s, AssistantEvent.Tool("get_balance", ToolStatus.Running))
+        assertEquals(StepState.Done, s.steps[0].state) // "understanding" finished once work started
+        assertEquals(StepState.Running, s.steps.last().state)
+        s = reduceReply(s, AssistantEvent.Tool("get_balance", ToolStatus.Done))
+        s = reduceReply(s, AssistantEvent.Source("a", "Model A"))
+        s = reduceReply(s, AssistantEvent.Source("b", "Model B")) // a backup took over
+        s = reduceReply(s, AssistantEvent.Delta("Hi"))
+        s = reduceReply(s, AssistantEvent.Done)
+        assertEquals(
+            listOf(StepKind.Understand, StepKind.Tool, StepKind.Model, StepKind.Backup, StepKind.Write),
+            s.steps.map { it.kind },
+        )
+        assertTrue(s.steps.all { it.state == StepState.Done })
+    }
+
+    @Test
+    fun aFailureMarksRunningStepsFailed() {
+        val s = reduceReply(reduceReply(ReplyState(), AssistantEvent.Tool("list_holds", ToolStatus.Running)), AssistantEvent.Failure(FailureKind.Busy))
+        assertEquals(StepState.Failed, s.steps.last().state)
+    }
+
+    @Test
+    fun proposalsAreParsedAndCapped() {
+        val e = AssistantEventParser.parse(
+            """{"type":"ui_action","action":{"type":"propose_entry","entry":{"kind":"expense","amount":200,"category":"Other","person":"Uttam","returnDate":"2026-10-05","date":"2026-10-03"}}}""",
+        ) as AssistantEvent.Proposed
+        assertEquals(Proposal("expense", 200.0, "Other", null, "Uttam", "2026-10-05", "2026-10-03"), e.proposal)
+        assertNull(AssistantEventParser.parse("""{"type":"ui_action","action":{"type":"propose_entry","entry":{"kind":"transfer","amount":1}}}"""))
+        var s = ReplyState()
+        repeat(5) { s = reduceReply(s, e) }
+        assertEquals(3, s.proposals.size)
+    }
+
+    @Test
+    fun elapsedTimeIsReadable() {
+        assertEquals("850 ms", formatElapsed(850))
+        assertEquals("2.4 s", formatElapsed(2400))
+    }
+
+    @Test
     fun ignoresGarbageInsteadOfCrashing() {
         assertNull(AssistantEventParser.parse("not json"))
         assertNull(AssistantEventParser.parse("""{"type":"mystery"}"""))

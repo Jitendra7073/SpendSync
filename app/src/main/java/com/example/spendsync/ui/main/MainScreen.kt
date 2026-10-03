@@ -113,6 +113,8 @@ fun MainScreen(
     // ── Holds list overlay — reached from Home's "Hold Money" stat ────────────
     var showHolds by rememberSaveable { mutableStateOf(false) }
 
+    var homeRefreshKey by remember { mutableStateOf(0) }
+
     // ── Assistant chat overlay — opened from the sparkle button in the top bar ─
     var showAssistant by rememberSaveable { mutableStateOf(false) }
     val appContext = androidx.compose.ui.platform.LocalContext.current
@@ -121,12 +123,13 @@ fun MainScreen(
             repository = remember { com.example.spendsync.data.assistant.AssistantRepository(sessionDataStore) },
             store = remember { com.example.spendsync.data.assistant.ChatStore(appContext) },
             session = sessionDataStore,
+            executor = remember { com.example.spendsync.data.assistant.ProposalExecutor(financeRepository, appContext) },
+            onEntrySaved = { homeRefreshKey++ },
         ),
     )
 
     // Bumped every time the add/edit overlay closes so Home reloads its list —
     // Home only reacts to date-filter changes otherwise.
-    var homeRefreshKey by remember { mutableStateOf(0) }
     fun closeExpenseOverlay() {
         presetType = null
         editingTransaction = null

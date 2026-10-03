@@ -64,7 +64,7 @@ export class ProviderRouter {
   private now: () => number;
 
   constructor(private providers: LlmProvider[], opts: RouterOptions = {}) {
-    this.firstTokenMs = opts.firstTokenMs ?? 9_000;
+    this.firstTokenMs = opts.firstTokenMs ?? 6_000;
     this.idleMs = opts.idleMs ?? 20_000;
     this.now = opts.now ?? Date.now;
     for (const p of providers) this.state.set(p.id, { cooldownUntil: 0, failures: 0, mode: 'tools', modeSince: 0 });

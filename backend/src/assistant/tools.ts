@@ -17,10 +17,18 @@ export interface ToolContext {
 }
 
 /** An instruction for the phone, streamed to the app (e.g. show an "Open Budget" button). */
-export interface UiAction {
-  type: 'open_screen';
-  screen: ScreenId;
+export interface ProposedEntry {
+  kind: 'expense' | 'income';
+  amount: number;
+  category: string;
+  note?: string;
+  /** Set when money is lent/borrowed and will come back: makes a hold on the person. */
+  person?: string;
+  returnDate?: string;
+  date: string;
 }
+
+export type UiAction = { type: 'open_screen'; screen: ScreenId } | { type: 'propose_entry'; entry: ProposedEntry };
 
 export interface ToolResult {
   data: unknown;
@@ -36,7 +44,7 @@ export interface AssistantTool<I = unknown> {
   run: (ctx: ToolContext, input: I) => Promise<ToolResult>;
 }
 
-const SCREENS = ['home', 'analytics', 'budget', 'profile', 'holds', 'add_transaction'] as const;
+const SCREENS = ['home', 'analytics', 'budget', 'profile', 'holds', 'add_transaction', 'support'] as const;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -373,7 +381,7 @@ const openScreen = tool({
   name: 'open_screen',
   tier: 'navigate',
   description:
-    "Offer the user an 'Open <screen>' button. Use after answering when the user would act on a screen: home, analytics, budget, profile (settings and account), holds, add_transaction. Only offers; the user taps it.",
+    "Offer the user an 'Open <screen>' button. Use after answering when the user would act on a screen: home, analytics, budget, profile (settings and account), holds, add_transaction, support (report a problem to the support team). Only offers; the user taps it.",
   input: z.object({ screen: z.enum(SCREENS) }),
   jsonSchema: {
     type: 'object',
@@ -383,6 +391,66 @@ const openScreen = tool({
   },
   async run(_ctx, input) {
     return { data: { offered: input.screen }, uiAction: { type: 'open_screen', screen: input.screen } };
+  },
+});
+
+
+const EXPENSE_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Housing', 'Health', 'Education', 'Travel', 'Bills', 'Fitness', 'Movies'];
+const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Business', 'Gift', 'Investment'];
+
+const proposeInput = z
+  .object({
+    kind: z.enum(['expense', 'income']),
+    amount: z.number().positive().max(1_000_000_000),
+    category: z.string().trim().min(1).max(60),
+    note: z.string().trim().max(200).optional(),
+    person_name: z.string().trim().min(1).max(100).optional(),
+    return_date: z.string().regex(ISO_DAY).optional(),
+    date: z.string().regex(ISO_DAY).optional(),
+  })
+  .refine((v) => !!v.person_name === !!v.return_date, { message: 'person_name and return_date must be given together' });
+
+const proposeEntry = tool({
+  name: 'propose_entry',
+  tier: 'propose',
+  description:
+    "Prepare a NEW expense or income for the user and show a confirm card. NOTHING is saved until the user taps Confirm in the app, so never say it is saved or added; say you have prepared it and ask them to confirm. " +
+    "kind 'expense' = money went out, 'income' = money came in. amount is a plain number in rupees. " +
+    `category: for expenses prefer one of ${EXPENSE_CATEGORIES.join(', ')} (or 'Other'); for income one of ${INCOME_CATEGORIES.join(', ')} (or 'Other'). Always English. note: what it was for, a few words. date: YYYY-MM-DD when it happened (default today, never in the future). ` +
+    "MONEY LENT OR BORROWED THAT WILL COME BACK: give person_name and return_date (YYYY-MM-DD, today or later) and the app also creates a hold. " +
+    "'I gave/sent/lent X rupees to <person>, they will return it on <date>' => kind expense + person_name + return_date. 'I took/borrowed X from <person>, I will return it on <date>' => kind income + person_name + return_date. " +
+    "If the day is only given as a day number (e.g. 'the 5th'), use the next such day on or after today. If the amount or the person is missing, ask ONE short question instead of calling this.",
+  input: proposeInput,
+  jsonSchema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['expense', 'income'] },
+      amount: { type: 'number' },
+      category: { type: 'string' },
+      note: { type: 'string' },
+      person_name: { type: 'string' },
+      return_date: { type: 'string' },
+      date: { type: 'string' },
+    },
+    required: ['kind', 'amount', 'category'],
+    additionalProperties: false,
+  },
+  async run(ctx, input) {
+    const date = input.date ?? ctx.today;
+    if (date > ctx.today) throw new Error('The date cannot be in the future. Use today or an earlier day.');
+    if (input.return_date && input.return_date < ctx.today) throw new Error('return_date must be today or later.');
+    const entry: ProposedEntry = {
+      kind: input.kind,
+      amount: Math.round(input.amount * 100) / 100,
+      category: input.category,
+      ...(input.note ? { note: input.note } : {}),
+      ...(input.person_name ? { person: input.person_name, returnDate: input.return_date } : {}),
+      date,
+    };
+    return {
+      data: { status: 'confirm_card_shown', saved: false, message: 'The user must tap Confirm in the app. Nothing has been saved yet.' },
+      uiAction: { type: 'propose_entry', entry },
+    };
   },
 });
 
@@ -398,6 +466,7 @@ export const ASSISTANT_TOOLS: AssistantTool<any>[] = [
   listHolds,
   getTopMerchants,
   getSettings,
+  proposeEntry,
   openScreen,
 ];
 

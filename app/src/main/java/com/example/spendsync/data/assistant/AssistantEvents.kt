@@ -14,9 +14,21 @@ sealed interface AssistantEvent {
     data class Source(val id: String, val label: String) : AssistantEvent
     /** The model died mid-answer and a backup restarts it: drop the text shown so far. */
     data object Reset : AssistantEvent
+    data class Proposed(val proposal: Proposal) : AssistantEvent
     data object Done : AssistantEvent
     data class Failure(val kind: FailureKind) : AssistantEvent
 }
+
+/** An entry the assistant prepared. Nothing is saved until the user taps Confirm. */
+data class Proposal(
+    val kind: String, // "expense" | "income"
+    val amount: Double,
+    val category: String,
+    val note: String?,
+    val person: String?,
+    val returnDate: String?,
+    val date: String,
+)
 
 enum class ToolStatus { Running, Done, Failed }
 
@@ -38,7 +50,17 @@ object AssistantEventParser {
                 },
             )
             "ui_action" -> o.getAsJsonObject("action")?.let { a ->
-                if (a.str("type") == "open_screen") a.str("screen")?.let { AssistantEvent.OpenScreen(it) } else null
+                when (a.str("type")) {
+                    "open_screen" -> a.str("screen")?.let { AssistantEvent.OpenScreen(it) }
+                    "propose_entry" -> a.getAsJsonObject("entry")?.let { e ->
+                        val amount = e.get("amount")?.takeIf { it.isJsonPrimitive }?.asDouble ?: return@let null
+                        val kind = e.str("kind")?.takeIf { it == "expense" || it == "income" } ?: return@let null
+                        AssistantEvent.Proposed(
+                            Proposal(kind, amount, e.str("category") ?: "Other", e.str("note"), e.str("person"), e.str("returnDate"), e.str("date").orEmpty()),
+                        )
+                    }
+                    else -> null
+                }
             }
             "followups" -> AssistantEvent.Followups(
                 o.getAsJsonArray("items")?.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString } ?: emptyList(),
