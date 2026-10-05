@@ -157,4 +157,21 @@
     <string name="pl_unassigned_banner_body">Dale un destino para que Planify te avise bien.</string>
     <string name="pl_unassigned_savings">Ponerlo en ahorros</string>
     <string name="pl_unassigned_edit">Elegir grupos</string>
+    <string name="pg_an_title">Analizando tu historial…</string>
+    <string name="pg_an_read">Leyendo tus últimos %1$d mes(es) de gastos</string>
+    <string name="pg_an_bills">Encontré %1$d factura(s) regular(es)</string>
+    <string name="pg_an_cats">Revisé %1$d categorías de gasto</string>
+    <string name="pg_an_save">Encontré ahorros de unos %1$s al mes</string>
+    <string name="pg_an_none">Aún no hay gastos pasados, empezamos desde cero</string>
+    <string name="pg_an_prep">Preparando tus preguntas</string>
+    <string name="pg_bd_title">Creando tu plan…</string>
+    <string name="pg_bd_fit">Ajustando todo a %1$s</string>
+    <string name="pg_bd_job">Dándole un destino a cada rupia</string>
+    <string name="pg_bd_done">Casi listo</string>
+    <string name="pg_progress_ai">Pregunta %1$d</string>
+    <string name="pg_an_ai">Preguntando a la IA qué conviene revisar contigo</string>
+    <string name="pg_think">Pensando en tu respuesta…</string>
+    <string name="pg_ai_badge">Preguntas escritas por IA con tus propios números · %1$s</string>
+    <string name="pg_need_consent">Activa el asistente en Perfil para recibir preguntas escritas por IA. Estas son las preguntas estándar.</string>
+    <string name="pg_note_label">Lo que preparé</string>
 </resources>

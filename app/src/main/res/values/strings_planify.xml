@@ -157,4 +157,21 @@
     <string name="pl_unassigned_banner_body">Give it a job so Planify can warn you properly.</string>
     <string name="pl_unassigned_savings">Put it in Savings</string>
     <string name="pl_unassigned_edit">Choose buckets</string>
+    <string name="pg_an_title">Analysing your history…</string>
+    <string name="pg_an_read">Reading your last %1$d month(s) of spending</string>
+    <string name="pg_an_bills">Found %1$d regular bill(s)</string>
+    <string name="pg_an_cats">Checked %1$d spending categories</string>
+    <string name="pg_an_save">Found savings of about %1$s a month</string>
+    <string name="pg_an_none">No past spending yet, so we start fresh</string>
+    <string name="pg_an_prep">Preparing your questions</string>
+    <string name="pg_bd_title">Building your plan…</string>
+    <string name="pg_bd_fit">Fitting everything into %1$s</string>
+    <string name="pg_bd_job">Giving every rupee a job</string>
+    <string name="pg_bd_done">Almost there</string>
+    <string name="pg_progress_ai">Question %1$d</string>
+    <string name="pg_an_ai">Asking the AI what is worth checking with you</string>
+    <string name="pg_think">Thinking about your answer…</string>
+    <string name="pg_ai_badge">Questions written by AI from your own numbers · %1$s</string>
+    <string name="pg_need_consent">Switch the assistant on in Profile to get questions written by AI. These are the standard questions.</string>
+    <string name="pg_note_label">What I set up</string>
 </resources>

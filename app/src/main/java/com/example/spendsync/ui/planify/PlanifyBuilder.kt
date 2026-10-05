@@ -116,6 +116,7 @@ internal fun PlanBuilder(
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     var showAdd by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
+    val aiAllowed by sessionDataStore.assistantConsent.collectAsState(initial = false)
     var suggestion by remember { mutableStateOf<SuggestionDto?>(null) }
     val custom by sessionDataStore.customExpenseCategories.collectAsState(initial = emptyList())
     val known = remember(custom) { (expenseCategories.map { it.label } + custom.map { it.name } + listOf("Savings", "Other")).distinct() }
@@ -242,7 +243,7 @@ internal fun PlanBuilder(
         if (showGuide) {
             val guideIncome = if (available > 0) available else suggestedIncome
             PlanGuideSheet(
-                suggestion = suggestion, income = guideIncome, vis = vis,
+                suggestion = suggestion, income = guideIncome, month = month, aiAllowed = aiAllowed, financeRepository = financeRepository, vis = vis,
                 onApply = { result ->
                     items.clear()
                     result.items.forEach { items += DraftItem(it.category, it.category, it.kind, plain(it.limit), average = it.average.takeIf { a -> a > 0 }) }

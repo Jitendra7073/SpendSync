@@ -37,3 +37,16 @@ export const moveSchema = z
 
 export type SavePlanInput = z.infer<typeof savePlanSchema>;
 export type MoveInput = z.infer<typeof moveSchema>;
+
+/** One turn of the AI planning guide: what was asked and answered so far, and which language to write in. */
+export const guideSchema = z.object({
+  month: monthSchema,
+  income: money,
+  language: z.enum(['English', 'Hindi', 'Spanish', 'French', 'German']).default('English'),
+  /** Set when the user switches language on a question: ask about the same topic again, in the new language. */
+  focus: z.string().max(60).optional(),
+  transcript: z
+    .array(z.object({ topic: z.string().max(60), question: z.string().max(240), answer: z.string().max(100) }))
+    .max(8)
+    .default([]),
+});

@@ -270,6 +270,15 @@ class FinanceRepository(
         AuthResult.Error(e.toUserMessage())
     }
 
+    /** One turn of the AI planning guide. */
+    suspend fun planGuide(request: GuideTurnRequest): AuthResult<GuideTurnDto> = try {
+        val response = api.planGuide(getAuthHeader(), request)
+        if (response.isSuccessful && response.body() != null) AuthResult.Success(response.body()!!.data)
+        else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+    } catch (e: Exception) {
+        AuthResult.Error(e.toUserMessage())
+    }
+
     private suspend fun planCall(block: suspend () -> retrofit2.Response<SuccessResponse<PlanViewDto>>): AuthResult<PlanViewDto> = try {
         val response = block()
         if (response.isSuccessful && response.body() != null) AuthResult.Success(response.body()!!.data)

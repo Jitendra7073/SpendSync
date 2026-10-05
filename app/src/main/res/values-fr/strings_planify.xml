@@ -157,4 +157,21 @@
     <string name="pl_unassigned_banner_body">Donnez-lui une place pour que Planify vous prévienne correctement.</string>
     <string name="pl_unassigned_savings">Mettre en épargne</string>
     <string name="pl_unassigned_edit">Choisir les enveloppes</string>
+    <string name="pg_an_title">Analyse de votre historique…</string>
+    <string name="pg_an_read">Lecture de vos %1$d derniers mois de dépenses</string>
+    <string name="pg_an_bills">%1$d facture(s) régulière(s) trouvée(s)</string>
+    <string name="pg_an_cats">%1$d catégories de dépenses vérifiées</string>
+    <string name="pg_an_save">Épargne d\'environ %1$s par mois trouvée</string>
+    <string name="pg_an_none">Pas encore de dépenses passées, on repart de zéro</string>
+    <string name="pg_an_prep">Préparation de vos questions</string>
+    <string name="pg_bd_title">Construction de votre plan…</string>
+    <string name="pg_bd_fit">Tout ajuster à %1$s</string>
+    <string name="pg_bd_job">Donner un rôle à chaque roupie</string>
+    <string name="pg_bd_done">Presque prêt</string>
+    <string name="pg_progress_ai">Question %1$d</string>
+    <string name="pg_an_ai">Demande à l\'IA ce qui mérite d\'être vérifié avec vous</string>
+    <string name="pg_think">Réflexion sur votre réponse…</string>
+    <string name="pg_ai_badge">Questions rédigées par l\'IA d\'après vos chiffres · %1$s</string>
+    <string name="pg_need_consent">Activez l\'assistant dans Profil pour des questions rédigées par l\'IA. Voici les questions standard.</string>
+    <string name="pg_note_label">Ce que j\'ai préparé</string>
 </resources>

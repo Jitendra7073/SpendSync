@@ -157,4 +157,21 @@
     <string name="pl_unassigned_banner_body">Gib dem Geld eine Aufgabe, damit Planify dich richtig warnen kann.</string>
     <string name="pl_unassigned_savings">Ins Sparen legen</string>
     <string name="pl_unassigned_edit">Töpfe wählen</string>
+    <string name="pg_an_title">Analysiere deinen Verlauf…</string>
+    <string name="pg_an_read">Lese deine letzten %1$d Monat(e) Ausgaben</string>
+    <string name="pg_an_bills">%1$d feste Rechnung(en) gefunden</string>
+    <string name="pg_an_cats">%1$d Ausgabenkategorien geprüft</string>
+    <string name="pg_an_save">Ersparnisse von etwa %1$s im Monat gefunden</string>
+    <string name="pg_an_none">Noch keine Ausgaben, wir starten neu</string>
+    <string name="pg_an_prep">Bereite deine Fragen vor</string>
+    <string name="pg_bd_title">Erstelle deinen Plan…</string>
+    <string name="pg_bd_fit">Alles in %1$s einpassen</string>
+    <string name="pg_bd_job">Jeder Rupie eine Aufgabe geben</string>
+    <string name="pg_bd_done">Fast fertig</string>
+    <string name="pg_progress_ai">Frage %1$d</string>
+    <string name="pg_an_ai">Frage die KI, was wir mit dir prüfen sollten</string>
+    <string name="pg_think">Denke über deine Antwort nach…</string>
+    <string name="pg_ai_badge">Fragen von der KI aus deinen eigenen Zahlen · %1$s</string>
+    <string name="pg_need_consent">Schalte den Assistenten im Profil ein, um KI-Fragen zu erhalten. Das hier sind die Standardfragen.</string>
+    <string name="pg_note_label">Was ich eingerichtet habe</string>
 </resources>

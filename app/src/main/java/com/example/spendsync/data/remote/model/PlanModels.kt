@@ -105,3 +105,46 @@ data class SuggestedItemDto(
     @SerializedName("lowest")     val lowest: Double = 0.0,
     @SerializedName("highest")    val highest: Double = 0.0,
 )
+
+// ── AI planning guide ────────────────────────────────────────────────────────
+
+data class GuideTurnItem(
+    @SerializedName("topic")    val topic: String,
+    @SerializedName("question") val question: String,
+    @SerializedName("answer")   val answer: String,
+)
+
+data class GuideTurnRequest(
+    @SerializedName("month")      val month: String,
+    @SerializedName("income")     val income: Double,
+    @SerializedName("language")   val language: String,
+    @SerializedName("transcript") val transcript: List<GuideTurnItem>,
+    @SerializedName("focus")      val focus: String? = null,
+)
+
+/** What choosing an option does to the plan. The server only ever sends the kinds PlanGuide.apply understands. */
+data class GuideEffectDto(
+    @SerializedName("type")     val type: String,
+    @SerializedName("value")    val value: Double? = null,
+    @SerializedName("category") val category: String? = null,
+)
+
+data class GuideOptionDto(
+    @SerializedName("label")  val label: String,
+    @SerializedName("effect") val effect: GuideEffectDto,
+)
+
+data class GuideQuestionDto(
+    @SerializedName("topic")    val topic: String,
+    @SerializedName("question") val question: String,
+    @SerializedName("options")  val options: List<GuideOptionDto>,
+)
+
+/** `source` is "ai" or "basic" (no model could answer: use the built-in questions). */
+data class GuideTurnDto(
+    @SerializedName("source")   val source: String,
+    @SerializedName("done")     val done: Boolean = false,
+    @SerializedName("note")     val note: String? = null,
+    @SerializedName("model")    val model: String? = null,
+    @SerializedName("question") val question: GuideQuestionDto? = null,
+)

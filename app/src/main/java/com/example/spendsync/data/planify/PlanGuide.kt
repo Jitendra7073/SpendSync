@@ -17,6 +17,8 @@ object PlanGuide {
         /** Change to everyday limits against what was usually spent: -30, -15, 0 or +10. */
         val everydayChange: Int = 0,
         val bufferPercent: Int = 0,
+        /** Per-category change in percent chosen in the AI guide, e.g. "Eating out" to -15. */
+        val changes: Map<String, Int> = emptyMap(),
     )
 
     data class Item(val category: String, val kind: String, val limit: Double, val average: Double)
@@ -25,6 +27,15 @@ object PlanGuide {
 
     private fun round50(v: Double) = (v / 50.0).roundToLong() * 50.0
 
+    /** Applies one option's effect, clamped to the same ranges the server allows. Unknown kinds do nothing. */
+    fun apply(a: Answers, type: String, value: Double?, category: String?): Answers = when (type) {
+        "savePercent" -> a.copy(savePercent = (value ?: 0.0).toInt().coerceIn(0, 40))
+        "keepFixed" -> a.copy(keepFixed = (value ?: 1.0) != 0.0)
+        "bufferPercent" -> a.copy(bufferPercent = (value ?: 0.0).toInt().coerceIn(0, 15))
+        "categoryChange" -> if (category.isNullOrBlank() || value == null) a else a.copy(changes = a.changes + (category to value.toInt().coerceIn(-50, 30)))
+        else -> a
+    }
+
     fun fixedTotal(s: SuggestionDto) = s.items.filter { it.kind == "fixed" }.sumOf { it.limit }
     fun hasFixed(s: SuggestionDto) = s.items.any { it.kind == "fixed" }
     fun hasEveryday(s: SuggestionDto) = s.items.any { it.kind == "spend" }
@@ -32,7 +43,7 @@ object PlanGuide {
     fun build(s: SuggestionDto, income: Double, a: Answers): Result {
         if (income <= 0.0) return Result(emptyList(), 0.0)
         val fixed = if (a.keepFixed) s.items.filter { it.kind == "fixed" }.map { Item(it.category, "fixed", it.limit, it.average) } else emptyList()
-        var spend = s.items.filter { it.kind == "spend" }.map { Item(it.category, "spend", round50(it.limit * (1 + a.everydayChange / 100.0)).coerceAtLeast(50.0), it.average) }
+        var spend = s.items.filter { it.kind == "spend" }.map { Item(it.category, "spend", round50(it.limit * (1 + a.everydayChange / 100.0) * (1 + (a.changes.entries.firstOrNull { c -> c.key.equals(it.category, true) }?.value ?: 0) / 100.0)).coerceAtLeast(50.0), it.average) }
         var save = round50(income * a.savePercent / 100.0)
         val buffer = round50(income * a.bufferPercent / 100.0)
 

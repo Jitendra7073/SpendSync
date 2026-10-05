@@ -157,4 +157,21 @@
     <string name="pl_unassigned_banner_body">इसे काम दें ताकि Planify आपको सही से चेता सके।</string>
     <string name="pl_unassigned_savings">बचत में डालें</string>
     <string name="pl_unassigned_edit">हिस्से चुनें</string>
+    <string name="pg_an_title">आपका इतिहास देख रहा हूँ…</string>
+    <string name="pg_an_read">आपके पिछले %1$d महीने का खर्च पढ़ रहा हूँ</string>
+    <string name="pg_an_bills">%1$d नियमित बिल मिले</string>
+    <string name="pg_an_cats">%1$d खर्च श्रेणियाँ जाँचीं</string>
+    <string name="pg_an_save">महीने में लगभग %1$s की बचत मिली</string>
+    <string name="pg_an_none">अभी पुराना खर्च नहीं है, इसलिए नए सिरे से शुरू करते हैं</string>
+    <string name="pg_an_prep">आपके सवाल तैयार कर रहा हूँ</string>
+    <string name="pg_bd_title">आपकी योजना बना रहा हूँ…</string>
+    <string name="pg_bd_fit">सब कुछ %1$s में बैठा रहा हूँ</string>
+    <string name="pg_bd_job">हर रुपये को काम दे रहा हूँ</string>
+    <string name="pg_bd_done">बस तैयार है</string>
+    <string name="pg_progress_ai">सवाल %1$d</string>
+    <string name="pg_an_ai">AI से पूछ रहा हूँ कि आपसे क्या पूछना ज़रूरी है</string>
+    <string name="pg_think">आपके जवाब पर सोच रहा हूँ…</string>
+    <string name="pg_ai_badge">सवाल AI ने आपके अपने आँकड़ों से लिखे · %1$s</string>
+    <string name="pg_need_consent">AI के लिखे सवालों के लिए Profile में असिस्टेंट चालू करें। ये सामान्य सवाल हैं।</string>
+    <string name="pg_note_label">मैंने क्या बनाया</string>
 </resources>

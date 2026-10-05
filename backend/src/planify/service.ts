@@ -152,7 +152,7 @@ export async function moveMoney(userId: string, month: string, input: MoveInput,
 }
 
 /** A first draft of `month` from the 3 months before it. Nothing is saved. */
-export async function suggestFor(userId: string, month: string): Promise<Suggestion> {
+export async function loadHistory(userId: string, month: string): Promise<MonthHistory[]> {
   const months = previousMonths(month, 3);
   const start = monthRange(months[0]).start;
   const end = monthRange(month).start;
@@ -185,5 +185,9 @@ export async function suggestFor(userId: string, month: string): Promise<Suggest
     }))
     // months before the user started tracking carry no information
     .filter((h) => Object.keys(h.byCategory).length > 0 || h.credits.length > 0);
-  return suggestPlan(history);
+  return history;
+}
+
+export async function suggestFor(userId: string, month: string): Promise<Suggestion> {
+  return suggestPlan(await loadHistory(userId, month));
 }

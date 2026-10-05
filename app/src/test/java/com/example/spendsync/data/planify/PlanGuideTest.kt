@@ -53,4 +53,15 @@ class PlanGuideTest {
         assertEquals(30000.0, r.items.sumOf { it.limit }, 1.0)
         assertTrue(PlanGuide.build(history, 0.0, PlanGuide.Answers()).items.isEmpty())
     }
+
+    @Test
+    fun aiEffectsAreClampedAndApplied() {
+        val a = PlanGuide.apply(PlanGuide.Answers(), "savePercent", 99.0, null)
+        assertEquals(40, a.savePercent)
+        val b = PlanGuide.apply(a, "categoryChange", -90.0, "Eating out")
+        assertEquals(-50, b.changes["Eating out"])
+        assertEquals(b, PlanGuide.apply(b, "somethingNew", 5.0, null)) // unknown effects are ignored
+        val r = PlanGuide.build(history, 40000.0, PlanGuide.Answers(true, 10, 0, 0, mapOf("eating out" to -50)))
+        assertEquals(1500.0, r.items.first { it.category == "Eating out" }.limit, 50.0) // 3,000 halved, case-insensitive
+    }
 }

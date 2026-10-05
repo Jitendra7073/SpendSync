@@ -111,6 +111,12 @@ interface AppApiService {
         @Body body: MoveMoneyRequest,
     ): Response<SuccessResponse<PlanViewDto>>
 
+    @POST("api/plans/guide")
+    suspend fun planGuide(
+        @Header("Authorization") token: String,
+        @Body body: GuideTurnRequest,
+    ): Response<SuccessResponse<GuideTurnDto>>
+
     @GET("api/plans/suggestions")
     suspend fun getPlanSuggestions(
         @Header("Authorization") token: String,
