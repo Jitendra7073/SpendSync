@@ -136,7 +136,10 @@ private fun NavPill(
 
         Row(Modifier.fillMaxSize()) {
             items.forEach { item ->
-                NavSlot(Modifier.weight(1f), item, selected = item.selectable && item.route == currentRoute) { onItemSelected(item) }
+                // The weight sits on a plain Box: a tooltip wrapper must not decide the slot's width.
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    NavSlot(Modifier.fillMaxSize(), item, selected = item.selectable && item.route == currentRoute) { onItemSelected(item) }
+                }
             }
         }
     }
@@ -175,7 +178,7 @@ private fun NavSlot(modifier: Modifier, item: BottomNavItem, selected: Boolean, 
         spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "slot_scale",
     )
 
-    com.example.spendsync.ui.components.AppTooltip(item.label, modifier.fillMaxHeight()) {
+    com.example.spendsync.ui.components.AppTooltip(item.label, modifier) {
     Box(
         Modifier
             .fillMaxSize()
@@ -209,7 +212,7 @@ private fun AddSlot(modifier: Modifier, item: BottomNavItem, onClick: () -> Unit
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.9f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "add_scale")
-    com.example.spendsync.ui.components.AppTooltip(tr(R.string.add_transaction), modifier.fillMaxHeight()) {
+    com.example.spendsync.ui.components.AppTooltip(tr(R.string.add_transaction), modifier) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Box(
             Modifier
