@@ -290,4 +290,11 @@
     <string name="asst_tool_prepare_followup">Erinnerungsnachrichten</string>
     <string name="asst_tool_prepare_followup_sub">Startet eine Nachricht zu offenem Geld. Du bestätigst vor dem Senden</string>
     <string name="assistant_tool_followup">Starte eine Nachricht…</string>
+    <string name="asst_reply">Als Bezug verwenden</string>
+    <string name="asst_replying_to">Antwort auf diese Antwort</string>
+    <string name="asst_reply_remove">Bezug entfernen</string>
+    <string name="asst_ref_hint">Frage zu dieser Antwort…</string>
+    <string name="asst_ref_explain">Einfach erklären</string>
+    <string name="asst_ref_short">Kürzer fassen</string>
+    <string name="asst_ref_compare">Mit dem Vormonat vergleichen</string>
 </resources>

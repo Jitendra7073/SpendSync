@@ -56,6 +56,8 @@ data class UiMessage(
     val elapsedMs: Long = 0,
     /** "up", "down" or "". */
     val feedback: String = "",
+    /** The earlier answer this message replied to (user messages only). */
+    val quote: String = "",
     /** What the assistant did to produce this answer. */
     val steps: List<ActivityStep> = emptyList(),
 ) {
@@ -78,6 +80,7 @@ data class AssistantUiState(
     val suggestions: List<String> = emptyList(),
     val failure: FailureKind? = null,
     val lastQuestion: String? = null,
+    val lastReference: String? = null,
     /** Confirm-card state, keyed by "<messageId>:<index>". */
     val proposalStatus: Map<String, ProposalStatus> = emptyMap(),
     /** Saved chats, filled when the history sheet opens. */
@@ -121,21 +124,21 @@ class AssistantViewModel(
         }
     }
 
-    fun send(text: String, screen: String?) = ask(text, screen, resend = false)
+    fun send(text: String, screen: String?, reference: String? = null) = ask(text, screen, resend = false, reference = reference)
 
-    private fun ask(text: String, screen: String?, resend: Boolean) {
+    private fun ask(text: String, screen: String?, resend: Boolean, reference: String? = null) {
         val question = text.trim()
         if (question.isEmpty() || _state.value.busy) return
         _state.update {
             it.copy(
-                failure = null, suggestions = emptyList(), lastQuestion = question,
+                failure = null, suggestions = emptyList(), lastQuestion = question, lastReference = reference,
                 messages = it.messages.map { m -> m.copy(animate = false) },
             )
         }
 
         job = viewModelScope.launch {
             if (!resend) {
-                val userMsg = UiMessage(store.add(userId, conversationId, "user", question), fromUser = true, text = question)
+                val userMsg = UiMessage(store.add(userId, conversationId, "user", question, quote = reference.orEmpty()), fromUser = true, text = question, quote = reference.orEmpty())
                 _state.update { it.copy(messages = it.messages + userMsg) }
             }
 
@@ -155,7 +158,7 @@ class AssistantViewModel(
             _state.update { it.copy(live = ReplyState(), askedAtMs = System.currentTimeMillis()) }
             try {
                 repository
-                    .chat(turns, LanguageManager.current.storedName, screen, conversationId, session.assistantPrefs.first())
+                    .chat(turns, LanguageManager.current.storedName, screen, conversationId, session.assistantPrefs.first(), reference)
                     .collect { event -> _state.update { s -> s.copy(live = reduceReply(s.live ?: ReplyState(), event)) } }
             } finally {
                 // Runs even when "Stop" cancelled us, so the partial answer is still kept.
@@ -189,7 +192,7 @@ class AssistantViewModel(
     fun retry(screen: String?) {
         val q = _state.value.lastQuestion ?: return
         // The question is already in history; ask again without adding it a second time.
-        ask(q, screen, resend = true)
+        ask(q, screen, resend = true, reference = _state.value.lastReference)
     }
 
     // ── Chats ────────────────────────────────────────────────────────────────
@@ -299,7 +302,7 @@ class AssistantViewModel(
 
     private fun StoredMessage.toUi() = UiMessage(
         id = id, fromUser = role == "user", text = text, actions = actions,
-        source = model.ifBlank { null }, elapsedMs = elapsedMs, feedback = feedback,
+        source = model.ifBlank { null }, elapsedMs = elapsedMs, feedback = feedback, quote = quote,
     )
 
     companion object {

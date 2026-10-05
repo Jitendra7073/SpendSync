@@ -20,6 +20,8 @@ data class StoredMessage(
     val model: String = "",
     /** "up", "down" or "". */
     val feedback: String = "",
+    /** The earlier answer this message replied to, if any. */
+    val quote: String = "",
 )
 
 /** One saved chat, for the history list. The title is the first thing the user asked. */
@@ -31,7 +33,7 @@ data class ConversationSummary(val id: String, val title: String, val messages: 
  * Messages belong to a conversation, so the user can start a new chat and come back to old ones.
  */
 class ChatStore(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "assistant.db", null, 2) {
+    SQLiteOpenHelper(context.applicationContext, "assistant.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -45,7 +47,8 @@ class ChatStore(context: Context) :
                 conversation_id TEXT NOT NULL DEFAULT 'legacy-chat',
                 elapsed_ms INTEGER NOT NULL DEFAULT 0,
                 model TEXT NOT NULL DEFAULT '',
-                feedback TEXT NOT NULL DEFAULT ''
+                feedback TEXT NOT NULL DEFAULT '',
+                quote TEXT NOT NULL DEFAULT ''
             )""",
         )
         db.execSQL("CREATE INDEX idx_chat_user_time ON chat_messages(user_id, id)")
@@ -61,6 +64,9 @@ class ChatStore(context: Context) :
             db.execSQL("ALTER TABLE chat_messages ADD COLUMN feedback TEXT NOT NULL DEFAULT ''")
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_chat_conv ON chat_messages(user_id, conversation_id, id)")
         }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE chat_messages ADD COLUMN quote TEXT NOT NULL DEFAULT ''")
+        }
     }
 
     suspend fun add(
@@ -71,6 +77,7 @@ class ChatStore(context: Context) :
         actions: List<String> = emptyList(),
         elapsedMs: Long = 0,
         model: String = "",
+        quote: String = "",
     ): Long = withContext(Dispatchers.IO) {
         writableDatabase.insert(
             "chat_messages",
@@ -84,6 +91,7 @@ class ChatStore(context: Context) :
                 put("created_at", System.currentTimeMillis())
                 put("elapsed_ms", elapsedMs)
                 put("model", model)
+                put("quote", quote)
             },
         )
     }
@@ -93,7 +101,7 @@ class ChatStore(context: Context) :
         withContext(Dispatchers.IO) {
             val out = ArrayList<StoredMessage>()
             readableDatabase.rawQuery(
-                "SELECT id, role, text, actions, created_at, elapsed_ms, model, feedback FROM chat_messages " +
+                "SELECT id, role, text, actions, created_at, elapsed_ms, model, feedback, quote FROM chat_messages " +
                     "WHERE user_id = ? AND conversation_id = ? ORDER BY id DESC LIMIT ?",
                 arrayOf(userId, conversationId, limit.toString()),
             ).use { c ->
@@ -101,7 +109,7 @@ class ChatStore(context: Context) :
                     out += StoredMessage(
                         id = c.getLong(0), role = c.getString(1), text = c.getString(2),
                         actions = c.getString(3).split(',').filter { it.isNotBlank() },
-                        createdAt = c.getLong(4), elapsedMs = c.getLong(5), model = c.getString(6), feedback = c.getString(7),
+                        createdAt = c.getLong(4), elapsedMs = c.getLong(5), model = c.getString(6), feedback = c.getString(7), quote = c.getString(8),
                     )
                 }
             }

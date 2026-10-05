@@ -39,6 +39,7 @@ export const POST = withApi(
             userId,
             conversationId: body.conversationId,
             messages: body.messages,
+            reference: body.reference,
             context: { today: todayIn(body.timezone), language: body.language, screen: body.screen, prefs: body.prefs, hints },
             emit: send,
             signal: abort.signal,

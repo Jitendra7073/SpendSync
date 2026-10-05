@@ -290,4 +290,11 @@
     <string name="asst_tool_prepare_followup">फ़ॉलो-अप संदेश</string>
     <string name="asst_tool_prepare_followup_sub">होल्ड के पैसों के बारे में संदेश शुरू करता है। भेजने से पहले आप पुष्टि करते हैं</string>
     <string name="assistant_tool_followup">संदेश शुरू कर रहा हूँ…</string>
+    <string name="asst_reply">संदर्भ के रूप में इस्तेमाल करें</string>
+    <string name="asst_replying_to">इस जवाब का उत्तर</string>
+    <string name="asst_reply_remove">संदर्भ हटाएँ</string>
+    <string name="asst_ref_hint">इस जवाब के बारे में पूछें…</string>
+    <string name="asst_ref_explain">आसान भाषा में समझाएँ</string>
+    <string name="asst_ref_short">इसे छोटा करें</string>
+    <string name="asst_ref_compare">पिछले महीने से तुलना करें</string>
 </resources>

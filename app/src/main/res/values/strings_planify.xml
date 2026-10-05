@@ -290,4 +290,11 @@
     <string name="asst_tool_prepare_followup">Follow-up messages</string>
     <string name="asst_tool_prepare_followup_sub">Starts a message about money on hold. You confirm before anything is sent</string>
     <string name="assistant_tool_followup">Starting a message…</string>
+    <string name="asst_reply">Use as reference</string>
+    <string name="asst_replying_to">Replying to this answer</string>
+    <string name="asst_reply_remove">Remove reference</string>
+    <string name="asst_ref_hint">Ask about this answer…</string>
+    <string name="asst_ref_explain">Explain it simply</string>
+    <string name="asst_ref_short">Make it shorter</string>
+    <string name="asst_ref_compare">Compare with last month</string>
 </resources>

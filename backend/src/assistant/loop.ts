@@ -31,6 +31,8 @@ export interface RunOptions {
   userId: string;
   conversationId: string;
   messages: ChatTurn[];
+  /** The earlier answer the user is replying to, if any. */
+  reference?: string;
   context: RequestContext;
   emit: (event: AssistantEvent) => void;
   signal?: AbortSignal;
@@ -48,6 +50,11 @@ export function sharedRouter(): ProviderRouter {
   return (shared ??= new ProviderRouter(buildProviders()));
 }
 
+/** The earlier answer the user is replying to, fenced as data. A closing tag inside it cannot break out. */
+export function quotedReference(reference: string): string {
+  return `<replying_to>\n${reference.replace(/<\/?replying_to>/gi, '').trim()}\n</replying_to>`;
+}
+
 function truncate(json: string): string {
   return json.length <= MAX_TOOL_RESULT_CHARS ? json : `${json.slice(0, MAX_TOOL_RESULT_CHARS)}…[truncated]`;
 }
@@ -58,12 +65,14 @@ export async function runAssistant(opts: RunOptions): Promise<void> {
   const prefs = context.prefs;
   const disabled = new Set(prefs?.disabledTools ?? []);
   const toolCtx: ToolContext = { userId, today: context.today };
-  const question = opts.messages.at(-1)?.content ?? '';
+  // A quoted earlier answer goes in front of the user's words, fenced so the model treats it as data.
+  const reference = opts.reference?.trim();
+  const question = `${opts.messages.at(-1)?.content ?? ''}${reference ? `\n${reference.slice(0, 300)}` : ''}`;
 
   // The per-request context goes on the LAST user turn so the system prompt + tools stay cacheable.
   const base: LlmMessage[] = opts.messages.map((m, i) =>
     i === opts.messages.length - 1 && m.role === 'user'
-      ? { role: 'user', text: `${m.content}\n\n${contextBlock(context, [...disabled])}` }
+      ? { role: 'user', text: `${reference ? `${quotedReference(reference)}\n\n` : ''}${m.content}\n\n${contextBlock(context, [...disabled])}` }
       : m.role === 'user'
         ? { role: 'user', text: m.content }
         : { role: 'assistant', text: m.content, toolCalls: [] },

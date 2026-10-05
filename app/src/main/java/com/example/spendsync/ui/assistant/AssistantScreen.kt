@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.SupportAgent
@@ -116,6 +117,8 @@ fun AssistantScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var input by rememberSaveable { mutableStateOf("") }
+    // An earlier answer chosen with "Use as reference": the next message is a reply to it.
+    var replyTo by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     var showSupport by remember { mutableStateOf(false) }
@@ -154,8 +157,9 @@ fun AssistantScreen(
 
     fun submit(text: String) {
         if (text.isBlank()) return
-        viewModel.send(text, currentScreen)
+        viewModel.send(text, currentScreen, replyTo)
         input = ""
+        replyTo = null
     }
 
     SettingsBackdrop {
@@ -191,6 +195,7 @@ fun AssistantScreen(
                             onEdit = { m -> viewModel.edit(m.id) { text -> input = text } },
                             onCopy = ::copy,
                             onShare = ::share,
+                            onReply = { text -> replyTo = text },
                             onUp = { m -> viewModel.rate(m, "up") },
                             onDown = { m -> feedbackFor = m },
                             onConfirm = viewModel::confirm,
@@ -223,7 +228,16 @@ fun AssistantScreen(
                 }
             }
 
+            replyTo?.let { ref ->
+                ReferenceBar(
+                    reference = maskAmountsInText(ref, amountVisibility.isMaskingEnabled, amountVisibility.isVisible).text,
+                    busy = state.busy,
+                    onClear = { replyTo = null },
+                    onQuick = { prompt -> submit(prompt) },
+                )
+            }
             InputBar(
+                hint = if (replyTo != null) tr(R.string.asst_ref_hint) else tr(R.string.assistant_input_hint),
                 value = input,
                 onValueChange = { input = it },
                 busy = state.busy,
@@ -354,6 +368,7 @@ private fun MessageBubble(
     onEdit: (UiMessage) -> Unit,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
+    onReply: (String) -> Unit,
     onUp: (UiMessage) -> Unit,
     onDown: (UiMessage) -> Unit,
     onConfirm: (String, Proposal) -> Unit,
@@ -364,7 +379,7 @@ private fun MessageBubble(
     val full = msg.fast?.let { fastText(it) } ?: msg.text
     if (msg.fromUser) {
         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-            UserBubble(full)
+            UserBubble(full, msg.quote)
             UserMessageActions(onEdit = { onEdit(msg) }, onCopy = { onCopy(full) }, enabled = canEdit)
         }
         return
@@ -401,7 +416,7 @@ private fun MessageBubble(
             }
             if (msg.fast == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    AnswerActions(msg.feedback, onCopy = { onCopy(full) }, onUp = { onUp(msg) }, onDown = { onDown(msg) }, onShare = { onShare(full) })
+                    AnswerActions(msg.feedback, onCopy = { onCopy(full) }, onUp = { onUp(msg) }, onDown = { onDown(msg) }, onShare = { onShare(full) }, onReply = { onReply(full) })
                     if (msg.steps.size > 1) {
                         Text(
                             tr(if (showSteps) R.string.asst_steps_hide else R.string.asst_steps_show),
@@ -510,22 +525,58 @@ private fun ProposalCard(
 }
 
 @Composable
-private fun UserBubble(text: String) {
+private fun UserBubble(text: String, quote: String = "") {
     val scheme = MaterialTheme.colorScheme
     val who = tr(R.string.assistant_a11y_you)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Text(
-            text,
-            color = scheme.onPrimary,
-            fontSize = 15.sp,
-            lineHeight = 21.sp,
-            modifier = Modifier
+        Column(
+            Modifier
                 .widthIn(max = 480.dp)
                 .semantics { contentDescription = "$who: $text" }
                 .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp))
                 .background(scheme.primary)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
-        )
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (quote.isNotBlank()) {
+                Row(Modifier.clip(RoundedCornerShape(10.dp)).background(scheme.onPrimary.copy(alpha = 0.16f)).padding(8.dp)) {
+                    Box(Modifier.width(3.dp).height(32.dp).clip(RoundedCornerShape(2.dp)).background(scheme.onPrimary.copy(alpha = 0.7f)))
+                    Text(
+                        markdownToPlain(quote), color = scheme.onPrimary.copy(alpha = 0.85f), fontSize = 12.sp, lineHeight = 16.sp,
+                        maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
+            Text(text, color = scheme.onPrimary, fontSize = 15.sp, lineHeight = 21.sp)
+        }
+    }
+}
+
+/** The answer being replied to, shown above the input like a quoted message, with a few one-tap follow-ups. */
+@Composable
+private fun ReferenceBar(reference: String, busy: Boolean, onClear: () -> Unit, onQuick: (String) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().background(scheme.surface).padding(horizontal = 12.dp).padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(scheme.primary.copy(alpha = 0.08f)).padding(start = 10.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.width(3.dp).height(36.dp).clip(RoundedCornerShape(2.dp)).background(scheme.primary))
+            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                Text(tr(R.string.asst_replying_to), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = scheme.primary)
+                Text(markdownToPlain(reference), fontSize = 12.sp, lineHeight = 16.sp, color = scheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            AppIconButton(Icons.Default.Close, tr(R.string.asst_reply_remove), onClick = onClear)
+        }
+        if (!busy) {
+            val prompts = listOf(tr(R.string.asst_ref_explain), tr(R.string.asst_ref_short), tr(R.string.asst_ref_compare))
+            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(prompts) { p -> AppChip(p, selected = false, onClick = { onQuick(p) }, role = androidx.compose.ui.semantics.Role.Button) }
+            }
+        }
     }
 }
 
@@ -589,6 +640,7 @@ private fun FailureNote(kind: FailureKind, onRetry: () -> Unit) {
 
 @Composable
 private fun InputBar(
+    hint: String,
     value: String,
     onValueChange: (String) -> Unit,
     busy: Boolean,
@@ -610,7 +662,7 @@ private fun InputBar(
             value = value,
             onValueChange = { if (it.length <= 1000) onValueChange(it) },
             modifier = Modifier.weight(1f),
-            placeholder = { Text(tr(R.string.assistant_input_hint), fontSize = 14.sp, color = scheme.onSurfaceVariant) },
+            placeholder = { Text(hint, fontSize = 14.sp, color = scheme.onSurfaceVariant) },
             maxLines = 4,
             shape = RoundedCornerShape(22.dp),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),

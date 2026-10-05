@@ -290,4 +290,11 @@
     <string name="asst_tool_prepare_followup">Messages de relance</string>
     <string name="asst_tool_prepare_followup_sub">Prépare un message sur l\'argent en attente. Vous confirmez avant l\'envoi</string>
     <string name="assistant_tool_followup">Préparation d\'un message…</string>
+    <string name="asst_reply">Utiliser comme référence</string>
+    <string name="asst_replying_to">En réponse à cette réponse</string>
+    <string name="asst_reply_remove">Retirer la référence</string>
+    <string name="asst_ref_hint">Posez une question sur cette réponse…</string>
+    <string name="asst_ref_explain">Explique-le simplement</string>
+    <string name="asst_ref_short">Raccourcis-le</string>
+    <string name="asst_ref_compare">Compare avec le mois dernier</string>
 </resources>

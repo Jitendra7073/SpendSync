@@ -290,4 +290,11 @@
     <string name="asst_tool_prepare_followup">Mensajes de seguimiento</string>
     <string name="asst_tool_prepare_followup_sub">Inicia un mensaje sobre dinero retenido. Confirmas antes de enviar</string>
     <string name="assistant_tool_followup">Iniciando un mensaje…</string>
+    <string name="asst_reply">Usar como referencia</string>
+    <string name="asst_replying_to">Respondiendo a esta respuesta</string>
+    <string name="asst_reply_remove">Quitar referencia</string>
+    <string name="asst_ref_hint">Pregunta sobre esta respuesta…</string>
+    <string name="asst_ref_explain">Explícalo de forma simple</string>
+    <string name="asst_ref_short">Hazlo más corto</string>
+    <string name="asst_ref_compare">Compara con el mes pasado</string>
 </resources>

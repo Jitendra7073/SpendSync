@@ -135,6 +135,8 @@ class AssistantRepository(
         screen: String?,
         conversationId: String,
         prefs: AssistantPrefs = AssistantPrefs(),
+        /** An earlier answer the user is replying to. */
+        reference: String? = null,
     ): Flow<AssistantEvent> = flow {
         val token = sessionDataStore.sessionToken.firstOrNull().orEmpty()
         if (token.isBlank()) {
@@ -149,6 +151,7 @@ class AssistantRepository(
                 "screen" to screen,
                 "timezone" to TimeZone.getDefault().id,
                 "conversationId" to conversationId,
+                "reference" to reference?.take(2500),
                 "prefs" to mapOf(
                     "model" to prefs.model,
                     "disabledTools" to prefs.disabledTools.toList(),

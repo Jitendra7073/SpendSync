@@ -14,6 +14,8 @@ export const chatRequestSchema = z
       )
       .min(1)
       .max(20),
+    /** An earlier answer the user is replying to ("use it as reference"), like a quoted message. */
+    reference: z.string().trim().min(1).max(2500).optional(),
     language: z.enum(SUPPORTED_ASSISTANT_LANGUAGES).default('English'),
     screen: z.enum(['home', 'analytics', 'budget', 'planify', 'profile', 'holds', 'add_transaction']).optional(),
     /** IANA timezone, e.g. Asia/Kolkata, so "today" and "this month" match the user's day. */
