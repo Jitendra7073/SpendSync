@@ -79,6 +79,37 @@ interface AppApiService {
         @Path("id") id: String
     ): Response<SuccessResponse<Unit>>
 
+    // ── Planify ───────────────────────────────────────────────────────────────
+
+    @GET("api/plans/{month}")
+    suspend fun getPlan(
+        @Header("Authorization") token: String,
+        @Path("month") month: String,
+        @Query("today") today: String,
+    ): Response<SuccessResponse<PlanViewDto>>
+
+    @PUT("api/plans/{month}")
+    suspend fun savePlan(
+        @Header("Authorization") token: String,
+        @Path("month") month: String,
+        @Query("today") today: String,
+        @Body body: SavePlanRequest,
+    ): Response<SuccessResponse<PlanViewDto>>
+
+    @POST("api/plans/{month}/move")
+    suspend fun movePlanMoney(
+        @Header("Authorization") token: String,
+        @Path("month") month: String,
+        @Query("today") today: String,
+        @Body body: MoveMoneyRequest,
+    ): Response<SuccessResponse<PlanViewDto>>
+
+    @GET("api/plans/suggestions")
+    suspend fun getPlanSuggestions(
+        @Header("Authorization") token: String,
+        @Query("month") month: String,
+    ): Response<SuccessResponse<SuggestionDto>>
+
     // ── Budgets ───────────────────────────────────────────────────────────────
 
     @POST("api/budgets")

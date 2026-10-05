@@ -256,6 +256,13 @@ fun AddExpenseScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
 
+    // The month's plan, so the category card can show what is left in that bucket (cached; cheap).
+    var plan by remember { mutableStateOf<com.example.spendsync.data.remote.model.PlanViewDto?>(null) }
+    val planMonth = com.example.spendsync.data.planify.PlanMath.monthKey(transactionDate)
+    LaunchedEffect(planMonth) {
+        plan = (financeRepository.getPlan(planMonth, today.toString()) as? AuthResult.Success)?.data?.takeIf { it.exists }
+    }
+
     var expectReturn by remember { mutableStateOf(false) }
     var holdPersonName by remember { mutableStateOf("") }
     var holdReturnDate by remember { mutableStateOf(today) }
@@ -490,6 +497,11 @@ fun AddExpenseScreen(
                 scope.launch { financeRepository.createCategory(keyword, chosenCategory) }
             }
             if (res is AuthResult.Success) {
+                // Outlives this screen, so the alert still goes out after it closes.
+                val appContext = context.applicationContext
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    com.example.spendsync.data.planify.PlanAlerts.onTransactionChanged(appContext, financeRepository, sessionDataStore, res.data)
+                }
                 if (!isEditing && expectReturn && holdPersonName.isNotBlank()) {
                     val direction = if (type == TransactionType.EXPENSE) "owed_to_me" else "owed_by_me"
                     val holdRes = financeRepository.createHold(
@@ -661,6 +673,17 @@ fun AddExpenseScreen(
                                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                                 }
                             }
+                        }
+                        if (type == TransactionType.EXPENSE) {
+                            com.example.spendsync.ui.planify.PlanBucketLine(
+                                plan = plan,
+                                category = selectedCat,
+                                amount = amountVal,
+                                // editing: this transaction's own amount is already inside the bucket's spent
+                                alreadyCounted = if (editTransaction != null && editTransaction.type == "debit" && editTransaction.category == selectedCat &&
+                                    com.example.spendsync.data.planify.PlanMath.monthKey(transactionDate) == planMonth) (editTransaction.amount.toDoubleOrNull() ?: 0.0) else 0.0,
+                                vis = amountVisibility,
+                            )
                         }
                     }
                     Spacer(Modifier.height(8.dp))

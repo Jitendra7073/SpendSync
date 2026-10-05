@@ -2,7 +2,7 @@
  * Complete schema definitions for Drizzle Kit
  * All tables defined inline to avoid module resolution issues
  */
-import { pgTable, text, timestamp, boolean, uuid, decimal, integer } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, uuid, decimal, integer, unique } from 'drizzle-orm/pg-core';
 
 // ============================================================================
 // AUTH TABLES (Better Auth)
@@ -99,6 +99,11 @@ export const budgets = pgTable('budgets', {
   limitAmount: decimal('limit_amount', { precision: 12, scale: 2 }).notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Planify: a budget row is a "bucket" of the month's plan.
+  kind: text('kind').notNull().default('spend'), // 'fixed' | 'spend' | 'savings'
+  name: text('name'), // display name; `category` stays the transaction category it tracks
+  sortOrder: integer('sort_order').notNull().default(0),
+  rollover: boolean('rollover').notNull().default(false),
 });
 
 export const holds = pgTable('holds', {
@@ -229,5 +234,39 @@ export const passwordResets = pgTable('password_resets', {
   attempts: integer('attempts').notNull().default(0),
   expiresAt: timestamp('expires_at').notNull(),
   usedAt: timestamp('used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+// ============================================================================
+// PLANIFY: monthly plans and the log of moves between buckets
+// ============================================================================
+
+export const plans = pgTable(
+  'plans',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    month: text('month').notNull(),
+    income: decimal('income', { precision: 12, scale: 2 }).notNull().default('0'),
+    carryOver: decimal('carry_over', { precision: 12, scale: 2 }).notNull().default('0'),
+    status: text('status').notNull().default('active'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({ onePerMonth: unique('plans_user_month_unique').on(t.userId, t.month) }),
+);
+
+export const planEvents = pgTable('plan_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  month: text('month').notNull(),
+  kind: text('kind').notNull(),
+  fromCategory: text('from_category'),
+  toCategory: text('to_category'),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull().default('0'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });

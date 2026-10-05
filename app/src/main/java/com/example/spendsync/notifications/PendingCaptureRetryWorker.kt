@@ -40,6 +40,7 @@ class PendingCaptureRetryWorker(
                 is AuthResult.Success -> {
                     sessionDataStore.removePendingCapture(capture)
                     TransactionCaptureNotifier.postDescriptionRequest(applicationContext, result.data)
+                    com.example.spendsync.data.planify.PlanAlerts.onTransactionChanged(applicationContext, financeRepository, sessionDataStore, result.data)
                 }
                 is AuthResult.Error -> anyFailed = true
             }

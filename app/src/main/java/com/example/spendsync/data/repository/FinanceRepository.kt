@@ -119,7 +119,7 @@ class FinanceRepository(
             val request = CreateTransactionRequest(amount, type, merchant, category, sourceApp, note, transactionDate)
             val response = api.createTransaction(getAuthHeader(), request)
             if (response.isSuccessful && response.body() != null) {
-                cacheInvalidate("transactions", "dashboard")
+                cacheInvalidate("transactions", "dashboard", "plan")
                 AuthResult.Success(response.body()!!.data)
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
@@ -143,7 +143,7 @@ class FinanceRepository(
             val request = UpdateTransactionRequest(amount, type, merchant, category, sourceApp, note, transactionDate)
             val response = api.updateTransaction(getAuthHeader(), id, request)
             if (response.isSuccessful && response.body() != null) {
-                cacheInvalidate("transactions", "dashboard")
+                cacheInvalidate("transactions", "dashboard", "plan")
                 AuthResult.Success(response.body()!!.data)
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
@@ -159,7 +159,7 @@ class FinanceRepository(
             if (response.isSuccessful) {
                 // "holds" too — the backend cascade-deletes the linked hold with
                 // its transaction, so a cached holds list would keep counting it.
-                cacheInvalidate("transactions", "dashboard", "holds")
+                cacheInvalidate("transactions", "dashboard", "holds", "plan")
                 AuthResult.Success(Unit)
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
@@ -243,6 +243,38 @@ class FinanceRepository(
         }
     }
 
+    // ── Planify ───────────────────────────────────────────────────────────────
+
+    /** The month's plan with live numbers. [today] (YYYY-MM-DD, the user's own calendar) drives pace and days left. */
+    suspend fun getPlan(month: String, today: String = java.time.LocalDate.now().toString(), forceRefresh: Boolean = false): AuthResult<PlanViewDto> {
+        val key = "plan:$month:$today"
+        if (!forceRefresh) cached<PlanViewDto>(key)?.let { return AuthResult.Success(it) }
+        return planCall { api.getPlan(getAuthHeader(), month, today) }.also { if (it is AuthResult.Success) cache[key] = it.data }
+    }
+
+    suspend fun savePlan(month: String, request: SavePlanRequest, today: String = java.time.LocalDate.now().toString()): AuthResult<PlanViewDto> =
+        planCall { api.savePlan(getAuthHeader(), month, today, request) }.also { if (it is AuthResult.Success) cacheInvalidate("plan", "budgets", "dashboard") }
+
+    suspend fun movePlanMoney(month: String, from: String, to: String, amount: Double, today: String = java.time.LocalDate.now().toString()): AuthResult<PlanViewDto> =
+        planCall { api.movePlanMoney(getAuthHeader(), month, today, MoveMoneyRequest(from, to, amount)) }.also { if (it is AuthResult.Success) cacheInvalidate("plan", "budgets", "dashboard") }
+
+    /** A first draft from the last 3 months. Nothing is saved on the server. */
+    suspend fun getPlanSuggestions(month: String): AuthResult<SuggestionDto> = try {
+        val response = api.getPlanSuggestions(getAuthHeader(), month)
+        if (response.isSuccessful && response.body() != null) AuthResult.Success(response.body()!!.data)
+        else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+    } catch (e: Exception) {
+        AuthResult.Error(e.toUserMessage())
+    }
+
+    private suspend fun planCall(block: suspend () -> retrofit2.Response<SuccessResponse<PlanViewDto>>): AuthResult<PlanViewDto> = try {
+        val response = block()
+        if (response.isSuccessful && response.body() != null) AuthResult.Success(response.body()!!.data)
+        else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+    } catch (e: Exception) {
+        AuthResult.Error(e.toUserMessage())
+    }
+
     // ── Budgets ───────────────────────────────────────────────────────────────
 
     suspend fun getBudgets(month: String? = null, category: String? = null, forceRefresh: Boolean = false): AuthResult<List<BudgetDto>> {
@@ -267,7 +299,7 @@ class FinanceRepository(
             val request = CreateBudgetRequest(category, month, limitAmount)
             val response = api.createBudget(getAuthHeader(), request)
             if (response.isSuccessful && response.body() != null) {
-                cacheInvalidate("budgets", "dashboard")
+                cacheInvalidate("budgets", "dashboard", "plan")
                 AuthResult.Success(response.body()!!.data)
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
@@ -282,7 +314,7 @@ class FinanceRepository(
             val request = UpdateBudgetRequest(limitAmount = limitAmount)
             val response = api.updateBudget(getAuthHeader(), id, request)
             if (response.isSuccessful && response.body() != null) {
-                cacheInvalidate("budgets", "dashboard")
+                cacheInvalidate("budgets", "dashboard", "plan")
                 AuthResult.Success(response.body()!!.data)
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
@@ -296,7 +328,7 @@ class FinanceRepository(
         return try {
             val response = api.deleteBudget(getAuthHeader(), id)
             if (response.isSuccessful) {
-                cacheInvalidate("budgets", "dashboard")
+                cacheInvalidate("budgets", "dashboard", "plan")
                 AuthResult.Success(Unit)
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))

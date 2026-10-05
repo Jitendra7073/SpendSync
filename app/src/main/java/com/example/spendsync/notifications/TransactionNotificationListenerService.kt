@@ -62,8 +62,10 @@ class TransactionNotificationListenerService : NotificationListenerService() {
                     category = "Other",
                     sourceApp = packageName,
                 )) {
-                    is AuthResult.Success ->
+                    is AuthResult.Success -> {
                         TransactionCaptureNotifier.postDescriptionRequest(applicationContext, result.data)
+                        com.example.spendsync.data.planify.PlanAlerts.onTransactionChanged(applicationContext, financeRepository, sessionDataStore, result.data)
+                    }
                     is AuthResult.Error -> {
                         sessionDataStore.addPendingCapture(
                             PendingCapture(parsed.amount, parsed.direction, parsed.payee, packageName, now)

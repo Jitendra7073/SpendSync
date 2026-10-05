@@ -8,8 +8,8 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
@@ -54,11 +54,11 @@ sealed class BottomNavItem(
         selectable = false,
     )
 
-    /** Still a page (reachable from the assistant), but hidden from the bottom bar. */
-    object Budget : BottomNavItem(
-        route = "tab_budget",
-        labelRes = R.string.budget,
-        icon  = Icons.Default.Wallet,
+    /** Monthly plan: decide how much each part of the money may be, then watch it. Replaces the old Budget page. */
+    object Planify : BottomNavItem(
+        route = "tab_planify",
+        labelRes = R.string.pl_title,
+        icon  = Icons.Default.PieChart,
     )
 
     object Profile : BottomNavItem(
@@ -76,6 +76,6 @@ sealed class BottomNavItem(
         // assigned. The list would then contain `null` entries, causing a
         // NullPointerException in SpendSyncBottomBar (item.isFab). Deferring with
         // `by lazy` guarantees every object is fully constructed before use.
-        val all by lazy { listOf(Home, Analytics, Profile, Assistant, AddTransaction) }
+        val all by lazy { listOf(Home, Analytics, Planify, Profile, Assistant, AddTransaction) }
     }
 }

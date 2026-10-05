@@ -1,0 +1,102 @@
+package com.example.spendsync.data.remote.model
+
+import com.google.gson.annotations.SerializedName
+
+// ── Planify: the month's plan, its buckets and live status ───────────────────
+
+data class PlanViewDto(
+    @SerializedName("month")     val month: String,
+    /** A plan header or at least one bucket exists for this month. */
+    @SerializedName("exists")    val exists: Boolean,
+    /** False for old budgets that never had an income entered. */
+    @SerializedName("hasIncome") val hasIncome: Boolean,
+    @SerializedName("income")    val income: Double,
+    @SerializedName("carryOver") val carryOver: Double,
+    @SerializedName("status")    val status: PlanStatusDto,
+)
+
+data class PlanStatusDto(
+    @SerializedName("daysInMonth")          val daysInMonth: Int,
+    @SerializedName("day")                  val day: Int,
+    @SerializedName("daysLeft")             val daysLeft: Int,
+    @SerializedName("monthProgressPercent") val monthProgressPercent: Double,
+    @SerializedName("available")            val available: Double,
+    @SerializedName("planned")              val planned: Double,
+    /** Money still unassigned (positive) or planned beyond what is available (negative). */
+    @SerializedName("leftToPlan")           val leftToPlan: Double,
+    @SerializedName("spentInPlan")          val spentInPlan: Double,
+    @SerializedName("buckets")              val buckets: List<BucketDto>,
+    @SerializedName("counts")               val counts: PlanCountsDto,
+    @SerializedName("safeToSpendToday")     val safeToSpendToday: Double,
+    @SerializedName("unplanned")            val unplanned: List<UnplannedDto>,
+    @SerializedName("unplannedTotal")       val unplannedTotal: Double,
+)
+
+data class PlanCountsDto(
+    @SerializedName("ok")    val ok: Int,
+    @SerializedName("close") val close: Int,
+    @SerializedName("over")  val over: Int,
+)
+
+data class UnplannedDto(
+    @SerializedName("category") val category: String,
+    @SerializedName("spent")    val spent: Double,
+)
+
+/** One bucket of the plan: a limit on one transaction category, with its live numbers. */
+data class BucketDto(
+    @SerializedName("id")          val id: String,
+    @SerializedName("category")    val category: String,
+    @SerializedName("name")        val name: String,
+    /** "fixed" | "spend" | "savings" */
+    @SerializedName("kind")        val kind: String,
+    @SerializedName("limit")       val limit: Double,
+    @SerializedName("spent")       val spent: Double,
+    @SerializedName("sortOrder")   val sortOrder: Int,
+    @SerializedName("rollover")    val rollover: Boolean,
+    @SerializedName("remaining")   val remaining: Double,
+    @SerializedName("percent")     val percent: Double,
+    /** "ok" | "close" | "over" | "paid" | "saved" */
+    @SerializedName("state")       val state: String,
+    @SerializedName("paceRatio")   val paceRatio: Double?,
+    @SerializedName("projected")   val projected: Double?,
+    @SerializedName("runsOutOnDay") val runsOutOnDay: Int?,
+    @SerializedName("paceWarning") val paceWarning: Boolean,
+)
+
+data class PlanItemRequest(
+    @SerializedName("category")    val category: String,
+    @SerializedName("name")        val name: String,
+    @SerializedName("kind")        val kind: String,
+    @SerializedName("limitAmount") val limitAmount: Double,
+    @SerializedName("sortOrder")   val sortOrder: Int,
+    @SerializedName("rollover")    val rollover: Boolean = false,
+)
+
+data class SavePlanRequest(
+    @SerializedName("income")    val income: Double,
+    @SerializedName("carryOver") val carryOver: Double,
+    @SerializedName("items")     val items: List<PlanItemRequest>,
+)
+
+data class MoveMoneyRequest(
+    @SerializedName("fromCategory") val fromCategory: String,
+    @SerializedName("toCategory")   val toCategory: String,
+    @SerializedName("amount")       val amount: Double,
+)
+
+data class SuggestionDto(
+    @SerializedName("items")           val items: List<SuggestedItemDto>,
+    @SerializedName("suggestedIncome") val suggestedIncome: Double,
+    @SerializedName("monthsUsed")      val monthsUsed: Int,
+)
+
+data class SuggestedItemDto(
+    @SerializedName("category")  val category: String,
+    @SerializedName("name")      val name: String,
+    @SerializedName("kind")      val kind: String,
+    @SerializedName("limit")     val limit: Double,
+    /** What was spent on average, shown as "last month" beside the new number. */
+    @SerializedName("average")   val average: Double,
+    @SerializedName("sortOrder") val sortOrder: Int,
+)

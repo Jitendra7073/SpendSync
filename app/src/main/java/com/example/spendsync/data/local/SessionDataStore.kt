@@ -16,6 +16,7 @@ import com.example.spendsync.notifications.PendingCapture
 import com.example.spendsync.notifications.parsePendingCaptures
 import com.example.spendsync.notifications.serializePendingCaptures
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 /** Extension property — one DataStore per app process. */
@@ -28,6 +29,9 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
  * to a generic local icon.
  */
 data class PersistedCategory(val name: String, val iconId: String?)
+
+/** Planify preferences. Defaults: alerts on, no daily summary, salary prompt for credits of 5,000 or more. */
+data class PlanifySettings(val alerts: Boolean = true, val daily: Boolean = false, val salaryMin: Int = 5000)
 
 private fun parsePersistedCategories(raw: String?): List<PersistedCategory> {
     if (raw.isNullOrBlank()) return emptyList()
@@ -86,6 +90,12 @@ class SessionDataStore(private val context: Context) {
         private val KEY_ASSISTANT_TONE = stringPreferencesKey("assistant_tone")
         private val KEY_ASSISTANT_INSTRUCTIONS = stringPreferencesKey("assistant_instructions")
         private val KEY_ASSISTANT_DISABLED_TOOLS = stringPreferencesKey("assistant_disabled_tools")
+        private val KEY_PLANIFY_ALERTS = booleanPreferencesKey("planify_alerts")
+        private val KEY_PLANIFY_DAILY = booleanPreferencesKey("planify_daily")
+        private val KEY_PLANIFY_SALARY_MIN = intPreferencesKey("planify_salary_min")
+        private val KEY_PLAN_ALERT_MEMORY = stringPreferencesKey("plan_alert_memory")
+        private val KEY_PLAN_DAILY_COUNT = stringPreferencesKey("plan_daily_count")
+        private val KEY_PLAN_SALARY_PROMPTED = stringPreferencesKey("plan_salary_prompted")
 
         private val KEY_PENDING_CAPTURES = stringPreferencesKey("pending_captures")
 
@@ -242,6 +252,10 @@ class SessionDataStore(private val context: Context) {
             prefs.remove(KEY_PIN_SALT)
             // Unsynced edits belong to the account that made them.
             prefs.remove(KEY_SETTINGS_DIRTY)
+            // Alert memory belongs to the account that earned it.
+            prefs.remove(KEY_PLAN_ALERT_MEMORY)
+            prefs.remove(KEY_PLAN_DAILY_COUNT)
+            prefs.remove(KEY_PLAN_SALARY_PROMPTED)
         }
     }
 
@@ -343,6 +357,40 @@ class SessionDataStore(private val context: Context) {
 
     suspend fun updateAutoCapturePackages(packages: Set<String>) {
         context.dataStore.edit { prefs -> prefs[KEY_AUTO_CAPTURE_PACKAGES] = serializeAutoCapturePackages(packages) }
+    }
+
+    // ── Planify ──────────────────────────────────────────────────────────────
+
+    /** What the user chose in Settings -> Planify. Synced to the account (the alert memory below is not). */
+    val planifySettings: Flow<PlanifySettings> = context.dataStore.data.map { prefs ->
+        PlanifySettings(
+            alerts = prefs[KEY_PLANIFY_ALERTS] ?: true,
+            daily = prefs[KEY_PLANIFY_DAILY] ?: false,
+            salaryMin = prefs[KEY_PLANIFY_SALARY_MIN] ?: 5000,
+        )
+    }
+
+    suspend fun updatePlanifySettings(s: PlanifySettings) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_PLANIFY_ALERTS] = s.alerts
+            prefs[KEY_PLANIFY_DAILY] = s.daily
+            prefs[KEY_PLANIFY_SALARY_MIN] = s.salaryMin
+        }
+    }
+
+    suspend fun planAlertMemoryRaw(): String = context.dataStore.data.first()[KEY_PLAN_ALERT_MEMORY].orEmpty()
+    suspend fun savePlanAlertMemory(raw: String) { context.dataStore.edit { it[KEY_PLAN_ALERT_MEMORY] = raw } }
+    suspend fun planDailyCountRaw(): String = context.dataStore.data.first()[KEY_PLAN_DAILY_COUNT].orEmpty()
+    suspend fun savePlanDailyCount(raw: String) { context.dataStore.edit { it[KEY_PLAN_DAILY_COUNT] = raw } }
+
+    /** Months for which the "plan this month?" salary prompt has already been shown. */
+    suspend fun salaryPrompted(month: String): Boolean =
+        month in context.dataStore.data.first()[KEY_PLAN_SALARY_PROMPTED].orEmpty().split(',')
+    suspend fun markSalaryPrompted(month: String) {
+        context.dataStore.edit { prefs ->
+            val all = prefs[KEY_PLAN_SALARY_PROMPTED].orEmpty().split(',').filter { it.isNotBlank() }.toMutableSet().apply { add(month) }
+            prefs[KEY_PLAN_SALARY_PROMPTED] = all.sorted().takeLast(6).joinToString(",")
+        }
     }
 
     suspend fun updateAssistantPrefs(p: AssistantPrefs) {

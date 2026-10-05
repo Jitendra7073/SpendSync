@@ -1,4 +1,4 @@
-import { eq, and, sql, gte, lte } from 'drizzle-orm';
+import { eq, and, sql, gte, lt } from 'drizzle-orm';
 import { db } from '../db/index';
 import { transactions, budgets } from '../db/schema/index';
 
@@ -11,8 +11,11 @@ export class DashboardService {
    * Get dashboard summary for a specific month
    */
   async getSummary(userId: string, month: string) {
-    const startDate = new Date(`${month}-01`);
-    const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+    // [start of the month, start of next month) in UTC. The old end was midnight at the START of the last day,
+    // so everything on the last day of the month was left out of the totals.
+    const [year, mon] = month.split('-').map(Number);
+    const startDate = new Date(Date.UTC(year, mon - 1, 1));
+    const endDate = new Date(Date.UTC(year, mon, 1));
 
     // Get category-wise spending
     const categorySpending = await db
@@ -27,7 +30,7 @@ export class DashboardService {
         and(
           eq(transactions.userId, userId),
           gte(transactions.createdAt, startDate),
-          lte(transactions.createdAt, endDate)
+          lt(transactions.createdAt, endDate)
         )
       )
       .groupBy(transactions.category);

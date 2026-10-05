@@ -18,6 +18,7 @@ import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.repository.AuthRepository
 import com.example.spendsync.navigation.AppNavigation
 import com.example.spendsync.navigation.Route
+import com.example.spendsync.notifications.PlanifyLinks
 import com.example.spendsync.ui.theme.SpendSyncTheme
 import com.example.spendsync.ui.i18n.AppLanguage
 import com.example.spendsync.ui.i18n.LanguageManager
@@ -26,6 +27,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        takePlanifyLink(intent)
+    }
+
+    private fun takePlanifyLink(intent: android.content.Intent?) {
+        intent?.getStringExtra(PlanifyLinks.EXTRA)?.let { PlanifyLinks.pending.value = it; intent.removeExtra(PlanifyLinks.EXTRA) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
@@ -33,6 +43,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val sessionDataStore = SessionDataStore(applicationContext)
+        takePlanifyLink(intent)
         val authRepository = AuthRepository(sessionDataStore)
 
         // The app speaks the saved language from the very first frame, and follows the

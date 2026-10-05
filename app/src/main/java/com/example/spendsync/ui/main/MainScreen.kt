@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -37,7 +38,7 @@ import com.example.spendsync.navigation.SpendSyncBottomBar
 import com.example.spendsync.ui.holds.HoldsScreen
 import com.example.spendsync.ui.home.HomeScreen
 import com.example.spendsync.ui.analytics.AnalyticsScreen
-import com.example.spendsync.ui.budget.BudgetScreen
+import com.example.spendsync.ui.planify.PlanifyScreen
 import com.example.spendsync.ui.profile.ProfileScreen
 import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.DateFilterState
@@ -95,9 +96,8 @@ fun MainScreen(
     // the FAB "Add" isn't a page, it opens the overlay below instead) so tabs
     // can be reached either by dragging left/right or by tapping the bottom bar.
     val pages = remember {
-        // Swipe order matches the bar. The assistant is a real page (swipe left from Profile); Budget is not a
-        // page any more: it opens full-screen from the assistant.
-        listOf(BottomNavItem.Home.route, BottomNavItem.Analytics.route, BottomNavItem.Profile.route, BottomNavItem.Assistant.route)
+        // Swipe order matches the bar. Planify replaces the old Budget page; the assistant is the last page.
+        listOf(BottomNavItem.Home.route, BottomNavItem.Analytics.route, BottomNavItem.Planify.route, BottomNavItem.Profile.route, BottomNavItem.Assistant.route)
     }
     val pagerState = rememberPagerState(initialPage = 0) { pages.size }
     val selectedRoute = pages[pagerState.currentPage]
@@ -117,8 +117,6 @@ fun MainScreen(
 
     var homeRefreshKey by remember { mutableStateOf(0) }
 
-    // ── Budget: full-screen page opened from the assistant (no tab, not swipeable) ─
-    var showBudget by rememberSaveable { mutableStateOf(false) }
     val assistantIndex = pages.indexOf(BottomNavItem.Assistant.route)
     // The page the user came from, so the assistant knows its context and its back arrow returns there.
     var lastTab by remember { mutableStateOf(BottomNavItem.Home.route) }
@@ -170,6 +168,16 @@ fun MainScreen(
         pagerScope.launch { pagerState.scrollToPage(target) }
     }
 
+    // A Planify notification was tapped: go to the Planify page, and open the builder for the salary prompt.
+    var planifyBuildRequest by remember { mutableIntStateOf(0) }
+    val planifyLink by com.example.spendsync.notifications.PlanifyLinks.pending.collectAsState()
+    LaunchedEffect(planifyLink) {
+        val link = planifyLink ?: return@LaunchedEffect
+        com.example.spendsync.notifications.PlanifyLinks.pending.value = null
+        jumpToTab(pages.indexOf(BottomNavItem.Planify.route))
+        if (link == com.example.spendsync.notifications.PlanifyLinks.BUILD) planifyBuildRequest++
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
@@ -177,7 +185,7 @@ fun MainScreen(
             // or its own bottom controls: full-screen overlays (add expense, holds, assistant) and the
             // on-screen keyboard. It slides away instead of popping.
             val keyboardOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-            val barVisible = selectedRoute != BottomNavItem.Assistant.route && !expenseOverlayVisible && !showHolds && !showBudget && !keyboardOpen
+            val barVisible = selectedRoute != BottomNavItem.Assistant.route && !expenseOverlayVisible && !showHolds && !keyboardOpen
             androidx.compose.animation.AnimatedVisibility(
                 visible = barVisible,
                 enter = androidx.compose.animation.slideInVertically(tween(260)) { it } + fadeIn(tween(200)),
@@ -244,7 +252,7 @@ fun MainScreen(
                                         "home" -> jumpToTab(pages.indexOf(BottomNavItem.Home.route))
                                         "analytics" -> jumpToTab(pages.indexOf(BottomNavItem.Analytics.route))
                                         "profile" -> jumpToTab(pages.indexOf(BottomNavItem.Profile.route))
-                                        "budget" -> showBudget = true
+                                        "budget", "planify" -> jumpToTab(pages.indexOf(BottomNavItem.Planify.route))
                                         "holds" -> showHolds = true
                                         "add_transaction" -> showTypeSheet = true
                                     }
@@ -254,6 +262,16 @@ fun MainScreen(
                             Box(Modifier.fillMaxSize())
                         }
                     }
+                    BottomNavItem.Planify.route -> PlanifyScreen(
+                        sessionDataStore = sessionDataStore,
+                        financeRepository = financeRepository,
+                        dateFilterState = dateFilterState,
+                        amountVisibility = amountVisibility,
+                        onOpenSettings = ::requestOpenSettings,
+                        onViewTransaction = ::requestViewTransaction,
+                        onOpenAssistant = { jumpToTab(assistantIndex) },
+                        buildRequestId = planifyBuildRequest,
+                    )
                     BottomNavItem.Profile.route   -> ProfileScreen(
                         sessionDataStore = sessionDataStore,
                         repository       = repository,
@@ -336,33 +354,6 @@ fun MainScreen(
                         // a hold here leaves its balance card stale unless we bump
                         // the same key closeExpenseOverlay() uses.
                         onBack = { showHolds = false; homeRefreshKey++ },
-                    )
-                }
-            }
-
-            // ── Budget — full-screen page with a back arrow; reached from the assistant ──
-            AnimatedContent(
-                targetState    = showBudget,
-                transitionSpec = {
-                    if (targetState) {
-                        slideInVertically(animationSpec = overlaySlideSpec) { it } togetherWith fadeOut(tween(0))
-                    } else {
-                        fadeIn(tween(0)) togetherWith slideOutVertically(animationSpec = overlaySlideSpec) { it }
-                    }
-                },
-                label = "budget_overlay",
-            ) { visible ->
-                if (visible) {
-                    androidx.activity.compose.BackHandler { showBudget = false }
-                    BudgetScreen(
-                        sessionDataStore = sessionDataStore,
-                        financeRepository = financeRepository,
-                        dateFilterState = dateFilterState,
-                        amountVisibility = amountVisibility,
-                        onOpenSettings = ::requestOpenSettings,
-                        onViewTransaction = ::requestViewTransaction,
-                        onOpenAssistant = { showBudget = false; jumpToTab(assistantIndex) },
-                        onBack = { showBudget = false },
                     )
                 }
             }

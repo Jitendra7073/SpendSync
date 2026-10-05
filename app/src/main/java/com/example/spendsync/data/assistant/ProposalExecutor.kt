@@ -23,6 +23,7 @@ class ProposalExecutor(
             note = p.note, transactionDate = "${p.date}T00:00:00.000Z",
         )
         if (res !is AuthResult.Success) return (res as AuthResult.Error).message
+        com.example.spendsync.data.planify.PlanAlerts.onTransactionChanged(context, finance, com.example.spendsync.data.local.SessionDataStore(context), res.data)
 
         val person = p.person
         val returnDate = p.returnDate
