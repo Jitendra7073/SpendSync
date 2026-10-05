@@ -1,14 +1,13 @@
-import type { CreditRow, IncomeGuess } from './income';
+import { looksLikeSalary, type CreditRow, type IncomeGuess } from './income';
 import type { MonthHistory } from './suggest';
 
 /**
  * The AI planning guide. A language model reads the user's REAL numbers (facts below) and asks one
  * multiple-choice question at a time about something specific in them. The model never writes the plan:
- * each option carries a small, whitelisted "effect" (save 20%, trim Eating out by 15%...) that the phone applies
- * with its own arithmetic, so every rupee in the plan traces back to the user's history or a percentage they chose.
+ * each option carries a small, whitelisted "effect" (save 20%, trim Eating out by 15%, a rent of the amount
+ * the user types...) that the phone applies with its own arithmetic, so every rupee in the plan traces back to
+ * the user's history, a percentage they picked, or an amount they typed.
  */
-
-export const MAX_QUESTIONS = 5;
 
 export type GuideEffect =
   | { type: 'none' }
@@ -16,6 +15,10 @@ export type GuideEffect =
   | { type: 'keepFixed'; value: number } // 1 = keep regular bills, 0 = leave them out
   | { type: 'bufferPercent'; value: number }
   | { type: 'setIncome'; value: number } // the money to plan with, one of the amounts found in the user's own credits
+  | { type: 'incomeHaircut'; value: number } // plan on this many percent less than the income, because it varies
+  | { type: 'goalMonthly'; name: string; value: number } // a named savings goal funded with this percent of income
+  | { type: 'commitment'; name: string; value: number | null } // a regular bill not in the records; null = the user types the amount
+  | { type: 'estimate'; category: string; value: number | null } // a monthly amount the user states for a category (little history)
   | { type: 'categoryChange'; category: string; value: number }; // percent change of one everyday category
 
 export interface GuideOption {
@@ -38,6 +41,9 @@ export interface TranscriptItem {
 export interface GuideFacts {
   currency: 'INR';
   monthsUsed: number;
+  /** Under 2 months or very few categories: the guide asks more and the plan is labelled as a starting point. */
+  lowHistory: boolean;
+  avgMonthlySpend: number;
   regularBills: { category: string; perMonth: number }[];
   everyday: { category: string; perMonth: number[]; average: number; lastMonth: number; trendPercent: number }[];
   savingsPerMonth: number;
@@ -46,6 +52,8 @@ export interface GuideFacts {
     entered: number;
     detected: { amount: number; label: string; source: IncomeGuess['source'] } | null;
     carryOver: { amount: number; label: string } | null;
+    /** Salary-like credits per month differ by more than 15%; null when there are too few months to tell. */
+    varies: boolean | null;
   };
   /** Recent credits as the user named them, so the model can tell a salary from a refund. */
   recentCredits: { month: string; amount: number; category: string; label: string }[];
@@ -55,6 +63,9 @@ export type GuideStep = { done: false; question: GuideQuestion } | { done: true;
 
 const SAVINGS_WORDS = ['saving', 'savings', 'investment', 'sip', 'emergency', 'fd', 'deposit'];
 const round = (n: number) => Math.round(n);
+
+/** How many questions at most: more when there is little history to lean on. */
+export const maxQuestions = (facts: GuideFacts) => (facts.lowHistory ? 9 : 6);
 
 /** What the model is allowed to know: totals per category per month, never individual transactions or merchants. */
 export function buildFacts(history: MonthHistory[], income: number, fixed: Set<string>, credits: CreditRow[] = [], guess?: IncomeGuess): GuideFacts {
@@ -79,12 +90,23 @@ export function buildFacts(history: MonthHistory[], income: number, fixed: Set<s
     });
   }
   everyday.sort((a, b) => b.average - a.average);
+
+  // Is the salary steady? Total of salary-like credits per earlier month.
+  const byMonth = new Map<string, number>();
+  for (const c of credits.filter(looksLikeSalary)) byMonth.set(c.month, (byMonth.get(c.month) ?? 0) + c.amount);
+  const totals = [...byMonth.values()];
+  const varies = totals.length >= 2 ? Math.max(...totals) > Math.min(...totals) * 1.15 : null;
+
   return {
-    currency: 'INR', monthsUsed: history.length, regularBills, everyday: everyday.slice(0, 12), savingsPerMonth,
+    currency: 'INR', monthsUsed: history.length,
+    lowHistory: history.length < 2 || regularBills.length + everyday.length < 3,
+    avgMonthlySpend: round([...regularBills.map((b) => b.perMonth), ...everyday.map((e) => e.average)].reduce((s, x) => s + x, 0)),
+    regularBills, everyday: everyday.slice(0, 12), savingsPerMonth,
     income: {
       entered: round(income),
       detected: guess && guess.income > 0 ? { amount: round(guess.income), label: guess.label, source: guess.source } : null,
       carryOver: guess && guess.carryOver > 0 ? { amount: round(guess.carryOver), label: guess.carryLabel } : null,
+      varies,
     },
     recentCredits: [...credits].sort((a, b) => b.month.localeCompare(a.month) || b.amount - a.amount).slice(0, 15)
       .map((c) => ({ month: c.month, amount: round(c.amount), category: c.category, label: (c.merchant || c.note).slice(0, 40) })),
@@ -102,53 +124,90 @@ export function allowedIncomes(facts: GuideFacts): Set<number> {
   return v;
 }
 
-export function systemPrompt(language: string): string {
+export function systemPrompt(language: string, facts: GuideFacts): string {
+  const max = maxQuestions(facts);
+  const min = facts.lowHistory ? 6 : 4;
   return [
-    'You help a person plan their monthly spending inside an expense-tracker app.',
+    'You help a person plan their monthly spending inside an expense-tracker app, like a careful money coach.',
     'You are given FACTS: their real numbers in rupees. Ask ONE multiple-choice question at a time that helps decide their limits.',
-    'Rules:',
-    '- Every question must be about something specific in FACTS (a category, a trend, a bill, their savings). Mention the real number when it helps, copied from FACTS. Never invent numbers.',
+    'General rules:',
+    '- Every question must connect to something specific in FACTS or to a goal the person just told you. Mention a real number when it helps, copied from FACTS. Never invent numbers.',
     '- Do not ask about a topic that already appears in TRANSCRIPT. Do not repeat or reword an earlier question.',
-    '- Ask about what stands out: a category that rose a lot, the biggest everyday spend, regular bills, how much to save. Ask about savings exactly once, within the first three questions. The effect of each option must match its label and its topic (an Eating out question may only change Eating out; "keep as is" is {"type":"none"}).',
-    `- Ask between 3 and ${MAX_QUESTIONS} questions in total, then finish.`,
-    '- Give 3 or 4 short options (under 60 characters). Each option has an effect, one of:',
-    '  {"type":"setIncome","value":<an amount from FACTS>} |',
-    '  {"type":"savePercent","value":0-40} | {"type":"keepFixed","value":1 or 0} | {"type":"bufferPercent","value":0-15} |',
-    '  {"type":"categoryChange","category":"<exact category name from FACTS.everyday>","value":-50..30} | {"type":"none"}',
-    '- If FACTS.income.detected exists and TRANSCRIPT is empty, the FIRST question must have topic "income": say what the records show (the label, amount and month of the credit, plus any carry-over) and ask which amount to plan with. If FACTS.income.entered differs from detected, mention both. Options use {"type":"setIncome","value":<amount from FACTS>}: the detected amount, detected plus carry-over when there is one, and "a different amount" as {"type":"none"}.',
-    '- Use recentCredits (what each credit was called) to tell a salary from a refund or a transfer. Never call something a salary unless its category or label says so.',
-    '- "topic" is the category name, or "income", "savings", "bills", "buffer".',
-    `- Write question and option labels in ${language}. Keep category names as they appear in FACTS.`,
+    '- Use the TRANSCRIPT: a later question should build on earlier answers (for example, a savings goal changes how you ask about Eating out).',
+    `- Ask between ${min} and ${max} questions in total, then finish.`,
+    `- Write the question and every option label in ${language}. Keep category names as they appear in FACTS.`,
+    '- Give 3 or 4 short options (under 60 characters). Each option has an effect that must match its label and its topic.',
+    'Follow this order, skipping what does not apply:',
+    '1. topic "income": only if FACTS.income.detected exists and TRANSCRIPT is empty. Say what the records show (label, amount, month, any carry-over; if FACTS.income.entered differs, mention both) and ask which amount to plan with. Options: {"type":"setIncome","value":<amount from FACTS>} for the detected amount, detected plus carry-over when there is one, and "a different amount" as {"type":"none"}.',
+    `2. topic "goal": what matters most right now. Options use {"type":"goalMonthly","name":"<short goal name>","value":<2-30, percent of income>}: an emergency fund (3 months of spending is about ${facts.avgMonthlySpend * 3} rupees), saving for something, paying off a debt, or just staying in control as {"type":"none"}.`,
+    '3. topic "commitments": regular bills that are NOT already in FACTS.regularBills (rent, EMI, insurance, subscriptions). Options like {"type":"commitment","name":"Rent","value":null} (value null means the person types the amount next), and "none missing" as {"type":"none"}. Prefer this early when history is short. The app itself asks for the amount right after the person picks a bill and then shows this question again for more bills, so never ask for the amount of a bill in a later question.',
+    facts.income.varies !== false
+      ? '4. topic "steadiness": ask if the income is about the same every month. Options use {"type":"incomeHaircut","value":0|10|25} (0 = steady, 10 = varies a little, 25 = varies a lot), so the plan can use the safer, lower figure.'
+      : '4. skip steadiness: the salary has been steady.',
+    facts.lowHistory
+      ? '5. LOW HISTORY: there is little to learn from, so ask the person. For the main everyday needs (for example Groceries, Transport, Eating out), use topic "estimate:<Category>" and options that are ranges of monthly spend, each with {"type":"estimate","category":"<Category>","value":<middle of that range>}; keep every value below the income. Add one last option to type their own amount: {"type":"estimate","category":"<Category>","value":null}. Never use an estimate topic for rent, EMI or other bills. Be clear that these are estimates the person gave.'
+      : '5. For categories that stand out (a big rise, the biggest everyday spend) use the category name as topic and {"type":"categoryChange","category":"<exact name from FACTS.everyday>","value":-50..30}. "keep as is" is {"type":"none"}.',
+    '6. topic "savings": exactly once, within the first four questions: {"type":"savePercent","value":0-40}. topic "buffer" may offer {"type":"bufferPercent","value":0-15}.',
+    'Never call something a salary unless its category or label says so (see recentCredits).',
+    'Effects allowed: setIncome, incomeHaircut, goalMonthly, commitment, estimate, categoryChange, savePercent, keepFixed (topic "bills"), bufferPercent, none.',
     'Reply with ONLY JSON, no markdown:',
     '{"done":false,"topic":"...","question":"...","options":[{"label":"...","effect":{...}}]}',
-    'or, when you have enough: {"done":true,"note":"one friendly sentence on what you set up, using only numbers from FACTS"}',
+    'or, when you have enough: {"done":true,"note":"one friendly sentence on what you set up, using only numbers from FACTS or what the person told you"}',
   ].join('\n');
 }
 
 export function userPrompt(facts: GuideFacts, transcript: TranscriptItem[], focus?: string): string {
-  const must = focus ? `
-The next question MUST be about the topic "${focus}".` : '';
+  const must = focus ? `\nThe next question MUST be about the topic "${focus}".\n` : '';
   return `${must}FACTS:\n${JSON.stringify(facts)}\n\nTRANSCRIPT (already asked and answered):\n${JSON.stringify(transcript)}\n\nReply with the next JSON.`;
 }
 
 const clamp = (n: unknown, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(Number(n))));
+const nameOf = (v: unknown) => (typeof v === 'string' ? v.replace(/[\r\n\t]+/g, ' ').trim().slice(0, 30) : '');
 
-export function cleanEffect(raw: unknown, categories: Set<string>, incomes: Set<number> = new Set()): GuideEffect {
+export interface EffectLimits {
+  categories: Set<string>;
+  incomes: Set<number>;
+  /** Income being planned: an estimate or bill can never exceed it. */
+  income: number;
+}
+
+const NO_LIMITS: EffectLimits = { categories: new Set(), incomes: new Set(), income: 0 };
+
+export function cleanEffect(raw: unknown, lim: EffectLimits = NO_LIMITS): GuideEffect {
   const e = (raw ?? {}) as Record<string, unknown>;
+  const num = Number(e.value);
   switch (e.type) {
     case 'savePercent':
-      return Number.isFinite(Number(e.value)) ? { type: 'savePercent', value: clamp(e.value, 0, 40) } : { type: 'none' };
+      return Number.isFinite(num) ? { type: 'savePercent', value: clamp(num, 0, 40) } : { type: 'none' };
     case 'keepFixed':
-      return { type: 'keepFixed', value: Number(e.value) ? 1 : 0 };
+      return { type: 'keepFixed', value: num ? 1 : 0 };
     case 'bufferPercent':
-      return Number.isFinite(Number(e.value)) ? { type: 'bufferPercent', value: clamp(e.value, 0, 15) } : { type: 'none' };
+      return Number.isFinite(num) ? { type: 'bufferPercent', value: clamp(num, 0, 15) } : { type: 'none' };
+    case 'incomeHaircut':
+      return Number.isFinite(num) ? { type: 'incomeHaircut', value: clamp(num, 0, 30) } : { type: 'none' };
+    case 'goalMonthly': {
+      const name = nameOf(e.name);
+      return name && Number.isFinite(num) ? { type: 'goalMonthly', name, value: clamp(num, 2, 30) } : { type: 'none' };
+    }
+    case 'commitment': {
+      const name = nameOf(e.name);
+      if (!name) return { type: 'none' };
+      if (e.value === null || e.value === undefined) return { type: 'commitment', name, value: null };
+      return Number.isFinite(num) && num > 0 && (lim.income <= 0 || num <= lim.income) ? { type: 'commitment', name, value: round(num) } : { type: 'commitment', name, value: null };
+    }
+    case 'estimate': {
+      const category = nameOf(e.category);
+      if (!category) return { type: 'none' };
+      if (e.value === null || e.value === undefined) return { type: 'estimate', category, value: null };
+      return Number.isFinite(num) && num >= 0 && (lim.income <= 0 || num <= lim.income) ? { type: 'estimate', category, value: round(num) } : { type: 'none' };
+    }
     case 'setIncome': {
-      const v = Math.round(Number(e.value));
-      return Number.isFinite(v) && [...incomes].some((a) => Math.abs(a - v) <= 1) ? { type: 'setIncome', value: v } : { type: 'none' };
+      const v = Math.round(num);
+      return Number.isFinite(v) && [...lim.incomes].some((a) => Math.abs(a - v) <= 1) ? { type: 'setIncome', value: v } : { type: 'none' };
     }
     case 'categoryChange':
-      return typeof e.category === 'string' && categories.has(e.category) && Number.isFinite(Number(e.value))
-        ? { type: 'categoryChange', category: e.category, value: clamp(e.value, -50, 30) }
+      return typeof e.category === 'string' && lim.categories.has(e.category) && Number.isFinite(num)
+        ? { type: 'categoryChange', category: e.category, value: clamp(num, -50, 30) }
         : { type: 'none' };
     default:
       return { type: 'none' };
@@ -159,14 +218,18 @@ export function cleanEffect(raw: unknown, categories: Set<string>, incomes: Set<
 function fitToTopic(e: GuideEffect, topic: string, categories: Set<string>): GuideEffect {
   const t = topic.toLowerCase();
   if (t === 'income') return e.type === 'setIncome' ? e : { type: 'none' };
+  if (t === 'goal') return e.type === 'goalMonthly' ? e : { type: 'none' };
+  if (t === 'commitments') return e.type === 'commitment' ? e : { type: 'none' };
+  if (t === 'steadiness') return e.type === 'incomeHaircut' ? e : { type: 'none' };
   if (t === 'savings') return e.type === 'savePercent' ? e : { type: 'none' };
   if (t === 'bills') return e.type === 'keepFixed' ? e : { type: 'none' };
   if (t === 'buffer') return e.type === 'bufferPercent' ? e : { type: 'none' };
+  if (t.startsWith('estimate:')) return e.type === 'estimate' && e.category.toLowerCase() === t.slice('estimate:'.length).trim() ? e : { type: 'none' };
   return e.type === 'categoryChange' && e.category.toLowerCase() === t && categories.has(topic) ? e : { type: 'none' };
 }
 
 /** Pulls the JSON object out of a model reply (they sometimes wrap it in text or fences) and checks it. Null = unusable. */
-export function parseStep(text: string, categories: Set<string>, asked: TranscriptItem[], incomes: Set<number> = new Set(), requireIncome = false): GuideStep | null {
+export function parseStep(text: string, lim: EffectLimits, asked: TranscriptItem[], requireIncome = false): GuideStep | null {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   if (start < 0 || end <= start) return null;
@@ -188,7 +251,7 @@ export function parseStep(text: string, categories: Set<string>, asked: Transcri
   for (const o of j.options.slice(0, 4)) {
     const r = (o ?? {}) as Record<string, unknown>;
     const label = typeof r.label === 'string' ? r.label.trim().slice(0, 80) : '';
-    if (label) options.push({ label, effect: fitToTopic(cleanEffect(r.effect, categories, incomes), topic, categories) });
+    if (label) options.push({ label, effect: fitToTopic(cleanEffect(r.effect, lim), topic, lim.categories) });
   }
   if (options.length < 2) return null;
   // The first question has to settle the income, with at least one real amount to choose.

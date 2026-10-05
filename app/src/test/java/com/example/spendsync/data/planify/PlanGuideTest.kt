@@ -64,4 +64,39 @@ class PlanGuideTest {
         val r = PlanGuide.build(history, 40000.0, PlanGuide.Answers(true, 10, 0, 0, mapOf("eating out" to -50)))
         assertEquals(1500.0, r.items.first { it.category == "Eating out" }.limit, 50.0) // 3,000 halved, case-insensitive
     }
+
+    @Test
+    fun billsGoalsEstimatesAndHaircutAllShapeThePlanAndStillAddUp() {
+        var a = PlanGuide.Answers(savePercent = 10)
+        a = PlanGuide.apply(a, "commitment", 9000.0, null, "Insurance")
+        a = PlanGuide.apply(a, "goalMonthly", 5.0, null, "Emergency fund")
+        a = PlanGuide.apply(a, "estimate", 4000.0, "Groceries", null)
+        a = PlanGuide.apply(a, "incomeHaircut", 10.0, null, null)
+        val r = PlanGuide.build(history, 40000.0, a)
+        assertEquals(36000.0, r.income, 0.0) // 10% less because the income varies
+        assertEquals(36000.0, r.items.sumOf { it.limit }, 1.0)
+        assertEquals("commitment", r.items.first { it.category == "Insurance" }.basis)
+        assertEquals("goal", r.items.first { it.category == "Emergency fund" }.basis)
+        assertEquals("estimate", r.items.first { it.category == "Groceries" }.basis) // typed figure replaced the history one
+        assertEquals(4000.0, r.items.first { it.category == "Groceries" }.limit, 50.0)
+        assertEquals("history", r.items.first { it.category == "Rent" }.basis)
+    }
+
+    @Test
+    fun aTypedBillReplacesTheSameBillFromHistoryAndGoalsGiveWayBeforeBills() {
+        var a = PlanGuide.apply(PlanGuide.Answers(savePercent = 0), "commitment", 13000.0, null, "rent")
+        a = PlanGuide.apply(a, "goalMonthly", 30.0, null, "Trip")
+        val r = PlanGuide.build(history, 20000.0, a)
+        assertEquals(1, r.items.count { it.category.equals("Rent", true) })
+        assertEquals(13000.0, r.items.first { it.category.equals("Rent", true) }.limit, 0.0)
+        assertTrue(r.items.sumOf { it.limit } <= 20001.0)
+    }
+
+    @Test
+    fun badEffectsAreIgnored() {
+        val a = PlanGuide.Answers()
+        assertEquals(a, PlanGuide.apply(a, "commitment", null, null, "Rent"))
+        assertEquals(a, PlanGuide.apply(a, "estimate", -5.0, "Groceries", null))
+        assertEquals(a, PlanGuide.apply(a, "goalMonthly", 10.0, null, " "))
+    }
 }

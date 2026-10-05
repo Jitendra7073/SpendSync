@@ -244,6 +244,7 @@ fun PlanifyScreen(
                         }
                     },
                     onDelete = { confirmDelete = true },
+                    onTune = { from, to, amount -> scope.launch { applied(financeRepository.movePlanMoney(month, from, to, amount), R.string.pl_moved) } },
                 )
             }
         }
@@ -354,6 +355,7 @@ private fun PlanHome(
     onAddBucket: (String?) -> Unit,
     onToSavings: (PlanViewDto) -> Unit,
     onDelete: () -> Unit,
+    onTune: (from: String, to: String, amount: Double) -> Unit,
 ) {
     val status = plan?.status
     SettingsBackdrop {
@@ -389,6 +391,7 @@ private fun PlanHome(
                             }
                             CountsStrip(status.counts.ok, status.counts.close, status.counts.over, Modifier.introIn(intro, 1))
 
+                            if (status.day >= 15 && status.daysLeft > 0) TuneUpCard(status.buckets, vis, onTune, Modifier.introIn(intro, 2))
                             if (status.unplannedTotal > 0.5) UnplannedCard(status.unplanned.take(3), status.unplannedTotal, vis, { onAddBucket(status.unplanned.firstOrNull()?.category) }, Modifier.introIn(intro, 2))
 
                             listOf("fixed", "spend", "savings").forEach { kind ->
@@ -560,6 +563,35 @@ private fun LeftoverCard(left: Double, vis: AmountVisibilityState, onSavings: ()
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AppButton(tr(R.string.pl_unassigned_savings), onClick = onSavings, size = ButtonSize.Small)
             AppButton(tr(R.string.pl_unassigned_edit), onClick = onChoose, variant = ButtonVariant.Tonal, size = ButtonSize.Small)
+        }
+    }
+}
+
+/**
+ * Halfway through the month, once there is real spending: if a bucket is on course to overshoot and another has
+ * clear room, offer the one-tap move. This is how a thin-history plan gets tuned after a few weeks.
+ */
+@Composable
+private fun TuneUpCard(buckets: List<BucketDto>, vis: AmountVisibilityState, onMove: (String, String, Double) -> Unit, modifier: Modifier = Modifier) {
+    var dismissed by remember { mutableStateOf(false) }
+    val tip = remember(buckets) {
+        val needy = buckets.filter { it.kind == "spend" && it.state != "over" && (it.projected ?: 0.0) > it.limit * 1.1 }.maxByOrNull { (it.projected ?: 0.0) - it.limit }
+        val gap = needy?.let { kotlin.math.ceil(((it.projected ?: 0.0) - it.limit) / 50.0) * 50.0 } ?: 0.0
+        val donor = buckets.filter { it.kind != "fixed" && it.category != needy?.category }
+            .maxByOrNull { it.limit - maxOf(it.spent, it.projected ?: it.spent) }
+        val room = donor?.let { kotlin.math.floor((it.limit - maxOf(it.spent, it.projected ?: it.spent)) / 50.0) * 50.0 } ?: 0.0
+        val amount = minOf(gap, room)
+        if (needy != null && donor != null && amount >= 50.0) Triple(needy, donor, amount) else null
+    }
+    if (tip == null || dismissed) return
+    val (needy, donor, amount) = tip
+    val scheme = MaterialTheme.colorScheme
+    Column(modifier.padding(horizontal = 16.dp).fillMaxWidth().glassCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(tr(R.string.pl_tune_title), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = scheme.primary)
+        Text(tr(R.string.pl_tune_pace, needy.title(), formatInrSafe(vis, needy.projected ?: 0.0), formatInrSafe(vis, needy.limit)), fontSize = 13.sp, color = scheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AppButton(tr(R.string.pl_tune_move, formatInrSafe(vis, amount), donor.title()), onClick = { onMove(donor.category, needy.category, amount); dismissed = true }, size = ButtonSize.Small)
+            AppButton(tr(R.string.pl_tune_not_now), onClick = { dismissed = true }, variant = ButtonVariant.Text, size = ButtonSize.Small)
         }
     }
 }

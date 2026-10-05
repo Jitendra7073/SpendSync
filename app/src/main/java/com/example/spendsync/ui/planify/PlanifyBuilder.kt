@@ -56,6 +56,7 @@ import com.example.spendsync.data.remote.model.SavePlanRequest
 import com.example.spendsync.data.remote.model.SuggestionDto
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.repository.FinanceRepository
+import com.example.spendsync.data.planify.BackTest
 import com.example.spendsync.ui.components.AppButton
 import com.example.spendsync.ui.components.Icon
 import com.example.spendsync.ui.components.AppIconButton
@@ -228,7 +229,20 @@ internal fun PlanBuilder(
                                 if (existing != null) existing.limit = plain((amountOrNull(existing.limit) ?: 0.0) + left)
                                 else items += DraftItem("Savings", "Savings", "savings", plain(left))
                             })
-                            else -> ReviewStep(items, available, planned, left, vis)
+                            else -> ReviewStep(items, available, planned, left, vis) {
+                                BackTestCard(
+                                    rows = items.map { BackTest.Row(it.category, it.kind, amountOrNull(it.limit) ?: 0.0) },
+                                    suggestion = suggestion, month = month, vis = vis,
+                                    say = { id, args -> tr(id, *args.toTypedArray()) },
+                                    onRaise = { category, newLimit ->
+                                        val raised = BackTest.raise(
+                                            items.associate { it.category to (amountOrNull(it.limit) ?: 0.0) },
+                                            items.associate { it.category to it.kind }, category, newLimit, available,
+                                        )
+                                        items.forEach { raised[it.category]?.let { v -> it.limit = plain(v) } }
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -471,7 +485,7 @@ private fun DraftRow(item: DraftItem, vis: AmountVisibilityState, onRemove: () -
 }
 
 @Composable
-private fun ReviewStep(items: List<DraftItem>, available: Double, planned: Double, left: Double, vis: AmountVisibilityState) {
+private fun ReviewStep(items: List<DraftItem>, available: Double, planned: Double, left: Double, vis: AmountVisibilityState, extra: @Composable () -> Unit = {}) {
     val scheme = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         SettingsContentWidth {
@@ -488,6 +502,7 @@ private fun ReviewStep(items: List<DraftItem>, available: Double, planned: Doubl
                     )
                 }
                 if (left < -0.5) Text(tr(R.string.pl_review_soft), fontSize = 13.sp, color = SemanticWarning)
+                extra()
                 listOf("fixed", "spend", "savings").forEach { kind ->
                     val group = items.filter { it.kind == kind }
                     if (group.isNotEmpty()) {

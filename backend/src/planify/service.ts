@@ -207,6 +207,9 @@ export async function loadCredits(userId: string, month: string): Promise<Credit
 }
 
 export interface SuggestionWithIncome extends Suggestion {
+  /** Net spend per category for each month used, oldest first, so the phone can test a draft plan against the past. */
+  monthlySpend: Record<string, number[]>;
+  monthLabels: string[];
   /** What the income was read from ("Enacton Salary"), and how sure we are: this_month > history > largest. */
   incomeLabel: string;
   incomeSource: IncomeGuess['source'];
@@ -218,8 +221,12 @@ export async function suggestFor(userId: string, month: string): Promise<Suggest
   const [history, credits] = await Promise.all([loadHistory(userId, month), loadCredits(userId, month)]);
   const base = suggestPlan(history);
   const guess = guessIncome(credits, month);
+  const monthlySpend: Record<string, number[]> = {};
+  for (const h of history) for (const c of Object.keys(h.byCategory)) monthlySpend[c] ??= history.map((x) => Math.round(x.byCategory[c]?.spent ?? 0));
   return {
     ...base,
+    monthlySpend,
+    monthLabels: history.map((h) => h.month),
     suggestedIncome: guess.income > 0 ? guess.income : base.suggestedIncome,
     incomeLabel: guess.label,
     incomeSource: guess.source,

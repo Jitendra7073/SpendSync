@@ -95,6 +95,9 @@ data class SuggestionDto(
     @SerializedName("incomeSource")    val incomeSource: String = "none",
     @SerializedName("carryOver")       val carryOver: Double = 0.0,
     @SerializedName("carryLabel")      val carryLabel: String = "",
+    /** Net spend per category for each month used (oldest first), to test a draft plan against the past. */
+    @SerializedName("monthlySpend")    val monthlySpend: Map<String, List<Double>> = emptyMap(),
+    @SerializedName("monthLabels")     val monthLabels: List<String> = emptyList(),
 )
 
 data class SuggestedItemDto(
@@ -132,6 +135,7 @@ data class GuideEffectDto(
     @SerializedName("type")     val type: String,
     @SerializedName("value")    val value: Double? = null,
     @SerializedName("category") val category: String? = null,
+    @SerializedName("name")     val name: String? = null,
 )
 
 data class GuideOptionDto(

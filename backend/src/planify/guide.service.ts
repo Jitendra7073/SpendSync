@@ -1,6 +1,6 @@
 import { sharedRouter } from '../assistant/loop';
 import { AllProvidersFailed } from '../assistant/llm/router';
-import { allowedIncomes, buildFacts, MAX_QUESTIONS, parseStep, systemPrompt, userPrompt, type GuideStep, type TranscriptItem } from './guide';
+import { allowedIncomes, buildFacts, maxQuestions, parseStep, systemPrompt, userPrompt, type GuideStep, type TranscriptItem } from './guide';
 import { guessIncome } from './income';
 import { loadCredits, loadHistory } from './service';
 import { suggestPlan } from './suggest';
@@ -22,32 +22,33 @@ async function askModel(system: string, user: string): Promise<{ text: string; m
 /**
  * Next step of the AI guide. Returns the model's next question (checked and cleaned), or "done", or
  * `basic` when no model could answer, in which case the phone falls back to its built-in questions.
+ * With little or no history the guide still works: it asks the person for estimates instead of reading them.
  */
 export async function guideNext(userId: string, input: { month: string; income: number; language: string; transcript: TranscriptItem[]; focus?: string }): Promise<GuideReply> {
-  if (input.transcript.length >= MAX_QUESTIONS && !input.focus) return { source: 'ai', model: '', done: true, note: null };
-
   const [history, credits] = await Promise.all([loadHistory(userId, input.month), loadCredits(userId, input.month)]);
-  if (history.length === 0) return { source: 'basic', reason: 'no history' };
   const fixed = new Set(suggestPlan(history).items.filter((i) => i.kind === 'fixed').map((i) => i.category));
   const guess = guessIncome(credits, input.month);
   const facts = buildFacts(history, input.income, fixed, credits, guess);
-  const incomes = allowedIncomes(facts);
+  if (input.transcript.length >= maxQuestions(facts) && !input.focus) return { source: 'ai', model: '', done: true, note: null };
+
+  const limits = {
+    categories: new Set(facts.everyday.map((e) => e.category)),
+    incomes: allowedIncomes(facts),
+    income: Math.max(input.income, guess.income + guess.carryOver),
+  };
   const requireIncome = input.transcript.length === 0 && !input.focus && facts.income.detected !== null;
-  const categories = new Set(facts.everyday.map((e) => e.category));
+  // Enough answers to build a decent plan from; a model hiccup after this just ends the questions.
+  const enough = input.transcript.length >= (facts.lowHistory ? 5 : 3);
 
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const { text, model } = await askModel(systemPrompt(input.language), userPrompt(facts, input.transcript, input.focus));
-      const step = parseStep(text, categories, input.transcript, incomes, requireIncome);
+      const { text, model } = await askModel(systemPrompt(input.language, facts), userPrompt(facts, input.transcript, input.focus));
+      const step = parseStep(text, limits, input.transcript, requireIncome);
       if (step) return { source: 'ai', model, ...step };
     }
-    // Three or more answers are enough to build from, so a model hiccup then just ends the questions.
-    if (input.transcript.length >= 3) return { source: 'ai', model: '', done: true, note: null };
-    return { source: 'basic', reason: 'unusable model output' };
+    return enough ? { source: 'ai', model: '', done: true, note: null } : { source: 'basic', reason: 'unusable model output' };
   } catch (e) {
-    if (e instanceof AllProvidersFailed) {
-      return input.transcript.length >= 3 ? { source: 'ai', model: '', done: true, note: null } : { source: 'basic', reason: 'no model available' };
-    }
+    if (e instanceof AllProvidersFailed) return enough ? { source: 'ai', model: '', done: true, note: null } : { source: 'basic', reason: 'no model available' };
     throw e;
   }
 }

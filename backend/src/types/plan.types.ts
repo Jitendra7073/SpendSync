@@ -47,6 +47,6 @@ export const guideSchema = z.object({
   focus: z.string().max(60).optional(),
   transcript: z
     .array(z.object({ topic: z.string().max(60), question: z.string().max(240), answer: z.string().max(100) }))
-    .max(8)
+    .max(10)
     .default([]),
 });

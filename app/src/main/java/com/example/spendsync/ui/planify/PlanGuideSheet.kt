@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spendsync.R
+import com.example.spendsync.data.planify.BackTest
 import com.example.spendsync.data.planify.PlanGuide
 import com.example.spendsync.data.remote.model.GuideQuestionDto
 import com.example.spendsync.data.remote.model.GuideTurnItem
@@ -72,11 +73,14 @@ import com.example.spendsync.ui.i18n.AppLanguage
 import com.example.spendsync.ui.i18n.LanguageManager
 import com.example.spendsync.ui.i18n.categoryLabel
 import com.example.spendsync.ui.shared.AmountVisibilityState
+import com.example.spendsync.ui.theme.SemanticWarning
 import com.example.spendsync.utils.formatInr
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class Q { Fixed, Save, Style, Buffer }
+
+private fun needsAmountNone(e: com.example.spendsync.data.remote.model.GuideEffectDto) = e.type == "none"
 
 private const val ANALYSING = -1
 private const val THINKING = -2
@@ -116,7 +120,7 @@ internal fun PlanGuideSheet(
     var answers by remember { mutableStateOf(PlanGuide.Answers()) }
 
     // AI state: null = still finding out whether the AI will write the questions.
-    var useAi by remember { mutableStateOf<Boolean?>(if (aiAllowed && s.monthsUsed > 0 && income > 0) null else false) }
+    var useAi by remember { mutableStateOf<Boolean?>(if (aiAllowed && income > 0) null else false) }
     val aiQs = remember { mutableStateListOf<GuideQuestionDto>() }
     val transcript = remember { mutableStateListOf<GuideTurnItem>() }
     var aiNote by remember { mutableStateOf<String?>(null) }
@@ -168,15 +172,18 @@ internal fun PlanGuideSheet(
         scope.launch { delay(260); answers = next; picked = -1; go(scr.id + 1) }
     }
 
-    fun pickAi(q: GuideQuestionDto, option: Int) {
-        if (picked >= 0 || translating) return
-        picked = option
-        val o = q.options[option]
+    // An option that needs a number from the person (a bill, an estimate) opens a small amount field.
+    var pendingInput by remember { mutableStateOf<Int?>(null) }
+    var inputText by remember { mutableStateOf("") }
+    // Regular bills: the same question comes back after each one, until the person says that is all.
+    val usedOptions = remember { mutableStateListOf<Int>() }
+    val billLog = remember { mutableStateListOf<String>() }
+
+    fun proceed(q: GuideQuestionDto, answerText: String) {
         scope.launch {
             delay(260)
-            answers = PlanGuide.apply(answers, o.effect.type, o.effect.value, o.effect.category)
-            transcript += GuideTurnItem(q.topic, q.question, o.label)
-            picked = -1
+            transcript += GuideTurnItem(q.topic, q.question, answerText)
+            usedOptions.clear(); billLog.clear(); picked = -1; pendingInput = null; inputText = ""
             asking = true
             go(THINKING)
             val r = (ask() as? AuthResult.Success)?.data
@@ -184,6 +191,36 @@ internal fun PlanGuideSheet(
             val next = r?.question
             if (r != null && r.source == "ai" && !r.done && next != null) { aiQs += next; go(aiQs.lastIndex) }
             else { aiNote = r?.note; go(BUILDING) }
+        }
+    }
+
+    fun needsAmount(e: com.example.spendsync.data.remote.model.GuideEffectDto) = (e.type == "commitment" || e.type == "estimate") && e.value == null
+
+    fun choose(q: GuideQuestionDto, option: Int) {
+        if (picked >= 0 || translating) return
+        val o = q.options[option]
+        if (needsAmount(o.effect)) { pendingInput = option; inputText = ""; return }
+        picked = option
+        answers = PlanGuide.apply(answers, o.effect.type, o.effect.value, o.effect.category, o.effect.name)
+        // "none" on the bills question ends the loop and reports every bill added so far
+        proceed(q, if (q.topic.equals("commitments", true) && billLog.isNotEmpty()) billLog.joinToString("; ") else o.label)
+    }
+
+    fun confirmAmount(q: GuideQuestionDto) {
+        val option = pendingInput ?: return
+        val amount = inputText.replace(",", "").toDoubleOrNull()?.takeIf { it > 0 && it <= income * 3 } ?: return
+        val o = q.options[option]
+        answers = PlanGuide.apply(answers, o.effect.type, amount, o.effect.category, o.effect.name)
+        val what = o.effect.name ?: o.effect.category ?: o.label
+        if (o.effect.type == "commitment") {
+            billLog += "$what ${formatInr(amount)}"
+            usedOptions += option
+            pendingInput = null; inputText = ""
+            // nothing left to add? finish now
+            if (q.options.indices.none { it !in usedOptions && !needsAmountNone(q.options[it].effect) }) proceed(q, billLog.joinToString("; "))
+        } else {
+            picked = option
+            proceed(q, "$what ${formatInr(amount)}")
         }
     }
 
@@ -224,7 +261,7 @@ internal fun PlanGuideSheet(
                 add(g(R.string.pg_an_cats, s.items.size))
                 if (savingsItem != null) add(g(R.string.pg_an_save, money(savingsItem.average)))
             }
-            add(g(if (aiAllowed && s.monthsUsed > 0) R.string.pg_an_ai else R.string.pg_an_prep))
+            add(g(if (aiAllowed) R.string.pg_an_ai else R.string.pg_an_prep))
         }
 
         AnimatedContent(
@@ -249,8 +286,14 @@ internal fun PlanGuideSheet(
                     )
                     sc == SUMMARY -> {
                         val result = remember(answers) { PlanGuide.build(s, income, answers) }
+                        var shownItems by remember(result) { mutableStateOf(result.items) }
+                        val say: Say = { id, args -> g(id, *args.toTypedArray()) }
                         Text(g(R.string.pg_summary_title), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
                         Text(g(R.string.pg_summary_sub, s.monthsUsed), fontSize = 13.sp, color = scheme.onSurfaceVariant)
+                        if (s.monthsUsed < 2) {
+                            Spacer(Modifier.height(10.dp))
+                            Text(g(R.string.pg_starter_note), fontSize = 12.sp, color = SemanticWarning)
+                        }
                         if (aiNote != null) {
                             Spacer(Modifier.height(10.dp))
                             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(scheme.primary.copy(alpha = 0.08f)).padding(12.dp)) {
@@ -259,15 +302,18 @@ internal fun PlanGuideSheet(
                             }
                         }
                         Spacer(Modifier.height(12.dp))
-                        Column(Modifier.fillMaxWidth().glassCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            result.items.forEachIndexed { i, it ->
+                        Column(Modifier.fillMaxWidth().glassCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            shownItems.forEachIndexed { i, it ->
                                 // rows drop in one after another, so the plan seems to be assembled in front of you
                                 var shown by remember { mutableStateOf(false) }
                                 LaunchedEffect(Unit) { delay(70L * i); shown = true }
                                 AnimatedVisibility(shown, enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 2 }) {
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(categoryLabel(it.category), fontSize = 14.sp, color = scheme.onSurface)
-                                        Text(money(it.limit), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = scheme.onSurface)
+                                    Column {
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text(categoryLabel(it.category), fontSize = 14.sp, color = scheme.onSurface)
+                                            Text(money(it.limit), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = scheme.onSurface)
+                                        }
+                                        Text(basisText(it, say), fontSize = 11.sp, color = scheme.onSurfaceVariant)
                                     }
                                 }
                             }
@@ -275,8 +321,17 @@ internal fun PlanGuideSheet(
                         if (result.addedToSavings > 0.5) {
                             Text(g(R.string.pg_summary_extra, money(result.addedToSavings)), fontSize = 13.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
                         }
+                        Spacer(Modifier.height(12.dp))
+                        BackTestCard(
+                            rows = shownItems.map { BackTest.Row(it.category, it.kind, it.limit) },
+                            suggestion = s, month = month, vis = vis, say = say,
+                            onRaise = { category, newLimit ->
+                                val raised = BackTest.raise(shownItems.associate { it.category to it.limit }, shownItems.associate { it.category to it.kind }, category, newLimit, result.income)
+                                shownItems = shownItems.map { it.copy(limit = raised[it.category] ?: it.limit) }.filter { it.limit > 0.5 }
+                            },
+                        )
                         Spacer(Modifier.height(16.dp))
-                        AppButton(g(R.string.pg_use), onClick = { onApply(result) }, size = ButtonSize.Large, fullWidth = true)
+                        AppButton(g(R.string.pg_use), onClick = { onApply(result.copy(items = shownItems)) }, size = ButtonSize.Large, fullWidth = true)
                         if (useAi != true) AppButton(g(R.string.back), onClick = { go(staticQs.lastIndex, back = true) }, variant = ButtonVariant.Text, fullWidth = true)
                         if (useAi == true && aiModel != null) Text(g(R.string.pg_ai_badge, aiModel!!), fontSize = 11.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
                     }
@@ -290,7 +345,37 @@ internal fun PlanGuideSheet(
                             LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(), color = scheme.primary, trackColor = scheme.outlineVariant)
                         }
                         Spacer(Modifier.height(16.dp))
-                        Question(q.question, picked, q.options.mapIndexed { i, o -> safeText(vis, o.label) to { pickAi(q, i) } }, textFilter = { safeText(vis, it) })
+                        val moreBills = q.topic.equals("commitments", true) && billLog.isNotEmpty()
+                        val optionIdx = q.options.indices.filter { it !in usedOptions }
+                        val pendingOpt = pendingInput
+                        if (pendingOpt != null) {
+                            val o = q.options[pendingOpt]
+                            Text(g(R.string.pg_input_for, o.effect.name ?: o.effect.category ?: o.label), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
+                            Spacer(Modifier.height(14.dp))
+                            com.example.spendsync.ui.components.AppTextField(
+                                value = inputText,
+                                onValueChange = { inputText = it.filter { c -> c.isDigit() } },
+                                label = g(R.string.pg_input_hint),
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                AppButton(g(R.string.back), onClick = { pendingInput = null }, variant = ButtonVariant.Outline, modifier = Modifier.weight(1f))
+                                AppButton(g(R.string.pg_input_ok), onClick = { confirmAmount(q) }, enabled = (inputText.toDoubleOrNull() ?: 0.0) > 0, modifier = Modifier.weight(1f))
+                            }
+                        } else {
+                            Question(
+                                if (moreBills) g(R.string.pg_bills_more) else q.question,
+                                picked,
+                                optionIdx.map { i ->
+                                    val o = q.options[i]
+                                    val label = if (moreBills && o.effect.type == "none") g(R.string.pg_bills_done) else o.label
+                                    safeText(vis, label) to { choose(q, i) }
+                                },
+                                textFilter = { safeText(vis, it) },
+                            )
+                        }
                         if (aiModel != null) Text(g(R.string.pg_ai_badge, aiModel!!), fontSize = 11.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
                     }
                     sc in staticQs.indices -> {
