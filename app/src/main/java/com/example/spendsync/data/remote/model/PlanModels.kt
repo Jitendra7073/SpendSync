@@ -13,6 +13,33 @@ data class PlanViewDto(
     @SerializedName("income")    val income: Double,
     @SerializedName("carryOver") val carryOver: Double,
     @SerializedName("status")    val status: PlanStatusDto,
+    /** Spending the user confirmed also counts in a bucket (Food counts in Eating out). */
+    @SerializedName("aliases")   val aliases: List<AliasDto> = emptyList(),
+    /** Yes/No questions about spending that looks like it belongs in a bucket. */
+    @SerializedName("matches")   val matches: List<MatchDto> = emptyList(),
+)
+
+data class AliasDto(
+    @SerializedName("bucket") val bucket: String,
+    @SerializedName("kind")   val kind: String, // category | merchant
+    @SerializedName("key")    val key: String,
+    @SerializedName("label")  val label: String,
+)
+
+data class MatchDto(
+    @SerializedName("bucket") val bucket: String,
+    @SerializedName("kind")   val kind: String,
+    @SerializedName("key")    val key: String,
+    @SerializedName("label")  val label: String,
+    @SerializedName("count")  val count: Int,
+    @SerializedName("total")  val total: Double,
+)
+
+data class MatchAnswerRequest(
+    @SerializedName("bucket")  val bucket: String,
+    @SerializedName("kind")    val kind: String,
+    @SerializedName("label")   val label: String,
+    @SerializedName("verdict") val verdict: String, // yes | no | forget
 )
 
 data class PlanStatusDto(

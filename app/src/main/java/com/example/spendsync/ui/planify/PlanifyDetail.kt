@@ -74,12 +74,13 @@ internal fun BucketDetailPage(
     onMove: () -> Unit,
     onRemove: () -> Unit,
     onViewTransaction: (TransactionDto) -> Unit,
+    onForget: (com.example.spendsync.data.remote.model.AliasDto) -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
     val color = stateColor(bucket.state)
     val progress = animatedFraction((bucket.percent / 100.0).toFloat().coerceIn(0f, 1f))
     var confirmRemove by remember { mutableStateOf(false) }
-    val txs = remember(monthTxs, bucket.category) { monthTxs.filter { it.category == bucket.category }.take(12) }
+    val txs = remember(monthTxs, bucket.category, plan.aliases) { monthTxs.filter { com.example.spendsync.data.planify.PlanMath.belongs(plan, bucket.category, it.category, it.merchant) }.take(12) }
     val isCurrent = YearMonth.from(month) == YearMonth.now()
     val status = plan.status
 
@@ -99,7 +100,7 @@ internal fun BucketDetailPage(
                         }
                         if (bucket.kind == "spend" && bucket.limit > 0.0) {
                             PaceCard(
-                                debits = monthTxs.filter { it.type == "debit" && it.category == bucket.category },
+                                debits = monthTxs.filter { it.type == "debit" && com.example.spendsync.data.planify.PlanMath.belongs(plan, bucket.category, it.category, it.merchant) },
                                 month = month, budget = bucket.limit, vis = vis, modifier = Modifier.cascadeIn(1),
                             )
                         }
@@ -132,6 +133,18 @@ internal fun BucketDetailPage(
                         Row(Modifier.padding(horizontal = 16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             AppButton(tr(R.string.pl_edit_limit), onClick = onEditLimit, variant = ButtonVariant.Tonal, modifier = Modifier.weight(1f))
                             if (canMove) AppButton(tr(R.string.pl_move_title), onClick = onMove, variant = ButtonVariant.Outline, modifier = Modifier.weight(1f))
+                        }
+                        val mine = plan.aliases.filter { it.bucket == bucket.category }
+                        if (mine.isNotEmpty()) {
+                            Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(tr(R.string.pl_alias_title), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant)
+                                mine.forEach { a ->
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        Text(if (a.kind == "merchant") tr(R.string.pl_alias_merchant, a.label) else a.label, fontSize = 14.sp, color = scheme.onSurface, modifier = Modifier.weight(1f))
+                                        AppButton(tr(R.string.pl_alias_forget), onClick = { onForget(a) }, variant = ButtonVariant.Text, size = ButtonSize.Small)
+                                    }
+                                }
+                            }
                         }
                         if (txs.isNotEmpty()) {
                             Text(tr(R.string.transactions), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = scheme.onBackground, modifier = Modifier.padding(horizontal = 24.dp))

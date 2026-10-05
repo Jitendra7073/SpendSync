@@ -1,5 +1,6 @@
 package com.example.spendsync.ui.planify
 
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -208,5 +209,36 @@ internal fun PlanVsSpentCard(buckets: List<BucketDto>, vis: AmountVisibilityStat
             plotHeight = 140.dp,
             hint = tr(R.string.tap_a_category_to_compare),
         )
+    }
+}
+
+/**
+ * The small "is this the same thing?" box under a bucket, in the spirit of photo apps asking "is this the same
+ * person?": shown only when spending looks related but is not yet counted, and never for unrelated spending.
+ */
+@Composable
+internal fun MatchBox(m: com.example.spendsync.data.remote.model.MatchDto, vis: AmountVisibilityState, bucketName: String, onAnswer: (String) -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .background(scheme.primary.copy(alpha = 0.08f)).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            if (m.kind == "merchant") tr(R.string.pl_match_q_merchant, m.label, bucketName) else tr(R.string.pl_match_q_category, m.label, bucketName),
+            fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = scheme.onSurface,
+        )
+        Text(tr(R.string.pl_match_sub, m.count, safeText(vis, com.example.spendsync.utils.formatInr(m.total))), fontSize = 11.sp, color = scheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+            AppButton(tr(R.string.pl_match_yes), onClick = { onAnswer("yes") }, size = ButtonSize.Small)
+            AppButton(tr(R.string.pl_match_no), onClick = { onAnswer("no") }, variant = ButtonVariant.Text, size = ButtonSize.Small)
+        }
+    }
+}
+
+@Composable
+internal fun CreateCategoryRow(onCreate: () -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
+        AppButton(tr(R.string.pl_cat_create), onClick = onCreate, variant = ButtonVariant.Tonal, size = ButtonSize.Small, leadingIcon = androidx.compose.material.icons.Icons.Filled.Add)
     }
 }

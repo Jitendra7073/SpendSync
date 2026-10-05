@@ -270,6 +270,10 @@ class FinanceRepository(
         AuthResult.Error(e.toUserMessage())
     }
 
+    /** The user's Yes/No (or "forget") on whether some spending belongs in a bucket. Returns the refreshed plan. */
+    suspend fun answerPlanMatch(month: String, request: MatchAnswerRequest, today: String = java.time.LocalDate.now().toString()): AuthResult<PlanViewDto> =
+        planCall { api.answerPlanMatch(getAuthHeader(), month, today, request) }.also { if (it is AuthResult.Success) cacheInvalidate("plan", "budgets", "dashboard") }
+
     /** One turn of the AI planning guide. */
     suspend fun planGuide(request: GuideTurnRequest): AuthResult<GuideTurnDto> = try {
         val response = api.planGuide(getAuthHeader(), request)

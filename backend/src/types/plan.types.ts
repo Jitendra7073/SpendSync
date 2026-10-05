@@ -50,3 +50,11 @@ export const guideSchema = z.object({
     .max(10)
     .default([]),
 });
+
+/** The user's answer to "does Food belong in Eating out?". `forget` removes an earlier answer. */
+export const matchSchema = z.object({
+  bucket: z.string().trim().min(1).max(100),
+  kind: z.enum(['category', 'merchant']),
+  label: z.string().trim().min(1).max(100),
+  verdict: z.enum(['yes', 'no', 'forget']),
+});

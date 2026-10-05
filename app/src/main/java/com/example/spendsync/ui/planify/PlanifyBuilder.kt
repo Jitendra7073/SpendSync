@@ -119,9 +119,11 @@ internal fun PlanBuilder(
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     var showAdd by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
+    var createCategories by remember { mutableStateOf(false) } // off by default: categories are only made when asked
     val aiAllowed by sessionDataStore.assistantConsent.collectAsState(initial = false)
     var suggestion by remember { mutableStateOf<SuggestionDto?>(null) }
     val custom by sessionDataStore.customExpenseCategories.collectAsState(initial = emptyList())
+    val realCategories = remember(custom) { expenseCategories.map { it.label } + custom.map { it.name } }
     val known = remember(custom) { (expenseCategories.map { it.label } + custom.map { it.name } + listOf("Savings", "Other")).distinct() }
 
     fun fill(s: SuggestionDto) {
@@ -200,7 +202,13 @@ internal fun PlanBuilder(
                 },
             )
             when (val r = financeRepository.savePlan(month, req)) {
-                is AuthResult.Success -> onSaved(r.data)
+                is AuthResult.Success -> {
+                    if (createCategories) {
+                        com.example.spendsync.data.planify.SmartCategories.missing(ordered.map { it.category }, realCategories)
+                            .forEach { name -> sessionDataStore.addCustomExpenseCategory(name, com.example.spendsync.data.planify.SmartCategories.iconFor(name)) }
+                    }
+                    onSaved(r.data)
+                }
                 is AuthResult.Error -> toast = ToastMessage(r.message, isError = true)
             }
             saving = false
@@ -230,6 +238,8 @@ internal fun PlanBuilder(
                                 else items += DraftItem("Savings", "Savings", "savings", plain(left))
                             })
                             else -> ReviewStep(items, available, planned, left, vis) {
+                                val toCreate = com.example.spendsync.data.planify.SmartCategories.missing(items.map { it.category }, realCategories)
+                                if (toCreate.isNotEmpty()) CreateCategoriesToggle(toCreate, createCategories) { createCategories = it }
                                 BackTestCard(
                                     rows = items.map { BackTest.Row(it.category, it.kind, amountOrNull(it.limit) ?: 0.0) },
                                     suggestion = suggestion, month = month, vis = vis,
@@ -523,5 +533,22 @@ private fun ReviewLine(label: String, value: String, color: androidx.compose.ui.
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = color)
+    }
+}
+
+/** Off by default. When on, buckets that are not categories yet become categories as the plan is saved. */
+@Composable
+private fun CreateCategoriesToggle(names: List<String>, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().glassCard().clickable { onChange(!checked) }.padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(tr(R.string.pl_cat_toggle_title), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = scheme.onSurface)
+            Text(tr(R.string.pl_cat_toggle_sub, names.joinToString(", ") { categoryLabel(it) }), fontSize = 12.sp, color = scheme.onSurfaceVariant)
+        }
+        androidx.compose.material3.Switch(checked = checked, onCheckedChange = null)
     }
 }

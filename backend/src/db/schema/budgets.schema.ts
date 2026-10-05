@@ -67,3 +67,23 @@ export const planEvents = pgTable('plan_events', {
 });
 
 export type Plan = typeof plans.$inferSelect;
+
+/** What the user told Planify about which spending belongs in a bucket (Yes/No on a suggestion). */
+export const planMatches = pgTable(
+  'plan_matches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    bucket: text('bucket').notNull(), // the bucket's category
+    kind: text('kind').notNull(), // 'category' | 'merchant'
+    key: text('key').notNull(), // normalised category or merchant name
+    label: text('label').notNull(), // as the user knows it
+    verdict: text('verdict').notNull(), // 'yes' | 'no'
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({ onePerPair: unique('plan_matches_unique').on(t.userId, t.bucket, t.kind, t.key) }),
+);
+
+export type PlanMatch = typeof planMatches.$inferSelect;

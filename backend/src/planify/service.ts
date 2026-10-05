@@ -1,8 +1,9 @@
 import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { db } from '../db/index';
-import { budgets, planEvents, plans, transactions } from '../db/schema/index';
+import { budgets, planEvents, planMatches, plans, transactions } from '../db/schema/index';
 import type { MoveInput, SavePlanInput } from '../types/plan.types';
 import { BadRequestError, NotFoundError } from '../utils/errors';
+import { allocate, findCandidates, normalize, type Alias, type Candidate, type Feedback, type TxLite } from './matching';
 import { computeStatus, monthContext, type BucketInput, type BucketKind, type PlanStatus } from './status';
 import { guessIncome, type CreditRow, type IncomeGuess } from './income';
 import { suggestPlan, type MonthHistory, type Suggestion } from './suggest';
@@ -25,21 +26,18 @@ export function previousMonths(month: string, n: number): string[] {
   });
 }
 
-/** Net spend per category for a month: debits minus refunds (credits), never below zero. */
-async function netSpentByCategory(userId: string, month: string): Promise<Record<string, number>> {
-  const { start, end } = monthRange(month);
+/** The month's transactions, as much as matching needs. */
+async function txsBetween(userId: string, start: Date, end: Date): Promise<TxLite[]> {
   const rows = await db
-    .select({
-      category: transactions.category,
-      debit: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'debit' THEN ${transactions.amount}::numeric ELSE 0 END), 0)`,
-      credit: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'credit' THEN ${transactions.amount}::numeric ELSE 0 END), 0)`,
-    })
+    .select({ category: transactions.category, merchant: transactions.merchant, type: transactions.type, amount: transactions.amount })
     .from(transactions)
-    .where(and(eq(transactions.userId, userId), gte(transactions.createdAt, start), lt(transactions.createdAt, end)))
-    .groupBy(transactions.category);
-  const out: Record<string, number> = {};
-  for (const r of rows) out[r.category] = Math.max(0, num(r.debit) - num(r.credit));
-  return out;
+    .where(and(eq(transactions.userId, userId), gte(transactions.createdAt, start), lt(transactions.createdAt, end)));
+  return rows.map((r) => ({ category: r.category ?? '', merchant: r.merchant ?? '', type: r.type, amount: num(r.amount) }));
+}
+
+async function loadFeedback(userId: string): Promise<Feedback[]> {
+  const rows = await db.select().from(planMatches).where(eq(planMatches.userId, userId));
+  return rows.map((r) => ({ bucket: r.bucket, kind: r.kind === 'merchant' ? 'merchant' : 'category', key: r.key, label: r.label, verdict: r.verdict === 'yes' ? 'yes' : 'no' }));
 }
 
 export interface PlanView {
@@ -51,6 +49,10 @@ export interface PlanView {
   income: number;
   carryOver: number;
   status: PlanStatus;
+  /** What the user confirmed also counts in a bucket (Food -> Eating out), so the app can say so. */
+  aliases: Alias[];
+  /** Yes/No questions about spending that looks like it belongs in a bucket. Empty when nothing is unclear. */
+  matches: Candidate[];
 }
 
 export async function loadPlan(userId: string, month: string, today: string): Promise<PlanView> {
@@ -60,7 +62,12 @@ export async function loadPlan(userId: string, month: string, today: string): Pr
     .from(budgets)
     .where(and(eq(budgets.userId, userId), eq(budgets.month, month)))
     .orderBy(budgets.sortOrder, budgets.category);
-  const spent = await netSpentByCategory(userId, month);
+  const { start, end } = monthRange(month);
+  const feedback = await loadFeedback(userId);
+  const aliases: Alias[] = feedback.filter((f) => f.verdict === 'yes').map(({ bucket, kind, key, label }) => ({ bucket, kind, key, label }));
+  const monthTxs = await txsBetween(userId, start, end);
+  const bucketRefs = rows.map((r) => ({ category: r.category, name: r.name ?? r.category, kind: kindOf(r.kind) }));
+  const spent = allocate(monthTxs, bucketRefs, aliases);
 
   const buckets: BucketInput[] = rows.map((r) => ({
     id: r.id,
@@ -81,7 +88,40 @@ export async function loadPlan(userId: string, month: string, today: string): Pr
     income,
     carryOver,
     status: computeStatus({ income, carryOver, buckets, spentByCategory: spent }, monthContext(month, today)),
+    aliases,
+    // Looks around the month (three before, two after) so past and future spending both get asked about.
+    matches: rows.length
+      ? findCandidates(await txsBetween(userId, monthRange(previousMonths(month, 3)[0]).start, monthRange(nextMonths(month, 2)).end), bucketRefs, feedback)
+      : [],
   };
+}
+
+/** The month `n` months after `month`. */
+function nextMonths(month: string, n: number): string {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Records the user's Yes/No on a suggested match (or forgets one), then returns the refreshed plan. */
+export async function answerMatch(
+  userId: string,
+  month: string,
+  input: { bucket: string; kind: 'category' | 'merchant'; label: string; verdict: 'yes' | 'no' | 'forget' },
+  today: string,
+): Promise<PlanView> {
+  const key = normalize(input.label);
+  if (!key) throw new BadRequestError('Nothing to match');
+  const where = and(eq(planMatches.userId, userId), eq(planMatches.bucket, input.bucket), eq(planMatches.kind, input.kind), eq(planMatches.key, key));
+  if (input.verdict === 'forget') {
+    await db.delete(planMatches).where(where);
+  } else {
+    await db
+      .insert(planMatches)
+      .values({ userId, bucket: input.bucket, kind: input.kind, key, label: input.label.trim().slice(0, 100), verdict: input.verdict })
+      .onConflictDoUpdate({ target: [planMatches.userId, planMatches.bucket, planMatches.kind, planMatches.key], set: { verdict: input.verdict } });
+  }
+  return loadPlan(userId, month, today);
 }
 
 /** Saves the income and replaces the month's buckets with exactly the ones given. */

@@ -201,4 +201,18 @@
     <string name="pl_tune_pace">%1$s steuert auf %2$s zu, über dem Limit von %3$s.</string>
     <string name="pl_tune_move">%1$s aus %2$s verschieben</string>
     <string name="pl_tune_not_now">Jetzt nicht</string>
+    <string name="pl_match_q_category">Gehört %1$s zu %2$s?</string>
+    <string name="pl_match_q_merchant">Gehören Ausgaben bei %1$s zu %2$s?</string>
+    <string name="pl_match_sub">%1$d Ausgaben · %2$s</string>
+    <string name="pl_match_yes">Ja, mitzählen</string>
+    <string name="pl_match_no">Nein</string>
+    <string name="pl_match_thanks">Verstanden, ich merke es mir.</string>
+    <string name="pl_alias_title">Zählt hier auch mit</string>
+    <string name="pl_alias_merchant">%1$s (Händler)</string>
+    <string name="pl_alias_forget">Nicht mehr zählen</string>
+    <string name="pl_alias_forgot">Okay, es zählt hier nicht mehr.</string>
+    <string name="pl_cat_toggle_title">Fehlende Kategorien anlegen</string>
+    <string name="pl_cat_toggle_sub">Legt sie als Kategorien an, damit du sie bei einer Ausgabe wählen kannst: %1$s</string>
+    <string name="pl_cat_create">Kategorie anlegen</string>
+    <string name="pl_cat_created">Kategorie angelegt</string>
 </resources>

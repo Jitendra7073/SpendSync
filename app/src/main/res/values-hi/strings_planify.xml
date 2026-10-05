@@ -201,4 +201,18 @@
     <string name="pl_tune_pace">%1$s का खर्च %2$s तक पहुँचता दिख रहा है, जो इसकी %3$s सीमा से ऊपर है।</string>
     <string name="pl_tune_move">%2$s से %1$s ले आएँ</string>
     <string name="pl_tune_not_now">अभी नहीं</string>
+    <string name="pl_match_q_category">क्या %1$s %2$s में आता है?</string>
+    <string name="pl_match_q_merchant">क्या %1$s पर खर्च %2$s में आता है?</string>
+    <string name="pl_match_sub">%1$d खर्च · %2$s</string>
+    <string name="pl_match_yes">हाँ, गिनें</string>
+    <string name="pl_match_no">नहीं</string>
+    <string name="pl_match_thanks">ठीक है, मैं यह याद रखूँगा।</string>
+    <string name="pl_alias_title">यहाँ भी गिना जाता है</string>
+    <string name="pl_alias_merchant">%1$s (दुकान)</string>
+    <string name="pl_alias_forget">गिनना बंद करें</string>
+    <string name="pl_alias_forgot">ठीक है, अब यह यहाँ नहीं गिना जाएगा।</string>
+    <string name="pl_cat_toggle_title">ज़रूरी श्रेणियाँ बनाएँ</string>
+    <string name="pl_cat_toggle_sub">इन्हें श्रेणियों के रूप में जोड़ता है ताकि खर्च जोड़ते समय चुन सकें: %1$s</string>
+    <string name="pl_cat_create">श्रेणी बनाएँ</string>
+    <string name="pl_cat_created">श्रेणी बन गई</string>
 </resources>

@@ -42,8 +42,25 @@ object PlanMath {
         return After(spent, remaining, percent, levelOf(b.kind, b.limit, spent), overBy = if (remaining < 0) -remaining else 0.0)
     }
 
-    fun bucketFor(plan: PlanViewDto?, category: String): BucketDto? =
-        plan?.status?.buckets?.firstOrNull { it.category.equals(category, ignoreCase = true) }
+    /** Lower case, letters and digits only, single spaces: the same form the server stores match keys in. */
+    fun norm(s: String): String = s.lowercase().replace(Regex("[^\\p{L}\\p{N}\\s]"), " ").replace(Regex("\\s+"), " ").trim()
+
+    /** The bucket a spend in [category] counts toward: its own bucket, else one the user confirmed it belongs in. */
+    fun bucketFor(plan: PlanViewDto?, category: String): BucketDto? {
+        val buckets = plan?.status?.buckets ?: return null
+        buckets.firstOrNull { it.category.equals(category, ignoreCase = true) }?.let { return it }
+        val alias = plan.aliases.firstOrNull { it.kind == "category" && it.key == norm(category) } ?: return null
+        return buckets.firstOrNull { it.category == alias.bucket }
+    }
+
+    /** Whether a transaction counts toward [bucket]: by its category, a confirmed merchant, or a confirmed category. */
+    fun belongs(plan: PlanViewDto, bucket: String, category: String, merchant: String): Boolean {
+        if (category.equals(bucket, ignoreCase = true)) return true
+        if (plan.status.buckets.any { it.category.equals(category, ignoreCase = true) }) return false // another bucket owns it
+        val m = norm(merchant)
+        val c = norm(category)
+        return plan.aliases.any { it.bucket == bucket && ((it.kind == "merchant" && it.key == m) || (it.kind == "category" && it.key == c)) }
+    }
 
     /** Result of deciding whether to notify: what to show (or null), and what to remember for next time. */
     data class AlertDecision(val fire: Level?, val notified: Level, val overDay: String?)

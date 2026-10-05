@@ -201,4 +201,18 @@
     <string name="pl_tune_pace">%1$s va camino de %2$s, por encima de su límite de %3$s.</string>
     <string name="pl_tune_move">Mover %1$s de %2$s</string>
     <string name="pl_tune_not_now">Ahora no</string>
+    <string name="pl_match_q_category">¿%1$s pertenece a %2$s?</string>
+    <string name="pl_match_q_merchant">¿Los gastos en %1$s pertenecen a %2$s?</string>
+    <string name="pl_match_sub">%1$d gastos · %2$s</string>
+    <string name="pl_match_yes">Sí, contarlo</string>
+    <string name="pl_match_no">No</string>
+    <string name="pl_match_thanks">Entendido, lo recordaré.</string>
+    <string name="pl_alias_title">También cuenta aquí</string>
+    <string name="pl_alias_merchant">%1$s (comercio)</string>
+    <string name="pl_alias_forget">Dejar de contar</string>
+    <string name="pl_alias_forgot">De acuerdo, ya no cuenta aquí.</string>
+    <string name="pl_cat_toggle_title">Crear las categorías que faltan</string>
+    <string name="pl_cat_toggle_sub">Las añade como categorías para elegirlas al registrar un gasto: %1$s</string>
+    <string name="pl_cat_create">Crear categoría</string>
+    <string name="pl_cat_created">Categoría creada</string>
 </resources>

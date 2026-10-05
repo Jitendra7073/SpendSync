@@ -184,6 +184,11 @@ fun PlanifyScreen(
     }
 
     val custom by sessionDataStore.customExpenseCategories.collectAsState(initial = emptyList())
+    // Categories the user can actually pick: the built-in ones plus their own (not the plan-only "Savings"/"Other").
+    val realCategories = remember(custom) { expenseCategories.map { it.label } + custom.map { it.name } }
+    val missing = remember(plan, realCategories) {
+        com.example.spendsync.data.planify.SmartCategories.missing(plan?.status?.buckets?.map { it.category }.orEmpty(), realCategories).toSet()
+    }
     val known = remember(custom) { (expenseCategories.map { it.label } + custom.map { it.name } + listOf("Savings", "Other")).distinct() }
 
     ToastHost(toast = toast, onDismiss = { toast = null }) {
@@ -219,6 +224,9 @@ fun PlanifyScreen(
                             onMove = { moveSheet = Triple(b.category, null, null) },
                             onRemove = { page = Page.Home; saveWith(p, R.string.pl_bucket_removed) { items -> items.filter { it.category != b.category } } },
                             onViewTransaction = onViewTransaction,
+                            onForget = { a ->
+                                scope.launch { applied(financeRepository.answerPlanMatch(month, com.example.spendsync.data.remote.model.MatchAnswerRequest(a.bucket, a.kind, a.label, "forget")), R.string.pl_alias_forgot) }
+                            },
                         )
                     } else page = Page.Home
                 }
@@ -244,6 +252,16 @@ fun PlanifyScreen(
                         }
                     },
                     onDelete = { confirmDelete = true },
+                    missingCategories = missing,
+                    onCreateCategory = { name ->
+                        scope.launch {
+                            sessionDataStore.addCustomExpenseCategory(name, com.example.spendsync.data.planify.SmartCategories.iconFor(name))
+                            toast = ToastMessage(tr(R.string.pl_cat_created), isError = false)
+                        }
+                    },
+                    onAnswerMatch = { m, verdict ->
+                        scope.launch { applied(financeRepository.answerPlanMatch(month, com.example.spendsync.data.remote.model.MatchAnswerRequest(m.bucket, m.kind, m.label, verdict)), R.string.pl_match_thanks) }
+                    },
                     onTune = { from, to, amount -> scope.launch { applied(financeRepository.movePlanMoney(month, from, to, amount), R.string.pl_moved) } },
                 )
             }
@@ -356,6 +374,9 @@ private fun PlanHome(
     onToSavings: (PlanViewDto) -> Unit,
     onDelete: () -> Unit,
     onTune: (from: String, to: String, amount: Double) -> Unit,
+    missingCategories: Set<String>,
+    onCreateCategory: (String) -> Unit,
+    onAnswerMatch: (com.example.spendsync.data.remote.model.MatchDto, String) -> Unit,
 ) {
     val status = plan?.status
     SettingsBackdrop {
@@ -400,6 +421,10 @@ private fun PlanHome(
                                     HomeSectionHeader(groupTitle(kind))
                                     group.forEach { b ->
                                         BucketCard(b, vis, onClick = { onOpenBucket(b) }, onFix = if (b.state == "over") ({ onFix(b) }) else null)
+                                        plan.matches.firstOrNull { it.bucket == b.category }?.let { m ->
+                                            MatchBox(m, vis, b.title(), onAnswer = { v -> onAnswerMatch(m, v) })
+                                        }
+                                        if (b.category in missingCategories) CreateCategoryRow({ onCreateCategory(b.category) })
                                     }
                                 }
                             }
