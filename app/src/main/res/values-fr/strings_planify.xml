@@ -58,7 +58,7 @@
     <string name="pl_last_month">Mois dernier %1$s</string>
     <string name="pl_remove">Retirer</string>
     <string name="pl_rest_to_savings">Mettre le reste (%1$s) en épargne</string>
-    <string name="pl_use_history">Suggérer d\'après mon historique</string>
+    <string name="pl_use_history">Suggérer avec l\'IA d\'après mon historique</string>
     <string name="pl_review_title">Un dernier coup d\'œil</string>
     <string name="pl_review_money">Somme à planifier</string>
     <string name="pl_review_planned">Prévu dans les enveloppes</string>
@@ -103,4 +103,10 @@
     <string name="pl_line_reached">%1$s : cela épuise la limite</string>
     <string name="pl_line_over">%1$s : il ne reste que %2$s, cela dépasse de %3$s</string>
     <string name="pl_line_soft">Vous pouvez l\'ajouter quand même. Les limites sont souples.</string>
+    <string name="pl_why_steady">Même facture chaque mois : environ %1$s, sur %2$d mois</string>
+    <string name="pl_why_average">Moyenne de %1$s sur %2$d mois (de %3$s à %4$s)</string>
+    <string name="pl_why_savings">Vous mettez de côté environ %1$s par mois</string>
+    <string name="pl_ai_note">Basé sur vos %1$d derniers mois. Vérifiez chaque chiffre, puis modifiez.</string>
+    <string name="pl_ai_low">Seulement %1$d mois d\'historique : brouillon approximatif.</string>
+    <string name="pl_ai_none">Pas encore assez d\'historique. Ajoutez quelques transactions.</string>
 </resources>

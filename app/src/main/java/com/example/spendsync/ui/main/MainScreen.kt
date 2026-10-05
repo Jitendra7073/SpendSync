@@ -185,7 +185,8 @@ fun MainScreen(
             // or its own bottom controls: full-screen overlays (add expense, holds, assistant) and the
             // on-screen keyboard. It slides away instead of popping.
             val keyboardOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-            val barVisible = selectedRoute != BottomNavItem.Assistant.route && !expenseOverlayVisible && !showHolds && !keyboardOpen
+            val planifyCovers by com.example.spendsync.notifications.PlanifyLinks.coversBottomBar.collectAsState()
+            val barVisible = selectedRoute != BottomNavItem.Assistant.route && !(planifyCovers && selectedRoute == BottomNavItem.Planify.route) && !expenseOverlayVisible && !showHolds && !keyboardOpen
             androidx.compose.animation.AnimatedVisibility(
                 visible = barVisible,
                 enter = androidx.compose.animation.slideInVertically(tween(260)) { it } + fadeIn(tween(200)),

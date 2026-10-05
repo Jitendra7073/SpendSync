@@ -58,7 +58,7 @@
     <string name="pl_last_month">Letzten Monat %1$s</string>
     <string name="pl_remove">Entfernen</string>
     <string name="pl_rest_to_savings">Den Rest (%1$s) sparen</string>
-    <string name="pl_use_history">Vorschlag aus meinem Verlauf</string>
+    <string name="pl_use_history">KI-Vorschlag aus meinem Verlauf</string>
     <string name="pl_review_title">Ein letzter Blick</string>
     <string name="pl_review_money">Geld zum Planen</string>
     <string name="pl_review_planned">In Töpfe verteilt</string>
@@ -103,4 +103,10 @@
     <string name="pl_line_reached">%1$s: damit ist das Limit aufgebraucht</string>
     <string name="pl_line_over">%1$s: nur noch %2$s, das sind %3$s zu viel</string>
     <string name="pl_line_soft">Du kannst es trotzdem hinzufügen. Limits sind weich.</string>
+    <string name="pl_why_steady">Jeden Monat gleich: etwa %1$s, in %2$d Monaten</string>
+    <string name="pl_why_average">Durchschnitt %1$s über %2$d Monate (%3$s bis %4$s)</string>
+    <string name="pl_why_savings">Du legst etwa %1$s pro Monat zurück</string>
+    <string name="pl_ai_note">Basiert auf deinen letzten %1$d Monat(en). Prüfe jede Zahl und ändere frei.</string>
+    <string name="pl_ai_low">Nur %1$d Monat(e) Verlauf, daher ein grober Entwurf.</string>
+    <string name="pl_ai_none">Noch zu wenig Verlauf. Füge zuerst ein paar Buchungen hinzu.</string>
 </resources>

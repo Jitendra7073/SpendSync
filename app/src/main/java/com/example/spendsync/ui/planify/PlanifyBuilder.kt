@@ -77,7 +77,7 @@ import com.example.spendsync.utils.formatInr
 import kotlinx.coroutines.launch
 
 /** One editable row of the draft. The limit is text so a half-typed number never fights the keyboard. */
-internal class DraftItem(val category: String, name: String, kind: String, limit: String, val average: Double? = null) {
+internal class DraftItem(val category: String, name: String, kind: String, limit: String, val average: Double? = null, val why: String? = null) {
     var name by mutableStateOf(name)
     var kind by mutableStateOf(kind)
     var limit by mutableStateOf(limit)
@@ -117,7 +117,19 @@ internal fun PlanBuilder(
 
     fun fill(s: SuggestionDto) {
         items.clear()
-        s.items.forEach { items += DraftItem(it.category, it.name, it.kind, plain(it.limit), average = it.average) }
+        s.items.forEach {
+            val why = when (it.reason) {
+                "steady" -> tr(R.string.pl_why_steady, formatInr(it.average), it.monthsSeen)
+                "savings" -> tr(R.string.pl_why_savings, formatInr(it.average))
+                else -> tr(R.string.pl_why_average, formatInr(it.average), it.monthsSeen, formatInr(it.lowest), formatInr(it.highest))
+            }
+            items += DraftItem(it.category, it.name, it.kind, plain(it.limit), average = it.average, why = why)
+        }
+        toast = when {
+            s.items.isEmpty() -> ToastMessage(tr(R.string.pl_ai_none), isError = true)
+            s.confidence == "low" -> ToastMessage(tr(R.string.pl_ai_low, s.monthsUsed), isError = false)
+            else -> ToastMessage(tr(R.string.pl_ai_note, s.monthsUsed), isError = false)
+        }
         suggestedIncome = s.suggestedIncome
         if (income.isBlank() && s.suggestedIncome > 0) income = plain(s.suggestedIncome)
     }
@@ -341,7 +353,9 @@ private fun DraftRow(item: DraftItem, vis: AmountVisibilityState, onRemove: () -
     Row(Modifier.fillMaxWidth().glassCard().padding(start = 14.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(if (item.name == item.category) categoryLabel(item.category) else item.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = scheme.onSurface, maxLines = 1)
-            if (item.average != null && item.average > 0) {
+            if (item.why != null) {
+                Text(safeText(vis, item.why), fontSize = 11.sp, color = scheme.onSurfaceVariant, lineHeight = 14.sp)
+            } else if (item.average != null && item.average > 0) {
                 Text(tr(R.string.pl_last_month, safeText(vis, formatInr(item.average))), fontSize = 11.sp, color = scheme.onSurfaceVariant)
             }
         }

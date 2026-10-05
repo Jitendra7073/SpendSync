@@ -58,7 +58,7 @@
     <string name="pl_last_month">Last month %1$s</string>
     <string name="pl_remove">Remove</string>
     <string name="pl_rest_to_savings">Put the rest (%1$s) in savings</string>
-    <string name="pl_use_history">Suggest from my history</string>
+    <string name="pl_use_history">Suggest with AI from my history</string>
     <string name="pl_review_title">One last look</string>
     <string name="pl_review_money">Money to plan</string>
     <string name="pl_review_planned">Planned in buckets</string>
@@ -103,4 +103,10 @@
     <string name="pl_line_reached">%1$s: this uses up the limit</string>
     <string name="pl_line_over">%1$s: only %2$s left, this goes %3$s over</string>
     <string name="pl_line_soft">You can still add it. Limits are soft.</string>
+    <string name="pl_why_steady">Same bill every month: about %1$s, seen in %2$d months</string>
+    <string name="pl_why_average">Averaged %1$s over %2$d months (from %3$s to %4$s)</string>
+    <string name="pl_why_savings">You set aside about %1$s a month</string>
+    <string name="pl_ai_note">Built from your last %1$d month(s). Check each number, then edit freely.</string>
+    <string name="pl_ai_low">Only %1$d month(s) of history, so this is a rough draft.</string>
+    <string name="pl_ai_none">Not enough history yet. Add a few transactions first.</string>
 </resources>

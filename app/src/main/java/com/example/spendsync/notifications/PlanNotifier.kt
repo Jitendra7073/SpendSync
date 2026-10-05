@@ -26,6 +26,9 @@ object PlanifyLinks {
     const val BUILD = "build" // go to Planify and start the plan builder
 
     val pending = MutableStateFlow<String?>(null)
+
+    /** True while a Planify page with its own bottom buttons (builder, bucket detail) is open: the nav bar steps aside. */
+    val coversBottomBar = MutableStateFlow(false)
 }
 
 /** Posts Planify's own notifications (limit alerts, salary prompt, daily summary, month wrap-up). */

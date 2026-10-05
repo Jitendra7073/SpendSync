@@ -141,6 +141,11 @@ fun PlanifyScreen(
     var intro by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { intro = true }
     BackHandler(enabled = page != Page.Home) { page = Page.Home }
+    val covers = page != Page.Home
+    androidx.compose.runtime.DisposableEffect(covers) {
+        com.example.spendsync.notifications.PlanifyLinks.coversBottomBar.value = covers
+        onDispose { com.example.spendsync.notifications.PlanifyLinks.coversBottomBar.value = false }
+    }
 
     suspend fun load(force: Boolean) {
         when (val r = financeRepository.getPlan(month, today, force)) {

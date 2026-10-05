@@ -58,7 +58,7 @@
     <string name="pl_last_month">पिछले महीने %1$s</string>
     <string name="pl_remove">हटाएँ</string>
     <string name="pl_rest_to_savings">बाकी (%1$s) बचत में डालें</string>
-    <string name="pl_use_history">मेरे इतिहास से सुझाव लें</string>
+    <string name="pl_use_history">मेरे इतिहास से AI सुझाव</string>
     <string name="pl_review_title">एक आखिरी नज़र</string>
     <string name="pl_review_money">योजना के लिए पैसे</string>
     <string name="pl_review_planned">हिस्सों में बाँटा</string>
@@ -103,4 +103,10 @@
     <string name="pl_line_reached">%1$s: इससे सीमा पूरी हो जाएगी</string>
     <string name="pl_line_over">%1$s: सिर्फ़ %2$s बाकी, यह %3$s ज़्यादा होगा</string>
     <string name="pl_line_soft">आप फिर भी जोड़ सकते हैं। सीमाएँ नरम हैं।</string>
+    <string name="pl_why_steady">हर महीने एक जैसा बिल: लगभग %1$s, %2$d महीनों में</string>
+    <string name="pl_why_average">%2$d महीनों का औसत %1$s (%3$s से %4$s तक)</string>
+    <string name="pl_why_savings">आप हर महीने लगभग %1$s अलग रखते हैं</string>
+    <string name="pl_ai_note">आपके पिछले %1$d महीने के आधार पर। हर रकम जाँचें, फिर बदलें।</string>
+    <string name="pl_ai_low">सिर्फ़ %1$d महीने का इतिहास है, इसलिए यह कच्चा मसौदा है।</string>
+    <string name="pl_ai_none">अभी इतिहास काफ़ी नहीं है। पहले कुछ लेन-देन जोड़ें।</string>
 </resources>

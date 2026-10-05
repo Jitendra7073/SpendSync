@@ -17,12 +17,19 @@ export interface SuggestedItem {
   /** What the user spent on average, to show "last month ₹2,350" beside the new number. */
   average: number;
   sortOrder: number;
+  /** Why this number, so the user can check it against their own memory: steady bill, average, or savings. */
+  reason: 'steady' | 'average' | 'savings';
+  monthsSeen: number;
+  lowest: number;
+  highest: number;
 }
 
 export interface Suggestion {
   items: SuggestedItem[];
   suggestedIncome: number;
   monthsUsed: number;
+  /** 'low' with under 2 months of history: the app says the draft is rough. */
+  confidence: 'low' | 'good';
 }
 
 const SAVINGS_WORDS = ['saving', 'savings', 'investment', 'sip', 'emergency', 'fd', 'deposit'];
@@ -42,7 +49,7 @@ const median = (xs: number[]) => {
  */
 export function suggestPlan(history: MonthHistory[]): Suggestion {
   const n = history.length;
-  if (n === 0) return { items: [], suggestedIncome: 0, monthsUsed: 0 };
+  if (n === 0) return { items: [], suggestedIncome: 0, monthsUsed: 0, confidence: 'low' };
 
   const categories = new Set<string>();
   for (const h of history) for (const [c, v] of Object.entries(h.byCategory)) if (v.spent > 0) categories.add(c);
@@ -66,7 +73,11 @@ export function suggestPlan(history: MonthHistory[]): Suggestion {
       kind = 'fixed';
       limit = roundTo(Math.max(...spends), 50);
     }
-    items.push({ category, name: category, kind, limit, average: Math.round(mean), sortOrder: 0 });
+    items.push({
+      category, name: category, kind, limit, average: Math.round(mean), sortOrder: 0,
+      reason: kind === 'savings' ? 'savings' : kind === 'fixed' ? 'steady' : 'average',
+      monthsSeen: months.length, lowest: Math.round(Math.min(...spends)), highest: Math.round(Math.max(...spends)),
+    });
   }
 
   const order: Record<BucketKind, number> = { fixed: 0, spend: 1, savings: 2 };
@@ -74,5 +85,5 @@ export function suggestPlan(history: MonthHistory[]): Suggestion {
   items.forEach((it, i) => (it.sortOrder = i));
 
   const salaries = history.map((h) => (h.credits.length ? Math.max(...h.credits) : 0)).filter((x) => x > 0);
-  return { items, suggestedIncome: salaries.length ? roundTo(median(salaries), 100) : 0, monthsUsed: n };
+  return { items, suggestedIncome: salaries.length ? roundTo(median(salaries), 100) : 0, monthsUsed: n, confidence: n >= 2 ? 'good' : 'low' };
 }

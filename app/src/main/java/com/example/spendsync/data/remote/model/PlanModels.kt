@@ -89,6 +89,7 @@ data class SuggestionDto(
     @SerializedName("items")           val items: List<SuggestedItemDto>,
     @SerializedName("suggestedIncome") val suggestedIncome: Double,
     @SerializedName("monthsUsed")      val monthsUsed: Int,
+    @SerializedName("confidence")      val confidence: String = "good",
 )
 
 data class SuggestedItemDto(
@@ -99,4 +100,8 @@ data class SuggestedItemDto(
     /** What was spent on average, shown as "last month" beside the new number. */
     @SerializedName("average")   val average: Double,
     @SerializedName("sortOrder") val sortOrder: Int,
+    @SerializedName("reason")     val reason: String = "average",
+    @SerializedName("monthsSeen") val monthsSeen: Int = 0,
+    @SerializedName("lowest")     val lowest: Double = 0.0,
+    @SerializedName("highest")    val highest: Double = 0.0,
 )

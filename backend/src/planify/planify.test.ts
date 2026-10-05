@@ -136,7 +136,7 @@ describe('suggest a plan from history', () => {
   });
 
   it('copes with no history and with a single month', () => {
-    expect(suggestPlan([])).toEqual({ items: [], suggestedIncome: 0, monthsUsed: 0 });
+    expect(suggestPlan([])).toEqual({ items: [], suggestedIncome: 0, monthsUsed: 0, confidence: 'low' });
     const one = suggestPlan([history[0]]);
     expect(one.items.some((i) => i.category === 'Trip')).toBe(true); // with one month there is nothing to compare against
   });
