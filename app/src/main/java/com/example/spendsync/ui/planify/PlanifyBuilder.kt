@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -55,6 +57,7 @@ import com.example.spendsync.data.remote.model.SuggestionDto
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.components.Icon
 import com.example.spendsync.ui.components.AppIconButton
 import com.example.spendsync.ui.components.AppTextField
 import com.example.spendsync.ui.components.ButtonSize
@@ -112,10 +115,13 @@ internal fun PlanBuilder(
     var saving by remember { mutableStateOf(false) }
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     var showAdd by remember { mutableStateOf(false) }
+    var showGuide by remember { mutableStateOf(false) }
+    var suggestion by remember { mutableStateOf<SuggestionDto?>(null) }
     val custom by sessionDataStore.customExpenseCategories.collectAsState(initial = emptyList())
     val known = remember(custom) { (expenseCategories.map { it.label } + custom.map { it.name } + listOf("Savings", "Other")).distinct() }
 
     fun fill(s: SuggestionDto) {
+        suggestion = s
         items.clear()
         s.items.forEach {
             val why = when (it.reason) {
@@ -141,6 +147,18 @@ internal fun PlanBuilder(
             is AuthResult.Error -> toast = ToastMessage(r.message, isError = true)
         }
         loading = false
+    }
+
+    suspend fun openGuide() {
+        if (suggestion == null) {
+            loading = true
+            (financeRepository.getPlanSuggestions(month) as? AuthResult.Success)?.let {
+                suggestion = it.data
+                if (suggestedIncome == 0.0) suggestedIncome = it.data.suggestedIncome
+            }
+            loading = false
+        }
+        showGuide = true
     }
 
     LaunchedEffect(Unit) {
@@ -182,7 +200,7 @@ internal fun PlanBuilder(
         SettingsBackdrop {
             Column(Modifier.fillMaxSize()) {
                 SettingsTopBar(tr(if (editing) R.string.pl_edit_plan else R.string.pl_build_title), onBack = ::back)
-                StepDots(step)
+                StepHeader(step)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     AnimatedContent(
                         targetState = step,
@@ -194,8 +212,8 @@ internal fun PlanBuilder(
                         label = "builder_step",
                     ) { s ->
                         when (s) {
-                            0 -> IncomeStep(income, { income = it.filter { c -> c.isDigit() || c == '.' } }, carry, { carry = it.filter { c -> c.isDigit() || c == '.' } }, suggestedIncome, loading) { income = plain(suggestedIncome) }
-                            1 -> BucketsStep(items, available, left, loading, vis, editing, onAdd = { showAdd = true }, onRemove = { items.remove(it) }, onUseHistory = { scope.launch { loadSuggestions() } }, onRestToSavings = {
+                            0 -> IncomeStep(income, { income = it.filter { c -> c.isDigit() || c == '.' } }, carry, { carry = it.filter { c -> c.isDigit() || c == '.' } }, suggestedIncome, loading, onGuide = { scope.launch { openGuide() } }) { income = plain(suggestedIncome) }
+                            1 -> BucketsStep(items, available, left, loading, vis, editing, onAdd = { showAdd = true }, onRemove = { items.remove(it) }, onGuide = { scope.launch { openGuide() } }, onRestToSavings = {
                                 val existing = items.firstOrNull { it.category == "Savings" }
                                 if (existing != null) existing.limit = plain((amountOrNull(existing.limit) ?: 0.0) + left)
                                 else items += DraftItem("Savings", "Savings", "savings", plain(left))
@@ -211,7 +229,7 @@ internal fun PlanBuilder(
                 ) {
                     if (step > 0) AppButton(tr(R.string.back), onClick = ::back, variant = ButtonVariant.Outline, size = ButtonSize.Large, modifier = Modifier.weight(1f))
                     AppButton(
-                        text = tr(if (step < 2) R.string.next else R.string.pl_start_plan),
+                        text = tr(when (step) { 0 -> R.string.pl_btn_split; 1 -> R.string.pl_btn_review; else -> R.string.pl_start_plan }),
                         onClick = { if (step < 2) step++ else save() },
                         size = ButtonSize.Large,
                         loading = saving,
@@ -220,6 +238,20 @@ internal fun PlanBuilder(
                     )
                 }
             }
+        }
+        if (showGuide) {
+            val guideIncome = if (available > 0) available else suggestedIncome
+            PlanGuideSheet(
+                suggestion = suggestion, income = guideIncome, vis = vis,
+                onApply = { result ->
+                    items.clear()
+                    result.items.forEach { items += DraftItem(it.category, it.category, it.kind, plain(it.limit), average = it.average.takeIf { a -> a > 0 }) }
+                    if (available <= 0) income = plain(guideIncome)
+                    showGuide = false
+                    step = 1
+                },
+                onDismiss = { showGuide = false },
+            )
         }
         if (showAdd) {
             AddBucketDialog(
@@ -235,13 +267,63 @@ internal fun PlanBuilder(
     }
 }
 
+/** Names the three steps, shows where you are, and says in one line what comes next. */
 @Composable
-private fun StepDots(step: Int) {
+private fun StepHeader(step: Int) {
     val scheme = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        repeat(3) { i ->
-            val color by animateColorAsState(if (i <= step) scheme.primary else scheme.outlineVariant, tween(250), label = "dot")
-            Box(Modifier.weight(1f).height(4.dp).clip(CircleShape).background(color))
+    val names = listOf(R.string.pl_step_money, R.string.pl_step_split, R.string.pl_step_confirm)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            names.forEachIndexed { i, name ->
+                val color by animateColorAsState(if (i <= step) scheme.primary else scheme.outlineVariant, tween(250), label = "dot")
+                Column(Modifier.weight(1f)) {
+                    Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(color))
+                    Text(
+                        "${i + 1}  " + tr(name), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp),
+                        fontWeight = if (i == step) FontWeight.Bold else FontWeight.Normal,
+                        color = if (i == step) scheme.onSurface else scheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        Text(
+            tr(listOf(R.string.pl_next_money, R.string.pl_next_split, R.string.pl_next_confirm)[step]),
+            fontSize = 12.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+}
+
+/** The "let AI guide me" entry: a card, so it is the obvious first choice for someone unsure how to split money. */
+@Composable
+private fun GuideCard(onGuide: () -> Unit, enabled: Boolean) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().glassCard().clickable(enabled = enabled, onClick = onGuide).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(40.dp).clip(CircleShape).background(scheme.primary.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = scheme.primary)
+        }
+        Column(Modifier.weight(1f)) {
+            Text(tr(R.string.pl_ai_guide), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = scheme.onSurface)
+            Text(tr(R.string.pl_ai_guide_sub), fontSize = 12.sp, color = scheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun HowItWorks() {
+    val scheme = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth().glassCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(tr(R.string.pl_how_title), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = scheme.onSurface)
+        listOf(R.string.pl_how_1, R.string.pl_how_2, R.string.pl_how_3).forEachIndexed { i, id ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                Box(Modifier.size(22.dp).clip(CircleShape).background(scheme.primary.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                    Text("${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = scheme.primary)
+                }
+                Text(tr(id), fontSize = 13.sp, color = scheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -254,6 +336,7 @@ private fun IncomeStep(
     onCarry: (String) -> Unit,
     suggested: Double,
     loading: Boolean,
+    onGuide: () -> Unit,
     onUseSuggested: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -263,6 +346,7 @@ private fun IncomeStep(
                 Spacer(Modifier.height(8.dp))
                 Text(tr(R.string.pl_income_title), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = scheme.onBackground)
                 Text(tr(R.string.pl_income_sub), fontSize = 14.sp, color = scheme.onSurfaceVariant)
+                HowItWorks()
                 Column(Modifier.fillMaxWidth().glassCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     AppTextField(
                         value = income, onValueChange = onIncome, label = tr(R.string.pl_income_label),
@@ -277,6 +361,7 @@ private fun IncomeStep(
                         supportingText = tr(R.string.pl_carry_hint),
                     )
                 }
+                GuideCard(onGuide, enabled = !loading)
                 if (loading) Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.padding(end = 10.dp).height(16.dp).width(16.dp), strokeWidth = 2.dp)
                     Text(tr(R.string.pl_reading_history), fontSize = 13.sp, color = scheme.onSurfaceVariant)
@@ -296,7 +381,7 @@ private fun BucketsStep(
     editing: Boolean,
     onAdd: () -> Unit,
     onRemove: (DraftItem) -> Unit,
-    onUseHistory: () -> Unit,
+    onGuide: () -> Unit,
     onRestToSavings: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -335,11 +420,12 @@ private fun BucketsStep(
                             group.forEach { item -> DraftRow(item, vis, onRemove = { onRemove(item) }) }
                         }
                     }
+                    Text(tr(R.string.pl_bucket_explain), fontSize = 12.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
                     if (!loading && items.isEmpty()) Text(tr(R.string.pl_no_buckets), fontSize = 14.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp))
                     Spacer(Modifier.height(6.dp))
                     AppButton(tr(R.string.pl_add_bucket_title), onClick = onAdd, variant = ButtonVariant.Tonal, leadingIcon = Icons.Default.Add, fullWidth = true)
                     if (left > 0.5) AppButton(tr(R.string.pl_rest_to_savings, safeText(vis, formatInr(left))), onClick = onRestToSavings, variant = ButtonVariant.Outline, fullWidth = true)
-                    if (!editing) AppButton(tr(R.string.pl_use_history), onClick = onUseHistory, variant = ButtonVariant.Text, leadingIcon = Icons.Default.AutoAwesome, fullWidth = true, enabled = !loading)
+                    if (!editing) GuideCard(onGuide, enabled = !loading)
                     Spacer(Modifier.height(24.dp))
                 }
             }

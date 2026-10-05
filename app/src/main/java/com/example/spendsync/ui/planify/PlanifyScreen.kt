@@ -138,6 +138,7 @@ fun PlanifyScreen(
     var editLimitFor by remember { mutableStateOf<BucketDto?>(null) }
     var addPreset by remember { mutableStateOf<String?>(null) }
     var showAdd by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     var intro by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { intro = true }
     BackHandler(enabled = page != Page.Home) { page = Page.Home }
@@ -235,6 +236,14 @@ fun PlanifyScreen(
                     onMove = { moveSheet = Triple(null, null, null) },
                     onFix = { overFor = it },
                     onAddBucket = { preset -> addPreset = preset; showAdd = true },
+                    onToSavings = { p ->
+                        saveWith(p) { items ->
+                            val extra = p.status.leftToPlan
+                            if (items.any { it.category == "Savings" }) items.map { if (it.category == "Savings") it.copy(limitAmount = it.limitAmount + extra) else it }
+                            else items + PlanItemRequest("Savings", "Savings", "savings", extra, items.size)
+                        }
+                    },
+                    onDelete = { confirmDelete = true },
                 )
             }
         }
@@ -275,6 +284,20 @@ fun PlanifyScreen(
                     saveWith(p, R.string.pl_limit_raised) { items -> items.map { if (it.category == b.category) it.copy(limitAmount = v) else it } }
                 },
                 onDismiss = { editLimitFor = null },
+            )
+        }
+        if (confirmDelete) {
+            com.example.spendsync.ui.components.AppConfirmDialog(
+                title = tr(R.string.pl_delete_title, monthDate.format(DateTimeFormatter.ofPattern("MMMM yyyy"))),
+                message = tr(R.string.pl_delete_body),
+                confirmLabel = tr(R.string.delete),
+                cancelLabel = tr(R.string.cancel),
+                destructive = true,
+                onConfirm = {
+                    confirmDelete = false
+                    scope.launch { applied(financeRepository.deletePlan(month), R.string.pl_plan_deleted) }
+                },
+                onDismiss = { confirmDelete = false },
             )
         }
         if (showAdd && p != null) {
@@ -329,6 +352,8 @@ private fun PlanHome(
     onMove: () -> Unit,
     onFix: (BucketDto) -> Unit,
     onAddBucket: (String?) -> Unit,
+    onToSavings: (PlanViewDto) -> Unit,
+    onDelete: () -> Unit,
 ) {
     val status = plan?.status
     SettingsBackdrop {
@@ -359,6 +384,9 @@ private fun PlanHome(
                             EmptyPlan(monthDate, previous != null, onBuild, onCopyPrevious, Modifier.introIn(intro, 0))
                         } else if (status != null) {
                             PlanHero(status, plan.income, plan.hasIncome, vis, onEdit, Modifier.introIn(intro, 0))
+                            if (plan.hasIncome && status.leftToPlan > 0.5) {
+                                LeftoverCard(status.leftToPlan, vis, onSavings = { onToSavings(plan) }, onChoose = onEdit, modifier = Modifier.introIn(intro, 1))
+                            }
                             CountsStrip(status.counts.ok, status.counts.close, status.counts.over, Modifier.introIn(intro, 1))
 
                             if (status.unplannedTotal > 0.5) UnplannedCard(status.unplanned.take(3), status.unplannedTotal, vis, { onAddBucket(status.unplanned.firstOrNull()?.category) }, Modifier.introIn(intro, 2))
@@ -385,6 +413,7 @@ private fun PlanHome(
                             }
                             if (status.buckets.isNotEmpty()) PlanVsSpentCard(status.buckets.sortedByDescending { it.percent }, vis)
 
+                            AppButton(tr(R.string.pl_delete_plan), onClick = onDelete, variant = ButtonVariant.Text, modifier = Modifier.padding(horizontal = 16.dp))
                             if (status.daysLeft == 0) ReviewCard(status.planned, status.spentInPlan, status.buckets, vis, onCopyToNext)
                         }
                         Spacer(Modifier.height(110.dp))
@@ -517,5 +546,20 @@ private fun ReviewCard(planned: Double, spent: Double, buckets: List<BucketDto>,
         if (worst != null) Text(tr(R.string.pl_review_worst, worst.title(), formatInrSafe(vis, -worst.remaining)), fontSize = 13.sp, color = SemanticWarning)
         Spacer(Modifier.height(4.dp))
         AppButton(tr(R.string.pl_copy_next), onClick = onCopy, size = ButtonSize.Large, fullWidth = true)
+    }
+}
+
+/** Money that has no bucket yet. Says so plainly and offers the two ways out: savings, or pick buckets. */
+@Composable
+private fun LeftoverCard(left: Double, vis: AmountVisibilityState, onSavings: () -> Unit, onChoose: () -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    Column(modifier.padding(horizontal = 16.dp).fillMaxWidth().glassCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(tr(R.string.pl_unassigned_banner_title, formatInrSafe(vis, left)), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SemanticWarning)
+        Text(tr(R.string.pl_unassigned_banner_body), fontSize = 13.sp, color = scheme.onSurfaceVariant)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AppButton(tr(R.string.pl_unassigned_savings), onClick = onSavings, size = ButtonSize.Small)
+            AppButton(tr(R.string.pl_unassigned_edit), onClick = onChoose, variant = ButtonVariant.Tonal, size = ButtonSize.Small)
+        }
     }
 }

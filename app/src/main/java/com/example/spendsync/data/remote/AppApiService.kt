@@ -88,6 +88,13 @@ interface AppApiService {
         @Query("today") today: String,
     ): Response<SuccessResponse<PlanViewDto>>
 
+    @DELETE("api/plans/{month}")
+    suspend fun deletePlan(
+        @Header("Authorization") token: String,
+        @Path("month") month: String,
+        @Query("today") today: String,
+    ): Response<SuccessResponse<PlanViewDto>>
+
     @PUT("api/plans/{month}")
     suspend fun savePlan(
         @Header("Authorization") token: String,

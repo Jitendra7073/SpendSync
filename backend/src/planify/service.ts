@@ -116,6 +116,15 @@ export async function savePlan(userId: string, month: string, input: SavePlanInp
   return loadPlan(userId, month, today);
 }
 
+/** Removes the month's plan and its buckets. Transactions are untouched; spending just stops counting against limits. */
+export async function deletePlan(userId: string, month: string, today: string): Promise<PlanView> {
+  await db.transaction(async (tx) => {
+    await tx.delete(budgets).where(and(eq(budgets.userId, userId), eq(budgets.month, month)));
+    await tx.delete(plans).where(and(eq(plans.userId, userId), eq(plans.month, month)));
+  });
+  return loadPlan(userId, month, today);
+}
+
 /** Moves part of one bucket's limit to another. The plan total stays the same. */
 export async function moveMoney(userId: string, month: string, input: MoveInput, today: string): Promise<PlanView> {
   await db.transaction(async (tx) => {

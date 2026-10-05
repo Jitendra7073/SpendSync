@@ -255,6 +255,9 @@ class FinanceRepository(
     suspend fun savePlan(month: String, request: SavePlanRequest, today: String = java.time.LocalDate.now().toString()): AuthResult<PlanViewDto> =
         planCall { api.savePlan(getAuthHeader(), month, today, request) }.also { if (it is AuthResult.Success) cacheInvalidate("plan", "budgets", "dashboard") }
 
+    suspend fun deletePlan(month: String, today: String = java.time.LocalDate.now().toString()): AuthResult<PlanViewDto> =
+        planCall { api.deletePlan(getAuthHeader(), month, today) }.also { if (it is AuthResult.Success) cacheInvalidate("plan", "budgets", "dashboard") }
+
     suspend fun movePlanMoney(month: String, from: String, to: String, amount: Double, today: String = java.time.LocalDate.now().toString()): AuthResult<PlanViewDto> =
         planCall { api.movePlanMoney(getAuthHeader(), month, today, MoveMoneyRequest(from, to, amount)) }.also { if (it is AuthResult.Success) cacheInvalidate("plan", "budgets", "dashboard") }
 

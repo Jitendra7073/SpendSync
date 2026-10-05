@@ -60,6 +60,14 @@ object LanguageManager {
         languageState = language
     }
 
+    /** A string in a specific language, without changing the app's language (the guide's "translate" menu). */
+    fun stringIn(language: AppLanguage, @StringRes id: Int, vararg args: Any): String {
+        val app = appContext ?: error("LanguageManager.apply() has not run yet")
+        val config = Configuration(app.resources.configuration).apply { setLocale(language.locale) }
+        val ctx = app.createConfigurationContext(config)
+        return if (args.isEmpty()) ctx.getString(id) else ctx.getString(id, *args)
+    }
+
     fun string(@StringRes id: Int, vararg args: Any): String {
         languageState // subscribe the caller (if composing) to language changes
         val ctx = localizedContext ?: appContext ?: error("LanguageManager.apply() has not run yet")

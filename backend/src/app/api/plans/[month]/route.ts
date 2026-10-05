@@ -1,6 +1,6 @@
 import { withApi, corsPreflight } from '@/lib/api-handler';
 import { success } from '@/lib/response';
-import { loadPlan, savePlan } from '@/planify/service';
+import { deletePlan, loadPlan, savePlan } from '@/planify/service';
 import { monthSchema, savePlanSchema, todayQuerySchema } from '@/types/plan.types';
 
 export const runtime = 'nodejs';
@@ -24,6 +24,15 @@ export const PUT = withApi(
     const month = monthSchema.parse((await params).month);
     const body = savePlanSchema.parse(await request.json());
     return success(await savePlan(userId, month, body, todayOf(request)));
+  },
+  { auth: 'required' },
+);
+
+/** DELETE /api/plans/2026-10: remove the month's plan (income and buckets). Transactions stay. */
+export const DELETE = withApi(
+  async (request, { userId, params }) => {
+    const month = monthSchema.parse((await params).month);
+    return success(await deletePlan(userId, month, todayOf(request)));
   },
   { auth: 'required' },
 );
