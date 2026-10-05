@@ -404,7 +404,6 @@ private fun PlanHome(
                                 datePattern = "MMMM yyyy",
                                 onCalendarClick = { dateFilterState.showMonthPicker = true },
                                 onSearchClick = onSearch,
-                                onAssistantClick = onAssistant,
                             )
                         }
 

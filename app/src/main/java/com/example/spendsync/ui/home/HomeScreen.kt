@@ -489,7 +489,6 @@ fun HomeScreen(
                                         datePattern = datePattern,
                                         onCalendarClick = { dateFilterState.showMonthPicker = true },
                                         onSearchClick = { showGlobalSearch = true },
-                                        onAssistantClick = onOpenAssistant,
                                     )
                                 }
                             }

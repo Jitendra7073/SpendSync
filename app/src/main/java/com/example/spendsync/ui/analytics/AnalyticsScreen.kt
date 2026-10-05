@@ -402,7 +402,6 @@ fun AnalyticsScreen(
                                             dateFilterState.showMonthPicker = true
                                         },
                                         onSearchClick = { showGlobalSearch = true },
-                                        onAssistantClick = onOpenAssistant,
                                     )
                                 }
 
