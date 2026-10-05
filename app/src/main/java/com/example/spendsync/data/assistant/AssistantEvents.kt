@@ -15,6 +15,8 @@ sealed interface AssistantEvent {
     /** The model died mid-answer and a backup restarts it: drop the text shown so far. */
     data object Reset : AssistantEvent
     data class Proposed(val proposal: Proposal) : AssistantEvent
+    /** The assistant started a follow-up message about a hold. The phone writes it; the user confirms before it is sent. */
+    data class FollowUpStarted(val followUp: FollowUpProposal) : AssistantEvent
     data object Done : AssistantEvent
     data class Failure(val kind: FailureKind) : AssistantEvent
 }
@@ -28,6 +30,18 @@ data class Proposal(
     val person: String?,
     val returnDate: String?,
     val date: String,
+)
+
+/** Which hold a follow-up is about, plus optional choices the user already stated (channel, tone, context). */
+data class FollowUpProposal(
+    val person: String,
+    val direction: String,
+    val amount: Double,
+    val dueDate: String,
+    val overdueDays: Int,
+    val channel: String?,
+    val tone: String?,
+    val context: String?,
 )
 
 enum class ToolStatus { Running, Done, Failed }
@@ -57,6 +71,18 @@ object AssistantEventParser {
                         val kind = e.str("kind")?.takeIf { it == "expense" || it == "income" } ?: return@let null
                         AssistantEvent.Proposed(
                             Proposal(kind, amount, e.str("category") ?: "Other", e.str("note"), e.str("person"), e.str("returnDate"), e.str("date").orEmpty()),
+                        )
+                    }
+                    "followup" -> a.getAsJsonObject("followup")?.let { f ->
+                        val amount = f.get("amount")?.takeIf { it.isJsonPrimitive }?.asDouble ?: return@let null
+                        val person = f.str("person") ?: return@let null
+                        val direction = f.str("direction")?.takeIf { it == "owed_to_me" || it == "owed_by_me" } ?: return@let null
+                        AssistantEvent.FollowUpStarted(
+                            FollowUpProposal(
+                                person, direction, amount, f.str("dueDate").orEmpty(),
+                                f.get("overdueDays")?.takeIf { it.isJsonPrimitive }?.asInt ?: 0,
+                                f.str("channel"), f.str("tone"), f.str("context"),
+                            ),
                         )
                     }
                     else -> null

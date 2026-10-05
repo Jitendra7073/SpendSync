@@ -230,3 +230,26 @@ data class CategorySuggestResponse(
     @SerializedName("merchant")          val merchant: String,
     @SerializedName("suggestedCategory") val suggestedCategory: String?,
 )
+
+// ── Follow-up message drafts (holds) ─────────────────────────────────────────
+
+data class HoldMessageRequest(
+    @SerializedName("personName")  val personName: String,
+    @SerializedName("direction")   val direction: String,
+    @SerializedName("amount")      val amount: Double,
+    @SerializedName("dueDate")     val dueDate: String,
+    @SerializedName("overdueDays") val overdueDays: Int,
+    @SerializedName("channel")     val channel: String,
+    @SerializedName("tone")        val tone: String,
+    @SerializedName("language")    val language: String,
+    @SerializedName("context")     val context: String? = null,
+    @SerializedName("previous")    val previous: String? = null,
+    @SerializedName("userName")    val userName: String? = null,
+)
+
+/** `source` is "ai" with the checked [text], or "none" (the app then writes it from its own template). */
+data class HoldMessageDto(
+    @SerializedName("source") val source: String,
+    @SerializedName("text")   val text: String? = null,
+    @SerializedName("model")  val model: String? = null,
+)

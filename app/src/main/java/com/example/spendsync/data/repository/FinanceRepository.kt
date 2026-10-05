@@ -270,6 +270,15 @@ class FinanceRepository(
         AuthResult.Error(e.toUserMessage())
     }
 
+    /** An AI-written follow-up draft for a hold, or source "none". Nothing is sent. */
+    suspend fun holdMessage(request: HoldMessageRequest): AuthResult<HoldMessageDto> = try {
+        val response = api.holdMessage(getAuthHeader(), request)
+        if (response.isSuccessful && response.body() != null) AuthResult.Success(response.body()!!.data)
+        else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+    } catch (e: Exception) {
+        AuthResult.Error(e.toUserMessage())
+    }
+
     /** The user's Yes/No (or "forget") on whether some spending belongs in a bucket. Returns the refreshed plan. */
     suspend fun answerPlanMatch(month: String, request: MatchAnswerRequest, today: String = java.time.LocalDate.now().toString()): AuthResult<PlanViewDto> =
         planCall { api.answerPlanMatch(getAuthHeader(), month, today, request) }.also { if (it is AuthResult.Success) cacheInvalidate("plan", "budgets", "dashboard") }

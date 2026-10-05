@@ -12,6 +12,7 @@ data class ReplyState(
     val text: String = "",
     val actions: List<String> = emptyList(),
     val proposals: List<Proposal> = emptyList(),
+    val followUpCards: List<FollowUpProposal> = emptyList(),
     val followups: List<String> = emptyList(),
     /** Backend tool name currently running, for a "Checking your balance…" line. */
     val tool: String? = null,
@@ -59,6 +60,10 @@ fun reduceReply(s: ReplyState, e: AssistantEvent): ReplyState = when (e) {
         if (e.screen in s.actions) s else s.copy(actions = s.actions + e.screen)
     is AssistantEvent.Proposed -> s.copy(
         proposals = (s.proposals + e.proposal).takeLast(3),
+        steps = if (s.steps.any { it.kind == StepKind.Prepare }) s.steps else s.steps + ActivityStep(StepKind.Prepare, "", StepState.Done),
+    )
+    is AssistantEvent.FollowUpStarted -> s.copy(
+        followUpCards = (s.followUpCards + e.followUp).takeLast(2),
         steps = if (s.steps.any { it.kind == StepKind.Prepare }) s.steps else s.steps + ActivityStep(StepKind.Prepare, "", StepState.Done),
     )
     is AssistantEvent.Followups -> s.copy(followups = e.items)

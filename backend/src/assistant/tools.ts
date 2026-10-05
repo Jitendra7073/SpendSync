@@ -29,7 +29,21 @@ export interface ProposedEntry {
   date: string;
 }
 
-export type UiAction = { type: 'open_screen'; screen: ScreenId } | { type: 'propose_entry'; entry: ProposedEntry };
+export interface ProposedFollowup {
+  person: string;
+  direction: 'owed_to_me' | 'owed_by_me';
+  amount: number;
+  dueDate: string;
+  overdueDays: number;
+  channel?: 'whatsapp' | 'sms' | 'email';
+  tone?: 'gentle' | 'friendly' | 'firm';
+  context?: string;
+}
+
+export type UiAction =
+  | { type: 'open_screen'; screen: ScreenId }
+  | { type: 'propose_entry'; entry: ProposedEntry }
+  | { type: 'followup'; followup: ProposedFollowup };
 
 export interface ToolResult {
   data: unknown;
@@ -505,6 +519,61 @@ const proposeEntry = tool({
   },
 });
 
+const prepareFollowup = tool({
+  name: 'prepare_followup',
+  tier: 'propose',
+  description:
+    "Start a follow-up message to a person the user has money on hold with (they lent them money, or borrowed from them): a reminder over WhatsApp, SMS or email. " +
+    "Use when the user says things like 'remind Asha about the money', 'message Uttam', 'send a follow up to Ravi on WhatsApp'. It shows a card in the chat where the app writes the message and the user must confirm before anything is sent. " +
+    "NOTHING is sent by you: never say it was sent; say you started a message for them to check. person_name is the name as the user said it. channel and tone are optional (use only if the user said so). " +
+    "context: extra detail the user asked to mention, in a few words. If the user did not say who, ask ONE short question instead of calling this.",
+  input: z.object({
+    person_name: z.string().min(1).max(80),
+    channel: z.enum(['whatsapp', 'sms', 'email']).optional(),
+    tone: z.enum(['gentle', 'friendly', 'firm']).optional(),
+    context: z.string().max(300).optional(),
+  }),
+  jsonSchema: {
+    type: 'object',
+    properties: {
+      person_name: { type: 'string' },
+      channel: { type: 'string', enum: ['whatsapp', 'sms', 'email'] },
+      tone: { type: 'string', enum: ['gentle', 'friendly', 'firm'] },
+      context: { type: 'string' },
+    },
+    required: ['person_name'],
+    additionalProperties: false,
+  },
+  async run(ctx, input) {
+    const wanted = input.person_name.trim().toLowerCase();
+    const all = (await holdService.getAll(ctx.userId, { status: 'pending' })).filter((h) => h.status === 'pending');
+    const same = all.filter((h) => h.personName.trim().toLowerCase() === wanted);
+    const mine = same.length ? same : all.filter((h) => h.personName.toLowerCase().includes(wanted) || wanted.includes(h.personName.trim().toLowerCase()));
+    if (!mine.length) throw new Error(`There is no pending hold with ${input.person_name}. Tell the user, and offer to open the Holds screen.`);
+    const people = new Set(mine.map((h) => h.personName.trim().toLowerCase()));
+    if (people.size > 1) throw new Error(`More than one person matches: ${[...new Set(mine.map((h) => h.personName))].join(', ')}. Ask the user which one.`);
+    const directions = new Set(mine.map((h) => h.direction));
+    if (directions.size > 1) throw new Error('This person both owes the user and is owed by the user. Ask which one the message is about.');
+    const direction = mine[0].direction as 'owed_to_me' | 'owed_by_me';
+    const due = mine.map((h) => h.expectedReturnDate.toISOString().slice(0, 10)).sort()[0];
+    const overdueDays = Math.max(0, Math.floor((Date.parse(ctx.today) - Date.parse(due)) / 86_400_000));
+    const followup: ProposedFollowup = {
+      person: mine[0].personName,
+      direction,
+      amount: Math.round(mine.reduce((s, h) => s + num(h.amount), 0) * 100) / 100,
+      dueDate: due,
+      overdueDays,
+      ...(input.channel ? { channel: input.channel } : {}),
+      ...(input.tone ? { tone: input.tone } : {}),
+      ...(input.context ? { context: input.context } : {}),
+    };
+    return {
+      data: { status: 'followup_card_shown', sent: false, message: 'A card was shown in the chat. The app writes the message and the user must confirm before it is sent. Nothing has been sent.' },
+      uiAction: { type: 'followup', followup },
+    };
+  },
+});
+
 // ── Registry ─────────────────────────────────────────────────────────────────
 
 /** Order is fixed on purpose: a stable tool list keeps the prompt cache warm. */
@@ -519,6 +588,7 @@ export const ASSISTANT_TOOLS: AssistantTool<any>[] = [
   getTopMerchants,
   getSettings,
   proposeEntry,
+  prepareFollowup,
   openScreen,
 ];
 

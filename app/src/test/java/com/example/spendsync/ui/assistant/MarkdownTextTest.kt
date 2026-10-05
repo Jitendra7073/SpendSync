@@ -70,4 +70,12 @@ class MarkdownTextTest {
         assertTrue(parseMarkdown("").isEmpty())
         assertEquals(listOf<MdBlock>(MdBlock.Paragraph("a\nb")), parseMarkdown("a\nb"))
     }
+
+    @Test
+    fun sharedTextIsPlainWithBulletsKept() {
+        val n = "\n"
+        val plain = markdownToPlain("## Summary" + n + "You spent **₹4,500**:" + n + n + "- Food" + n + "- Rent" + n + "1. First")
+        assertEquals("Summary" + n + n + "You spent ₹4,500:" + n + n + "• Food" + n + "• Rent" + n + "1. First", plain)
+        assertFalse(plain.contains("*"))
+    }
 }

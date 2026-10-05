@@ -38,6 +38,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Call
@@ -265,6 +266,11 @@ fun AddExpenseScreen(
 
     var expectReturn by remember { mutableStateOf(false) }
     var holdPersonName by remember { mutableStateOf("") }
+    // Picking from contacts fills the name and keeps the number on this phone (for follow-up messages later).
+    val holdContactPicker = com.example.spendsync.ui.contacts.rememberContactPicker { picked ->
+        holdPersonName = picked.name
+        scope.launch { sessionDataStore.saveHoldContact(picked.name, picked.name, picked.phone, picked.email) }
+    }
     var holdReturnDate by remember { mutableStateOf(today) }
     var showHoldDatePicker by remember { mutableStateOf(false) }
 
@@ -633,7 +639,10 @@ fun AddExpenseScreen(
                             }
                             AnimatedVisibility(expectReturn) {
                                 Column(Modifier.padding(top = 8.dp)) {
-                                    AppTextField(holdPersonName, { holdPersonName = it }, label = tr(R.string.who_is_it_with), leadingIcon = Icons.Default.Person)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        AppTextField(holdPersonName, { holdPersonName = it }, label = tr(R.string.who_is_it_with), leadingIcon = Icons.Default.Person, modifier = Modifier.weight(1f))
+                                        AppIconButton(Icons.Default.Contacts, tr(R.string.fu_pick_contact), onClick = { holdContactPicker.pickPhone() }, tint = accentColor)
+                                    }
                                     Spacer(Modifier.height(12.dp))
                                     DateSelectorRow(label = tr(R.string.expected_back_by), date = holdReturnDate, accentColor = accentColor, onClick = { showHoldDatePicker = true })
                                 }

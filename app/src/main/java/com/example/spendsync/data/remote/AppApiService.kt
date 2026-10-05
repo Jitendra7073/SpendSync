@@ -111,6 +111,12 @@ interface AppApiService {
         @Body body: MoveMoneyRequest,
     ): Response<SuccessResponse<PlanViewDto>>
 
+    @POST("api/holds/message")
+    suspend fun holdMessage(
+        @Header("Authorization") token: String,
+        @Body body: HoldMessageRequest,
+    ): Response<SuccessResponse<HoldMessageDto>>
+
     @POST("api/plans/{month}/match")
     suspend fun answerPlanMatch(
         @Header("Authorization") token: String,

@@ -1,4 +1,4 @@
-import { sharedRouter } from '../assistant/loop';
+import { askModel } from '../assistant/llm/ask';
 import { AllProvidersFailed } from '../assistant/llm/router';
 import { allowedIncomes, buildFacts, maxQuestions, parseStep, systemPrompt, userPrompt, type GuideStep, type TranscriptItem } from './guide';
 import { guessIncome } from './income';
@@ -6,18 +6,6 @@ import { loadCredits, loadHistory } from './service';
 import { suggestPlan } from './suggest';
 
 export type GuideReply = ({ source: 'ai'; model: string } & GuideStep) | { source: 'basic'; reason: string };
-
-async function askModel(system: string, user: string): Promise<{ text: string; model: string }> {
-  let text = '';
-  let model = '';
-  const events = sharedRouter().run(() => ({ system, messages: [{ role: 'user', text: user }], tools: [], maxTokens: 900, temperature: 0.4 }));
-  for await (const ev of events) {
-    if (ev.type === 'source') model = ev.provider.label;
-    else if (ev.type === 'reset') text = '';
-    else if (ev.chunk.type === 'text') text += ev.chunk.text;
-  }
-  return { text, model };
-}
 
 /**
  * Next step of the AI guide. Returns the model's next question (checked and cleaned), or "done", or

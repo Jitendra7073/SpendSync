@@ -30,6 +30,27 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
  */
 data class PersistedCategory(val name: String, val iconId: String?)
 
+/**
+ * Who a hold's follow-up messages go to. Lives ONLY on this phone (never uploaded, never shown to the AI): the person's
+ * phone and email come from the contact the user picked. Keyed by the person's name as written on the hold.
+ */
+data class HoldContact(val name: String, val phone: String? = null, val email: String? = null, val lastFollowUpAt: Long = 0, val lastChannel: String? = null)
+
+fun holdContactKey(personName: String) = personName.lowercase().replace(Regex("\\s+"), " ").trim()
+
+private fun parseHoldContacts(raw: String?): Map<String, HoldContact> = raw.orEmpty().lineSequence().filter { it.isNotBlank() }.mapNotNull { line ->
+    val p = line.split('\t')
+    if (p.size < 2) null else p[0] to HoldContact(
+        name = p[1], phone = p.getOrNull(2)?.takeIf { it.isNotEmpty() }, email = p.getOrNull(3)?.takeIf { it.isNotEmpty() },
+        lastFollowUpAt = p.getOrNull(4)?.toLongOrNull() ?: 0, lastChannel = p.getOrNull(5)?.takeIf { it.isNotEmpty() },
+    )
+}.toMap()
+
+private fun serializeHoldContacts(m: Map<String, HoldContact>): String = m.entries.joinToString("\n") { (k, c) ->
+    fun clean(s: String?) = s.orEmpty().replace('\t', ' ').replace('\n', ' ')
+    listOf(clean(k), clean(c.name), clean(c.phone), clean(c.email), c.lastFollowUpAt.toString(), clean(c.lastChannel)).joinToString("\t")
+}
+
 /** Planify preferences. Defaults: alerts on, no daily summary, salary prompt for credits of 5,000 or more. */
 data class PlanifySettings(val alerts: Boolean = true, val daily: Boolean = false, val salaryMin: Int = 5000)
 
@@ -93,6 +114,7 @@ class SessionDataStore(private val context: Context) {
         private val KEY_ASSISTANT_TONE = stringPreferencesKey("assistant_tone")
         private val KEY_ASSISTANT_INSTRUCTIONS = stringPreferencesKey("assistant_instructions")
         private val KEY_ASSISTANT_DISABLED_TOOLS = stringPreferencesKey("assistant_disabled_tools")
+        private val KEY_HOLD_CONTACTS = stringPreferencesKey("hold_contacts")
         private val KEY_PLANIFY_ALERTS = booleanPreferencesKey("planify_alerts")
         private val KEY_PLANIFY_DAILY = booleanPreferencesKey("planify_daily")
         private val KEY_PLANIFY_SALARY_MIN = intPreferencesKey("planify_salary_min")
@@ -259,6 +281,7 @@ class SessionDataStore(private val context: Context) {
             prefs.remove(KEY_PLAN_ALERT_MEMORY)
             prefs.remove(KEY_PLAN_DAILY_COUNT)
             prefs.remove(KEY_PLAN_SALARY_PROMPTED)
+            prefs.remove(KEY_HOLD_CONTACTS) // contacts of the previous account must not follow the next one
         }
     }
 
@@ -360,6 +383,32 @@ class SessionDataStore(private val context: Context) {
 
     suspend fun updateAutoCapturePackages(packages: Set<String>) {
         context.dataStore.edit { prefs -> prefs[KEY_AUTO_CAPTURE_PACKAGES] = serializeAutoCapturePackages(packages) }
+    }
+
+    // ── Hold contacts (this phone only) ──────────────────────────────────────
+
+    val holdContacts: Flow<Map<String, HoldContact>> = context.dataStore.data.map { parseHoldContacts(it[KEY_HOLD_CONTACTS]) }
+
+    /** Saves who to message for [personName]; keeps what was saved before for any part not given. */
+    suspend fun saveHoldContact(personName: String, name: String, phone: String?, email: String?) {
+        context.dataStore.edit { prefs ->
+            val all = parseHoldContacts(prefs[KEY_HOLD_CONTACTS]).toMutableMap()
+            val key = holdContactKey(personName)
+            val old = all[key]
+            all[key] = HoldContact(name.ifBlank { personName }, phone ?: old?.phone, email ?: old?.email, old?.lastFollowUpAt ?: 0, old?.lastChannel)
+            prefs[KEY_HOLD_CONTACTS] = serializeHoldContacts(all)
+        }
+    }
+
+    /** Remembers that a follow-up was opened for this person, so the app can say "last reminded 3 days ago". */
+    suspend fun logFollowUp(personName: String, channel: String) {
+        context.dataStore.edit { prefs ->
+            val all = parseHoldContacts(prefs[KEY_HOLD_CONTACTS]).toMutableMap()
+            val key = holdContactKey(personName)
+            val old = all[key] ?: HoldContact(personName)
+            all[key] = old.copy(lastFollowUpAt = System.currentTimeMillis(), lastChannel = channel)
+            prefs[KEY_HOLD_CONTACTS] = serializeHoldContacts(all)
+        }
     }
 
     // ── Planify ──────────────────────────────────────────────────────────────

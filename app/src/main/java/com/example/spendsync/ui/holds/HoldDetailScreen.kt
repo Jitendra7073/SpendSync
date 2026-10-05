@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,6 +86,8 @@ fun HoldDetailScreen(
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     var holdToEdit by remember { mutableStateOf<HoldDto?>(null) }
     var holdToDelete by remember { mutableStateOf<HoldDto?>(null) }
+    var followUpFor by remember { mutableStateOf<HoldDto?>(null) }
+    val aiAllowed by sessionDataStore.assistantConsent.collectAsState(initial = false)
     var deleting by remember { mutableStateOf(false) }
 
     fun rescheduleReminder(hold: HoldDto, newPersonName: String, newDate: LocalDate) {
@@ -156,6 +159,7 @@ fun HoldDetailScreen(
                                 onEdit = { holdToEdit = hold },
                                 onSettle = { markSettled(hold) },
                                 onDelete = { holdToDelete = hold },
+                                onRemind = { followUpFor = hold },
                             )
                         }
                         item { Spacer(Modifier.height(110.dp)) }
@@ -163,6 +167,17 @@ fun HoldDetailScreen(
                 }
             }
         }
+    }
+
+    followUpFor?.let { hold ->
+        val due = runCatching { java.time.ZonedDateTime.parse(hold.expectedReturnDate).toLocalDate() }.getOrDefault(LocalDate.now())
+        FollowUpSheet(
+            target = com.example.spendsync.data.holds.FollowUpTarget.fromHolds(personName, hold.direction, hold.amount.toDoubleOrNull() ?: 0.0, due),
+            financeRepository = financeRepository,
+            sessionDataStore = sessionDataStore,
+            aiAllowed = aiAllowed,
+            onDismiss = { followUpFor = null },
+        )
     }
 
     holdToEdit?.let { hold ->
@@ -196,6 +211,7 @@ private fun HoldCard(
     onEdit: () -> Unit,
     onSettle: () -> Unit,
     onDelete: () -> Unit,
+    onRemind: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val owedToYou = hold.direction == "owed_to_me"
@@ -228,6 +244,7 @@ private fun HoldCard(
         )
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (!settled) AppButton(tr(R.string.fu_remind), onRemind, size = ButtonSize.Small, leadingIcon = Icons.Default.Notifications)
             AppButton(tr(R.string.edit), onEdit, variant = ButtonVariant.Tonal, size = ButtonSize.Small, leadingIcon = Icons.Default.Edit)
             if (!settled) AppButton(tr(R.string.mark_as_settled), onSettle, size = ButtonSize.Small, leadingIcon = Icons.Default.Handshake)
             AppButton(tr(R.string.delete), onDelete, variant = ButtonVariant.DangerText, size = ButtonSize.Small)

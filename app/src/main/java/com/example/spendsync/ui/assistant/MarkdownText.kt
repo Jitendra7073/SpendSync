@@ -176,3 +176,26 @@ fun MarkdownText(
         }
     }
 }
+
+/** The reply as clean plain text for sharing: lists keep their bullets and numbers, no Markdown marks remain. */
+fun markdownToPlain(src: String): String {
+    fun inline(t: String) = parseInline(t).text
+    fun isList(b: MdBlock) = b is MdBlock.Bullet || b is MdBlock.Numbered
+    val blocks = parseMarkdown(src)
+    val sb = StringBuilder()
+    blocks.forEachIndexed { i, b ->
+        if (i > 0) sb.append(if (isList(b) && isList(blocks[i - 1])) "\n" else "\n\n")
+        sb.append(
+            when (b) {
+                is MdBlock.Heading -> if (b.level == 1) inline(b.text).uppercase() else inline(b.text)
+                is MdBlock.Bullet -> "  ".repeat(b.indent) + (if (b.indent > 0) "◦ " else "• ") + inline(b.text)
+                is MdBlock.Numbered -> "  ".repeat(b.indent) + b.number + ". " + inline(b.text)
+                is MdBlock.Quote -> "> " + inline(b.text)
+                is MdBlock.Code -> b.text
+                is MdBlock.Paragraph -> inline(b.text)
+                MdBlock.Rule -> "—"
+            },
+        )
+    }
+    return sb.toString()
+}

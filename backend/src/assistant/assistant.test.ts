@@ -116,6 +116,14 @@ describe('tool registry', () => {
     expect(tools.findTool('open_screen')!.input.safeParse({ screen: 'planify' }).success).toBe(true);
   });
 
+  it('can start a follow-up but only as a confirm card', () => {
+    const f = tools.findTool('prepare_followup')!;
+    expect(f.tier).toBe('propose');
+    expect(f.input.safeParse({ person_name: 'Asha', channel: 'whatsapp', tone: 'gentle' }).success).toBe(true);
+    expect(f.input.safeParse({ person_name: 'Asha', channel: 'telegram' }).success).toBe(false);
+    expect(JSON.stringify(f.jsonSchema)).not.toMatch(/phone|email_address|number/);
+  });
+
   it('validates tool arguments', () => {
     const search = tools.findTool('search_transactions')!;
     expect(search.input.safeParse({ type: 'debit', limit: 5, start_date: '2026-10-01' }).success).toBe(true);

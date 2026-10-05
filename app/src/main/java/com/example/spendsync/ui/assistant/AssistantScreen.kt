@@ -120,6 +120,8 @@ fun AssistantScreen(
     var showHistory by remember { mutableStateOf(false) }
     var showSupport by remember { mutableStateOf(false) }
     var feedbackFor by remember { mutableStateOf<UiMessage?>(null) }
+    var sharing by remember { mutableStateOf<String?>(null) }
+    val financeRepository = remember(sessionDataStore) { com.example.spendsync.data.repository.FinanceRepository(sessionDataStore) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     fun copy(text: String) {
@@ -127,6 +129,12 @@ fun AssistantScreen(
         val safe = maskAmountsInText(text, amountVisibility.isMaskingEnabled, amountVisibility.isVisible).text
         clipboard.setText(androidx.compose.ui.text.AnnotatedString(safe))
         android.widget.Toast.makeText(context, tr(R.string.asst_copied), android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    // Sharing follows the same privacy rule as copying: hidden amounts stay hidden.
+    fun share(text: String) {
+        val safe = maskAmountsInText(text, amountVisibility.isMaskingEnabled, amountVisibility.isVisible).text
+        sharing = markdownToPlain(safe)
     }
 
     LaunchedEffect(Unit) { viewModel.load() }
@@ -173,6 +181,8 @@ fun AssistantScreen(
                     items(displayed, key = { it.key }) { msg ->
                         MessageBubble(
                             msg = msg,
+                            financeRepository = financeRepository,
+                            sessionDataStore = sessionDataStore,
                             status = state.proposalStatus,
                             vis = amountVisibility,
                             onOpenScreen = { screen -> if (screen == "support") showSupport = true else onOpenScreen(screen) },
@@ -180,6 +190,7 @@ fun AssistantScreen(
                             canEdit = !state.busy,
                             onEdit = { m -> viewModel.edit(m.id) { text -> input = text } },
                             onCopy = ::copy,
+                            onShare = ::share,
                             onUp = { m -> viewModel.rate(m, "up") },
                             onDown = { m -> feedbackFor = m },
                             onConfirm = viewModel::confirm,
@@ -252,6 +263,7 @@ fun AssistantScreen(
             onDismiss = { showSupport = false },
         )
     }
+    sharing?.let { text -> com.example.spendsync.ui.share.ShareSheet(text = text, onDismiss = { sharing = null }) }
     feedbackFor?.let { target ->
         FeedbackDialog(
             onDismiss = { feedbackFor = null },
@@ -332,6 +344,8 @@ private fun Welcome(screen: String?, onPick: (String) -> Unit) {
 @Composable
 private fun MessageBubble(
     msg: UiMessage,
+    financeRepository: com.example.spendsync.data.repository.FinanceRepository,
+    sessionDataStore: com.example.spendsync.data.local.SessionDataStore,
     status: Map<String, ProposalStatus>,
     vis: AmountVisibilityState,
     onOpenScreen: (String) -> Unit,
@@ -339,6 +353,7 @@ private fun MessageBubble(
     canEdit: Boolean,
     onEdit: (UiMessage) -> Unit,
     onCopy: (String) -> Unit,
+    onShare: (String) -> Unit,
     onUp: (UiMessage) -> Unit,
     onDown: (UiMessage) -> Unit,
     onConfirm: (String, Proposal) -> Unit,
@@ -381,9 +396,12 @@ private fun MessageBubble(
                 val key = "${msg.id}:$i"
                 ProposalCard(proposal, status[key], vis, onConfirm = { onConfirm(key, proposal) }, onRetry = { onRetry(key) }, onDismiss = { onDismiss(key) })
             }
+            msg.followUpCards.forEach { f ->
+                FollowUpCard(f, financeRepository, sessionDataStore)
+            }
             if (msg.fast == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    AnswerActions(msg.feedback, onCopy = { onCopy(full) }, onUp = { onUp(msg) }, onDown = { onDown(msg) })
+                    AnswerActions(msg.feedback, onCopy = { onCopy(full) }, onUp = { onUp(msg) }, onDown = { onDown(msg) }, onShare = { onShare(full) })
                     if (msg.steps.size > 1) {
                         Text(
                             tr(if (showSteps) R.string.asst_steps_hide else R.string.asst_steps_show),
@@ -635,6 +653,7 @@ internal fun toolLabel(name: String): String = tr(
         "search_transactions" -> R.string.assistant_tool_transactions
         "get_budget_status" -> R.string.assistant_tool_budget
         "get_plan_status" -> R.string.assistant_tool_plan
+        "prepare_followup" -> R.string.assistant_tool_followup
         "list_holds" -> R.string.assistant_tool_holds
         "get_top_merchants" -> R.string.assistant_tool_merchants
         "get_settings" -> R.string.assistant_tool_settings
@@ -664,3 +683,37 @@ private fun failureText(kind: FailureKind): String = tr(
         FailureKind.SignedOut -> R.string.assistant_err_signin
     },
 )
+
+/**
+ * A follow-up the assistant started. The assistant never sees phone numbers and never sends: this card writes the
+ * message on the phone, shows it, and only opens WhatsApp / SMS / email after "Yes, send".
+ */
+@Composable
+private fun FollowUpCard(
+    f: com.example.spendsync.data.assistant.FollowUpProposal,
+    financeRepository: com.example.spendsync.data.repository.FinanceRepository,
+    sessionDataStore: com.example.spendsync.data.local.SessionDataStore,
+) {
+    val scheme = MaterialTheme.colorScheme
+    var closed by remember { mutableStateOf(false) }
+    if (closed) return
+    val target = remember(f) { com.example.spendsync.data.holds.FollowUpTarget(f.person, f.direction, f.amount, f.dueDate, f.overdueDays) }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(scheme.surface)
+            .border(0.5.dp, scheme.outlineVariant, RoundedCornerShape(18.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(tr(R.string.fu_title, f.person), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
+        com.example.spendsync.ui.holds.FollowUpPanel(
+            target = target,
+            financeRepository = financeRepository,
+            sessionDataStore = sessionDataStore,
+            aiAllowed = true, // the assistant itself only runs with consent
+            onDone = { closed = true },
+            autoStart = true,
+            initialChannel = com.example.spendsync.data.holds.Channel.entries.firstOrNull { it.id == f.channel } ?: com.example.spendsync.data.holds.Channel.WhatsApp,
+            initialTone = com.example.spendsync.data.holds.Tone.entries.firstOrNull { it.id == f.tone } ?: com.example.spendsync.data.holds.Tone.Friendly,
+            initialContext = f.context.orEmpty(),
+        )
+    }
+}

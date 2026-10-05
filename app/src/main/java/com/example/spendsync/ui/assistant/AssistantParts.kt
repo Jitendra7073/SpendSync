@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ThumbDown
@@ -157,10 +158,11 @@ internal fun UserMessageActions(onEdit: () -> Unit, onCopy: () -> Unit, enabled:
 }
 
 @Composable
-internal fun AnswerActions(feedback: String, onCopy: () -> Unit, onUp: () -> Unit, onDown: () -> Unit) {
+internal fun AnswerActions(feedback: String, onCopy: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onShare: () -> Unit = {}) {
     val scheme = MaterialTheme.colorScheme
     Row(Modifier.padding(start = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         MiniAction(Icons.Default.ContentCopy, tr(R.string.asst_copy), onCopy)
+        MiniAction(Icons.Default.Share, tr(R.string.asst_share), onShare)
         MiniAction(
             if (feedback == "up") Icons.Default.ThumbUp else Icons.Outlined.ThumbUp, tr(R.string.asst_helpful), onUp,
             tint = if (feedback == "up") scheme.primary else null,

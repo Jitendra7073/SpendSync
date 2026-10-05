@@ -46,6 +46,7 @@ data class UiMessage(
     val source: String? = null,
     val offline: Boolean = false,
     val proposals: List<Proposal> = emptyList(),
+    val followUpCards: List<com.example.spendsync.data.assistant.FollowUpProposal> = emptyList(),
     /** The message that was just written (or is being written) types out; older ones show at once. */
     val animate: Boolean = false,
     /** True for the in-flight reply, so the screen can show the "thinking" state until text arrives. */
@@ -277,12 +278,12 @@ class AssistantViewModel(
     private suspend fun finishReply() {
         val reply = _state.value.live ?: return
         val elapsed = SystemClock.elapsedRealtime() - startedAt
-        val text = reply.text.ifBlank { if (reply.proposals.isNotEmpty()) tr(R.string.asst_proposal_fallback) else "" }
+        val text = reply.text.ifBlank { if (reply.proposals.isNotEmpty() || reply.followUpCards.isNotEmpty()) tr(R.string.asst_proposal_fallback) else "" }
         val saved = if (text.isNotBlank()) {
             UiMessage(
                 store.add(userId, conversationId, "assistant", text, reply.actions, elapsed, reply.source.orEmpty()),
                 false, text, reply.actions,
-                source = reply.source, offline = reply.offline, proposals = reply.proposals, animate = true,
+                source = reply.source, offline = reply.offline, proposals = reply.proposals, followUpCards = reply.followUpCards, animate = true,
                 elapsedMs = elapsed, steps = reply.steps,
             )
         } else null
