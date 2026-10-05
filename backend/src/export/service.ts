@@ -46,7 +46,7 @@ export async function emailExport(userId: string, input: ExportEmailInput, now =
   if (now - last < COOLDOWN_MS) throw new BadRequestError('An export was just sent. Please wait a few minutes.');
 
   const from = input.from ? new Date(`${input.from}T00:00:00.000Z`) : new Date(0);
-  const to = input.to ? new Date(Date.parse(`${input.to}T00:00:00.000Z`) + 86_400_000) : new Date(8.64e15);
+  const to = input.to ? new Date(Date.parse(`${input.to}T00:00:00.000Z`) + 86_400_000) : new Date('9999-12-31T00:00:00.000Z');
   const data: ExportInput = {};
 
   if (input.kinds.includes('transactions')) {
