@@ -174,4 +174,7 @@
     <string name="pg_ai_badge">Questions written by AI from your own numbers · %1$s</string>
     <string name="pg_need_consent">Switch the assistant on in Profile to get questions written by AI. These are the standard questions.</string>
     <string name="pg_note_label">What I set up</string>
+    <string name="pl_income_from">Read from your records: %1$s</string>
+    <string name="pl_income_guess">Best guess from your biggest credit: %1$s. Please check it.</string>
+    <string name="pl_carry_from">Carried over from last month: %1$s</string>
 </resources>

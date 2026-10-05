@@ -112,6 +112,8 @@ internal fun PlanBuilder(
     val items = remember { mutableStateListOf<DraftItem>() }
     var loading by remember { mutableStateOf(seed == null) }
     var suggestedIncome by remember { mutableStateOf(0.0) }
+    var incomeNote by remember { mutableStateOf<String?>(null) }
+    var carryNote by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     var showAdd by remember { mutableStateOf(false) }
@@ -138,7 +140,14 @@ internal fun PlanBuilder(
             else -> ToastMessage(tr(R.string.pl_ai_note, s.monthsUsed), isError = false)
         }
         suggestedIncome = s.suggestedIncome
+        incomeNote = when {
+            s.suggestedIncome <= 0 || s.incomeLabel.isBlank() -> null
+            s.incomeSource == "largest" -> tr(R.string.pl_income_guess, s.incomeLabel)
+            else -> tr(R.string.pl_income_from, s.incomeLabel)
+        }
+        carryNote = if (s.carryOver > 0) tr(R.string.pl_carry_from, s.carryLabel.ifBlank { formatInr(s.carryOver) }) else null
         if (income.isBlank() && s.suggestedIncome > 0) income = plain(s.suggestedIncome)
+        if (carry.isBlank() && s.carryOver > 0) carry = plain(s.carryOver)
     }
 
     suspend fun loadSuggestions() {
@@ -213,7 +222,7 @@ internal fun PlanBuilder(
                         label = "builder_step",
                     ) { s ->
                         when (s) {
-                            0 -> IncomeStep(income, { income = it.filter { c -> c.isDigit() || c == '.' } }, carry, { carry = it.filter { c -> c.isDigit() || c == '.' } }, suggestedIncome, loading, onGuide = { scope.launch { openGuide() } }) { income = plain(suggestedIncome) }
+                            0 -> IncomeStep(income, { income = it.filter { c -> c.isDigit() || c == '.' } }, carry, { carry = it.filter { c -> c.isDigit() || c == '.' } }, suggestedIncome, loading, incomeNote, carryNote, onGuide = { scope.launch { openGuide() } }) { income = plain(suggestedIncome) }
                             1 -> BucketsStep(items, available, left, loading, vis, editing, onAdd = { showAdd = true }, onRemove = { items.remove(it) }, onGuide = { scope.launch { openGuide() } }, onRestToSavings = {
                                 val existing = items.firstOrNull { it.category == "Savings" }
                                 if (existing != null) existing.limit = plain((amountOrNull(existing.limit) ?: 0.0) + left)
@@ -247,7 +256,7 @@ internal fun PlanBuilder(
                 onApply = { result ->
                     items.clear()
                     result.items.forEach { items += DraftItem(it.category, it.category, it.kind, plain(it.limit), average = it.average.takeIf { a -> a > 0 }) }
-                    if (available <= 0) income = plain(guideIncome)
+                    if (available <= 0 || kotlin.math.abs(result.income - guideIncome) > 0.5) { income = plain(result.income); carry = "" }
                     showGuide = false
                     step = 1
                 },
@@ -337,6 +346,8 @@ private fun IncomeStep(
     onCarry: (String) -> Unit,
     suggested: Double,
     loading: Boolean,
+    incomeNote: String?,
+    carryNote: String?,
     onGuide: () -> Unit,
     onUseSuggested: () -> Unit,
 ) {
@@ -356,10 +367,11 @@ private fun IncomeStep(
                     if (suggested > 0 && amountOrNull(income) != suggested) {
                         AppButton(tr(R.string.pl_use_detected, formatInr(suggested)), onClick = onUseSuggested, variant = ButtonVariant.Tonal, size = ButtonSize.Small, leadingIcon = Icons.Default.AutoAwesome)
                     }
+                    if (incomeNote != null) Text(incomeNote, fontSize = 12.sp, color = scheme.primary)
                     AppTextField(
                         value = carry, onValueChange = onCarry, label = tr(R.string.pl_carry_label),
                         keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done,
-                        supportingText = tr(R.string.pl_carry_hint),
+                        supportingText = carryNote ?: tr(R.string.pl_carry_hint),
                     )
                 }
                 GuideCard(onGuide, enabled = !loading)

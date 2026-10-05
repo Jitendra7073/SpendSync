@@ -174,4 +174,7 @@
     <string name="pg_ai_badge">Questions rédigées par l\'IA d\'après vos chiffres · %1$s</string>
     <string name="pg_need_consent">Activez l\'assistant dans Profil pour des questions rédigées par l\'IA. Voici les questions standard.</string>
     <string name="pg_note_label">Ce que j\'ai préparé</string>
+    <string name="pl_income_from">Lu dans vos enregistrements : %1$s</string>
+    <string name="pl_income_guess">Meilleure estimation d\'après votre plus gros crédit : %1$s. Vérifiez-la.</string>
+    <string name="pl_carry_from">Reste du mois dernier : %1$s</string>
 </resources>

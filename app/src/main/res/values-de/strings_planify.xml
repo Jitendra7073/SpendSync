@@ -174,4 +174,7 @@
     <string name="pg_ai_badge">Fragen von der KI aus deinen eigenen Zahlen · %1$s</string>
     <string name="pg_need_consent">Schalte den Assistenten im Profil ein, um KI-Fragen zu erhalten. Das hier sind die Standardfragen.</string>
     <string name="pg_note_label">Was ich eingerichtet habe</string>
+    <string name="pl_income_from">Aus deinen Aufzeichnungen gelesen: %1$s</string>
+    <string name="pl_income_guess">Beste Schätzung nach deiner größten Gutschrift: %1$s. Bitte prüfen.</string>
+    <string name="pl_carry_from">Übrig vom Vormonat: %1$s</string>
 </resources>

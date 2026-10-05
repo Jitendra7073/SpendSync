@@ -1,3 +1,4 @@
+import type { CreditRow, IncomeGuess } from './income';
 import type { MonthHistory } from './suggest';
 
 /**
@@ -14,6 +15,7 @@ export type GuideEffect =
   | { type: 'savePercent'; value: number }
   | { type: 'keepFixed'; value: number } // 1 = keep regular bills, 0 = leave them out
   | { type: 'bufferPercent'; value: number }
+  | { type: 'setIncome'; value: number } // the money to plan with, one of the amounts found in the user's own credits
   | { type: 'categoryChange'; category: string; value: number }; // percent change of one everyday category
 
 export interface GuideOption {
@@ -35,11 +37,18 @@ export interface TranscriptItem {
 
 export interface GuideFacts {
   currency: 'INR';
-  income: number;
   monthsUsed: number;
   regularBills: { category: string; perMonth: number }[];
   everyday: { category: string; perMonth: number[]; average: number; lastMonth: number; trendPercent: number }[];
   savingsPerMonth: number;
+  /** What the records say about the money to plan: what was typed, and what the credits look like. */
+  income: {
+    entered: number;
+    detected: { amount: number; label: string; source: IncomeGuess['source'] } | null;
+    carryOver: { amount: number; label: string } | null;
+  };
+  /** Recent credits as the user named them, so the model can tell a salary from a refund. */
+  recentCredits: { month: string; amount: number; category: string; label: string }[];
 }
 
 export type GuideStep = { done: false; question: GuideQuestion } | { done: true; note: string | null };
@@ -48,7 +57,7 @@ const SAVINGS_WORDS = ['saving', 'savings', 'investment', 'sip', 'emergency', 'f
 const round = (n: number) => Math.round(n);
 
 /** What the model is allowed to know: totals per category per month, never individual transactions or merchants. */
-export function buildFacts(history: MonthHistory[], income: number, fixed: Set<string>): GuideFacts {
+export function buildFacts(history: MonthHistory[], income: number, fixed: Set<string>, credits: CreditRow[] = [], guess?: IncomeGuess): GuideFacts {
   const categories = new Set<string>();
   for (const h of history) for (const [c, v] of Object.entries(h.byCategory)) if (v.spent > 0) categories.add(c);
 
@@ -70,7 +79,27 @@ export function buildFacts(history: MonthHistory[], income: number, fixed: Set<s
     });
   }
   everyday.sort((a, b) => b.average - a.average);
-  return { currency: 'INR', income: round(income), monthsUsed: history.length, regularBills, everyday: everyday.slice(0, 12), savingsPerMonth };
+  return {
+    currency: 'INR', monthsUsed: history.length, regularBills, everyday: everyday.slice(0, 12), savingsPerMonth,
+    income: {
+      entered: round(income),
+      detected: guess && guess.income > 0 ? { amount: round(guess.income), label: guess.label, source: guess.source } : null,
+      carryOver: guess && guess.carryOver > 0 ? { amount: round(guess.carryOver), label: guess.carryLabel } : null,
+    },
+    recentCredits: [...credits].sort((a, b) => b.month.localeCompare(a.month) || b.amount - a.amount).slice(0, 15)
+      .map((c) => ({ month: c.month, amount: round(c.amount), category: c.category, label: (c.merchant || c.note).slice(0, 40) })),
+  };
+}
+
+/** The only amounts a "setIncome" option may carry: ones that really appear in the user's records or entry. */
+export function allowedIncomes(facts: GuideFacts): Set<number> {
+  const v = new Set<number>();
+  if (facts.income.entered > 0) v.add(facts.income.entered);
+  const d = facts.income.detected?.amount ?? 0;
+  const c = facts.income.carryOver?.amount ?? 0;
+  if (d > 0) { v.add(d); if (c > 0) v.add(d + c); }
+  for (const r of facts.recentCredits) v.add(r.amount);
+  return v;
 }
 
 export function systemPrompt(language: string): string {
@@ -83,9 +112,12 @@ export function systemPrompt(language: string): string {
     '- Ask about what stands out: a category that rose a lot, the biggest everyday spend, regular bills, how much to save. Ask about savings exactly once, within the first three questions. The effect of each option must match its label and its topic (an Eating out question may only change Eating out; "keep as is" is {"type":"none"}).',
     `- Ask between 3 and ${MAX_QUESTIONS} questions in total, then finish.`,
     '- Give 3 or 4 short options (under 60 characters). Each option has an effect, one of:',
+    '  {"type":"setIncome","value":<an amount from FACTS>} |',
     '  {"type":"savePercent","value":0-40} | {"type":"keepFixed","value":1 or 0} | {"type":"bufferPercent","value":0-15} |',
     '  {"type":"categoryChange","category":"<exact category name from FACTS.everyday>","value":-50..30} | {"type":"none"}',
-    '- "topic" is the category name, or "savings", "bills", "buffer".',
+    '- If FACTS.income.detected exists and TRANSCRIPT is empty, the FIRST question must have topic "income": say what the records show (the label, amount and month of the credit, plus any carry-over) and ask which amount to plan with. If FACTS.income.entered differs from detected, mention both. Options use {"type":"setIncome","value":<amount from FACTS>}: the detected amount, detected plus carry-over when there is one, and "a different amount" as {"type":"none"}.',
+    '- Use recentCredits (what each credit was called) to tell a salary from a refund or a transfer. Never call something a salary unless its category or label says so.',
+    '- "topic" is the category name, or "income", "savings", "bills", "buffer".',
     `- Write question and option labels in ${language}. Keep category names as they appear in FACTS.`,
     'Reply with ONLY JSON, no markdown:',
     '{"done":false,"topic":"...","question":"...","options":[{"label":"...","effect":{...}}]}',
@@ -101,7 +133,7 @@ The next question MUST be about the topic "${focus}".` : '';
 
 const clamp = (n: unknown, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(Number(n))));
 
-export function cleanEffect(raw: unknown, categories: Set<string>): GuideEffect {
+export function cleanEffect(raw: unknown, categories: Set<string>, incomes: Set<number> = new Set()): GuideEffect {
   const e = (raw ?? {}) as Record<string, unknown>;
   switch (e.type) {
     case 'savePercent':
@@ -110,6 +142,10 @@ export function cleanEffect(raw: unknown, categories: Set<string>): GuideEffect 
       return { type: 'keepFixed', value: Number(e.value) ? 1 : 0 };
     case 'bufferPercent':
       return Number.isFinite(Number(e.value)) ? { type: 'bufferPercent', value: clamp(e.value, 0, 15) } : { type: 'none' };
+    case 'setIncome': {
+      const v = Math.round(Number(e.value));
+      return Number.isFinite(v) && [...incomes].some((a) => Math.abs(a - v) <= 1) ? { type: 'setIncome', value: v } : { type: 'none' };
+    }
     case 'categoryChange':
       return typeof e.category === 'string' && categories.has(e.category) && Number.isFinite(Number(e.value))
         ? { type: 'categoryChange', category: e.category, value: clamp(e.value, -50, 30) }
@@ -122,6 +158,7 @@ export function cleanEffect(raw: unknown, categories: Set<string>): GuideEffect 
 /** An option may only do what its question is about: a question on Eating out can only change Eating out. */
 function fitToTopic(e: GuideEffect, topic: string, categories: Set<string>): GuideEffect {
   const t = topic.toLowerCase();
+  if (t === 'income') return e.type === 'setIncome' ? e : { type: 'none' };
   if (t === 'savings') return e.type === 'savePercent' ? e : { type: 'none' };
   if (t === 'bills') return e.type === 'keepFixed' ? e : { type: 'none' };
   if (t === 'buffer') return e.type === 'bufferPercent' ? e : { type: 'none' };
@@ -129,7 +166,7 @@ function fitToTopic(e: GuideEffect, topic: string, categories: Set<string>): Gui
 }
 
 /** Pulls the JSON object out of a model reply (they sometimes wrap it in text or fences) and checks it. Null = unusable. */
-export function parseStep(text: string, categories: Set<string>, asked: TranscriptItem[]): GuideStep | null {
+export function parseStep(text: string, categories: Set<string>, asked: TranscriptItem[], incomes: Set<number> = new Set(), requireIncome = false): GuideStep | null {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   if (start < 0 || end <= start) return null;
@@ -151,8 +188,10 @@ export function parseStep(text: string, categories: Set<string>, asked: Transcri
   for (const o of j.options.slice(0, 4)) {
     const r = (o ?? {}) as Record<string, unknown>;
     const label = typeof r.label === 'string' ? r.label.trim().slice(0, 80) : '';
-    if (label) options.push({ label, effect: fitToTopic(cleanEffect(r.effect, categories), topic, categories) });
+    if (label) options.push({ label, effect: fitToTopic(cleanEffect(r.effect, categories, incomes), topic, categories) });
   }
   if (options.length < 2) return null;
+  // The first question has to settle the income, with at least one real amount to choose.
+  if (requireIncome && !(topic.toLowerCase() === 'income' && options.some((o) => o.effect.type === 'setIncome'))) return null;
   return { done: false, question: { topic: topic || 'other', question, options } };
 }

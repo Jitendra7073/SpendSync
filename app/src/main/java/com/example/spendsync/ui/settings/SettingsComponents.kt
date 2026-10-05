@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -415,8 +416,9 @@ fun SettingsSegmented(
             Box(
                 Modifier
                     .padding(4.dp)
-                    .padding(start = offset)
-                    .width(cell - 8.dp)
+                    // offset, not padding: the bouncy spring overshoots below zero and padding() throws on negatives
+                    .offset(x = offset)
+                    .width((cell - 8.dp).coerceAtLeast(0.dp))
                     .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(scheme.primary)
@@ -428,17 +430,18 @@ fun SettingsSegmented(
                     val tint by animateColorAsState(
                         if (isSel) scheme.onPrimary else scheme.onSurfaceVariant, tween(200), label = "segTint",
                     )
-                    Column(
+                    Row(
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 44.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .selectable(selected = isSel, role = Role.RadioButton, onClick = { onSelect(key) }),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
+                            .selectable(selected = isSel, role = Role.RadioButton, onClick = { onSelect(key) })
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-                        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = tint)
+                        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+                        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = tint, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
                     }
                 }
             }

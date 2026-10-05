@@ -4,6 +4,7 @@ import { budgets, planEvents, plans, transactions } from '../db/schema/index';
 import type { MoveInput, SavePlanInput } from '../types/plan.types';
 import { BadRequestError, NotFoundError } from '../utils/errors';
 import { computeStatus, monthContext, type BucketInput, type BucketKind, type PlanStatus } from './status';
+import { guessIncome, type CreditRow, type IncomeGuess } from './income';
 import { suggestPlan, type MonthHistory, type Suggestion } from './suggest';
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
@@ -188,6 +189,41 @@ export async function loadHistory(userId: string, month: string): Promise<MonthH
   return history;
 }
 
-export async function suggestFor(userId: string, month: string): Promise<Suggestion> {
-  return suggestPlan(await loadHistory(userId, month));
+/** Credits of the three months before `month` and of `month` itself, with what they were called. */
+export async function loadCredits(userId: string, month: string): Promise<CreditRow[]> {
+  const start = monthRange(previousMonths(month, 3)[0]).start;
+  const end = monthRange(month).end;
+  const rows = await db
+    .select({ at: transactions.createdAt, amount: transactions.amount, category: transactions.category, merchant: transactions.merchant, note: transactions.note })
+    .from(transactions)
+    .where(and(eq(transactions.userId, userId), eq(transactions.type, 'credit'), gte(transactions.createdAt, start), lt(transactions.createdAt, end)));
+  return rows.map((r) => ({
+    month: r.at.toISOString().slice(0, 7),
+    amount: num(r.amount),
+    category: r.category ?? '',
+    merchant: r.merchant ?? '',
+    note: r.note ?? '',
+  }));
+}
+
+export interface SuggestionWithIncome extends Suggestion {
+  /** What the income was read from ("Enacton Salary"), and how sure we are: this_month > history > largest. */
+  incomeLabel: string;
+  incomeSource: IncomeGuess['source'];
+  carryOver: number;
+  carryLabel: string;
+}
+
+export async function suggestFor(userId: string, month: string): Promise<SuggestionWithIncome> {
+  const [history, credits] = await Promise.all([loadHistory(userId, month), loadCredits(userId, month)]);
+  const base = suggestPlan(history);
+  const guess = guessIncome(credits, month);
+  return {
+    ...base,
+    suggestedIncome: guess.income > 0 ? guess.income : base.suggestedIncome,
+    incomeLabel: guess.label,
+    incomeSource: guess.source,
+    carryOver: guess.carryOver,
+    carryLabel: guess.carryLabel,
+  };
 }

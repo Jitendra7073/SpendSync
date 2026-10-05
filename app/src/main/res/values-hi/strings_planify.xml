@@ -174,4 +174,7 @@
     <string name="pg_ai_badge">सवाल AI ने आपके अपने आँकड़ों से लिखे · %1$s</string>
     <string name="pg_need_consent">AI के लिखे सवालों के लिए Profile में असिस्टेंट चालू करें। ये सामान्य सवाल हैं।</string>
     <string name="pg_note_label">मैंने क्या बनाया</string>
+    <string name="pl_income_from">आपके रिकॉर्ड से पढ़ा: %1$s</string>
+    <string name="pl_income_guess">आपके सबसे बड़े जमा से अनुमान: %1$s। कृपया जाँच लें।</string>
+    <string name="pl_carry_from">पिछले महीने से बचा: %1$s</string>
 </resources>

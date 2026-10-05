@@ -90,6 +90,11 @@ data class SuggestionDto(
     @SerializedName("suggestedIncome") val suggestedIncome: Double,
     @SerializedName("monthsUsed")      val monthsUsed: Int,
     @SerializedName("confidence")      val confidence: String = "good",
+    /** What the income was read from ("Enacton Salary") and how sure that is: this_month, history, largest or none. */
+    @SerializedName("incomeLabel")     val incomeLabel: String = "",
+    @SerializedName("incomeSource")    val incomeSource: String = "none",
+    @SerializedName("carryOver")       val carryOver: Double = 0.0,
+    @SerializedName("carryLabel")      val carryLabel: String = "",
 )
 
 data class SuggestedItemDto(

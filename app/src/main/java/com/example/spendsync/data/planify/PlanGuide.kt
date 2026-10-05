@@ -19,17 +19,20 @@ object PlanGuide {
         val bufferPercent: Int = 0,
         /** Per-category change in percent chosen in the AI guide, e.g. "Eating out" to -15. */
         val changes: Map<String, Int> = emptyMap(),
+        /** The money to plan with, when the guide had the user confirm it against their records. */
+        val income: Double? = null,
     )
 
     data class Item(val category: String, val kind: String, val limit: Double, val average: Double)
 
-    data class Result(val items: List<Item>, val addedToSavings: Double)
+    data class Result(val items: List<Item>, val addedToSavings: Double, val income: Double = 0.0)
 
     private fun round50(v: Double) = (v / 50.0).roundToLong() * 50.0
 
     /** Applies one option's effect, clamped to the same ranges the server allows. Unknown kinds do nothing. */
     fun apply(a: Answers, type: String, value: Double?, category: String?): Answers = when (type) {
         "savePercent" -> a.copy(savePercent = (value ?: 0.0).toInt().coerceIn(0, 40))
+        "setIncome" -> if (value != null && value > 0) a.copy(income = value) else a
         "keepFixed" -> a.copy(keepFixed = (value ?: 1.0) != 0.0)
         "bufferPercent" -> a.copy(bufferPercent = (value ?: 0.0).toInt().coerceIn(0, 15))
         "categoryChange" -> if (category.isNullOrBlank() || value == null) a else a.copy(changes = a.changes + (category to value.toInt().coerceIn(-50, 30)))
@@ -40,8 +43,9 @@ object PlanGuide {
     fun hasFixed(s: SuggestionDto) = s.items.any { it.kind == "fixed" }
     fun hasEveryday(s: SuggestionDto) = s.items.any { it.kind == "spend" }
 
-    fun build(s: SuggestionDto, income: Double, a: Answers): Result {
-        if (income <= 0.0) return Result(emptyList(), 0.0)
+    fun build(s: SuggestionDto, plannedIncome: Double, a: Answers): Result {
+        val income = a.income ?: plannedIncome
+        if (income <= 0.0) return Result(emptyList(), 0.0, income)
         val fixed = if (a.keepFixed) s.items.filter { it.kind == "fixed" }.map { Item(it.category, "fixed", it.limit, it.average) } else emptyList()
         var spend = s.items.filter { it.kind == "spend" }.map { Item(it.category, "spend", round50(it.limit * (1 + a.everydayChange / 100.0) * (1 + (a.changes.entries.firstOrNull { c -> c.key.equals(it.category, true) }?.value ?: 0) / 100.0)).coerceAtLeast(50.0), it.average) }
         var save = round50(income * a.savePercent / 100.0)
@@ -74,6 +78,6 @@ object PlanGuide {
             if (k != null) items[k] = items[k].copy(limit = max(0.0, items[k].limit + diff)) else save = max(0.0, save + diff)
         }
         if (save > 0.5) items += Item("Savings", "savings", save, 0.0)
-        return Result(items.filter { it.limit > 0.5 }, added)
+        return Result(items.filter { it.limit > 0.5 }, added, income)
     }
 }
