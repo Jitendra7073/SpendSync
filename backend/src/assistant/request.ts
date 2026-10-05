@@ -15,7 +15,7 @@ export const chatRequestSchema = z
       .min(1)
       .max(20),
     language: z.enum(SUPPORTED_ASSISTANT_LANGUAGES).default('English'),
-    screen: z.enum(['home', 'analytics', 'budget', 'profile', 'holds', 'add_transaction']).optional(),
+    screen: z.enum(['home', 'analytics', 'budget', 'planify', 'profile', 'holds', 'add_transaction']).optional(),
     /** IANA timezone, e.g. Asia/Kolkata, so "today" and "this month" match the user's day. */
     timezone: z.string().max(64).optional(),
     conversationId: z.string().min(8).max(64),

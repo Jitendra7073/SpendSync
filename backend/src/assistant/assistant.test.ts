@@ -107,6 +107,15 @@ describe('tool registry', () => {
     }
   });
 
+  it('has a read-only plan status tool and can open the Planify screen', () => {
+    const plan = tools.findTool('get_plan_status')!;
+    expect(plan.tier).toBe('read');
+    expect(plan.input.safeParse({}).success).toBe(true);
+    expect(plan.input.safeParse({ month: '2026-10' }).success).toBe(true);
+    expect(plan.input.safeParse({ month: 'October' }).success).toBe(false);
+    expect(tools.findTool('open_screen')!.input.safeParse({ screen: 'planify' }).success).toBe(true);
+  });
+
   it('validates tool arguments', () => {
     const search = tools.findTool('search_transactions')!;
     expect(search.input.safeParse({ type: 'debit', limit: 5, start_date: '2026-10-01' }).success).toBe(true);

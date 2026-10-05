@@ -6,7 +6,7 @@
  *
  * `screen` is the screen the answer is about; the app turns it into an "Open …" button.
  */
-export type ScreenId = 'home' | 'analytics' | 'budget' | 'profile' | 'holds' | 'add_transaction' | 'support';
+export type ScreenId = 'home' | 'analytics' | 'budget' | 'planify' | 'profile' | 'holds' | 'add_transaction' | 'support';
 
 export interface HelpEntry {
   id: string;
@@ -53,10 +53,10 @@ export const HELP_ENTRIES: HelpEntry[] = [
   },
   {
     id: 'budgets',
-    title: 'Budgets',
-    screen: 'budget',
+    title: 'Planify and budgets',
+    screen: 'planify',
     text:
-      'On the Budget tab tap "Set category budget", pick a category and the most you want to spend on it this month. Each category shows a bar: under 75% used is On track, 75–100% is Near limit and above 100% is Over. A pace chart compares what you have spent so far with an even spread of the budget across the month. Tap a category for its details, including how much you can safely spend per day for the rest of the month. Budgets are per month.',
+      'Planify (the Planify tab) is the monthly plan, and it replaces the old Budget page. Tap "Plan this month", enter the money you have (your salary is read from your own credits) and split it into buckets, each with a limit, like 2,000 for eating out. "Let AI guide me" asks a few multiple-choice questions and builds the buckets from your history, and shows whether the plan would have held in your past months. Limits are soft: nothing is blocked, you are only warned. Each bucket shows On track, Near limit (80%) or Over, how much is left, and the pace. The top shows how much is safe to spend today. If a bucket goes over, "What now?" lets you move money from another bucket or raise the limit. A bucket can also count other categories or shops you confirm (for example Food in Eating out) and the app asks when it is unsure. Alerts and a daily summary are in Settings → Planify.',
   },
   {
     id: 'analytics',

@@ -159,6 +159,11 @@ export const userSettings = pgTable('user_settings', {
   assistantInstructions: text('assistant_instructions').notNull().default(''),
   // Comma-separated tool names the user switched off.
   assistantDisabledTools: text('assistant_disabled_tools').notNull().default(''),
+
+  // Planify (Settings -> Planify): limit alerts, evening summary, smallest credit that triggers "plan this month?".
+  planifyAlerts: boolean('planify_alerts').notNull().default(true),
+  planifyDaily: boolean('planify_daily').notNull().default(false),
+  planifySalaryMin: integer('planify_salary_min').notNull().default(5000),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });

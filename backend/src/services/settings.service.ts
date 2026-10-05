@@ -51,6 +51,9 @@ export class SettingsService {
         assistantTone: 'friendly',
         assistantInstructions: '',
         assistantDisabledTools: '',
+        planifyAlerts: true,
+        planifyDaily: false,
+        planifySalaryMin: 5000,
       })
       .returning();
 
@@ -82,6 +85,9 @@ export class SettingsService {
       assistantTone?: string;
       assistantInstructions?: string;
       assistantDisabledTools?: string;
+      planifyAlerts?: boolean;
+      planifyDaily?: boolean;
+      planifySalaryMin?: number;
     }
   ) {
     // Ensure settings exist

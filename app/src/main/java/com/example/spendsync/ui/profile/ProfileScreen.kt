@@ -180,6 +180,7 @@ fun ProfileScreen(
     val amountVisibilityDurationSeconds by sessionDataStore.amountVisibilityDurationSeconds.collectAsState(initial = 60)
     val pinHash by sessionDataStore.pinHash.collectAsState(initial = null)
     val assistantConsent by sessionDataStore.assistantConsent.collectAsState(initial = false)
+    val planifySettings by sessionDataStore.planifySettings.collectAsState(initial = com.example.spendsync.data.local.PlanifySettings())
     val assistantPrefs by sessionDataStore.assistantPrefs.collectAsState(initial = com.example.spendsync.data.assistant.AssistantPrefs())
     var assistantModels by remember { mutableStateOf<List<com.example.spendsync.ui.settings.AssistantModelInfo>?>(null) }
     val assistantRepository = remember { com.example.spendsync.data.assistant.AssistantRepository(sessionDataStore) }
@@ -241,6 +242,13 @@ fun ProfileScreen(
         // so the user never sees the permission prompt.
         context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
     }
+    // Planify alerts need the notification permission (Android 13+); ask when the user switches them on.
+    val planifyPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val askNotificationPermissionIfNeeded = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) planifyPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
     var showClearDataDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
@@ -295,6 +303,7 @@ fun ProfileScreen(
         assistantEnabled = assistantConsent,
         assistant = assistantPrefs,
         assistantModels = assistantModels,
+        planify = planifySettings,
     )
 
     val actions = SettingsActions(
@@ -322,6 +331,12 @@ fun ProfileScreen(
             else commit(SettingField.Masking) { sessionDataStore.updateAmountMaskingEnabled(false) }
         },
         setAssistant = { v -> scope.launch { sessionDataStore.updateAssistantConsent(v) } },
+        setPlanify = { p ->
+            commit(SettingField.Planify) { sessionDataStore.updatePlanifySettings(p) }
+            // the evening job follows the switch right away
+            com.example.spendsync.notifications.PlanDailyWorker.sync(context.applicationContext, p.daily, reschedule = true)
+            if (p.daily || p.alerts) askNotificationPermissionIfNeeded()
+        },
         setAssistantPrefs = { p -> commit(SettingField.Assistant) { sessionDataStore.updateAssistantPrefs(p) } },
         refreshAssistantStatus = { scope.launch { assistantModels = assistantRepository.models() } },
         clearAssistantHistory = { scope.launch { chatStore.clear(sessionDataStore.userId.first().orEmpty()) } },

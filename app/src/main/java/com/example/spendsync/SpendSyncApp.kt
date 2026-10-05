@@ -11,6 +11,7 @@ import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.ui.i18n.AppLanguage
 import com.example.spendsync.ui.i18n.LanguageManager
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -31,6 +32,11 @@ class SpendSyncApp : Application(), SingletonImageLoader.Factory {
         // language before any Activity exists.
         LanguageManager.apply(this, AppLanguage.fromStored(runBlocking { SessionDataStore(this@SpendSyncApp).language.first() }))
         CrashHandler.install(this)
+        // The daily Planify summary is a scheduled job: make sure it matches the saved setting after a reboot or update.
+        val store = SessionDataStore(this)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            runCatching { com.example.spendsync.notifications.PlanDailyWorker.sync(this@SpendSyncApp, store.planifySettings.first().daily) }
+        }
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader {

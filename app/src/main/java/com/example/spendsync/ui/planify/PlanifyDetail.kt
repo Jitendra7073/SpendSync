@@ -1,5 +1,6 @@
 package com.example.spendsync.ui.planify
 
+import com.example.spendsync.ui.theme.SemanticWarning
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -75,6 +76,10 @@ internal fun BucketDetailPage(
     onRemove: () -> Unit,
     onViewTransaction: (TransactionDto) -> Unit,
     onForget: (com.example.spendsync.data.remote.model.AliasDto) -> Unit = {},
+    matches: List<com.example.spendsync.data.remote.model.MatchDto> = emptyList(),
+    missingCategory: Boolean = false,
+    onCreateCategory: () -> Unit = {},
+    onAnswerMatch: (com.example.spendsync.data.remote.model.MatchDto, String) -> Unit = { _, _ -> },
 ) {
     val scheme = MaterialTheme.colorScheme
     val color = stateColor(bucket.state)
@@ -98,6 +103,14 @@ internal fun BucketDetailPage(
                                 Box(Modifier.fillMaxHeight().fillMaxWidth(progress).clip(CircleShape).background(color))
                             }
                         }
+                        if (missingCategory) {
+                            Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(tr(R.string.pl_chip_missing), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SemanticWarning)
+                                Text(tr(R.string.pl_cat_missing_sub), fontSize = 13.sp, color = scheme.onSurfaceVariant)
+                                AppButton(tr(R.string.pl_cat_create), onClick = onCreateCategory, variant = ButtonVariant.Tonal, size = ButtonSize.Small)
+                            }
+                        }
+                        matches.forEach { m -> MatchBox(m, vis, bucket.title(), onAnswer = { v -> onAnswerMatch(m, v) }) }
                         if (bucket.kind == "spend" && bucket.limit > 0.0) {
                             PaceCard(
                                 debits = monthTxs.filter { it.type == "debit" && com.example.spendsync.data.planify.PlanMath.belongs(plan, bucket.category, it.category, it.merchant) },

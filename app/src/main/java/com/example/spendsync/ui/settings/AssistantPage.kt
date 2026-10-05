@@ -42,7 +42,7 @@ private fun toolIcon(tool: AssistantToolInfo): ImageVector = when (tool) {
     AssistantToolInfo.SearchHelp -> Icons.Default.Help
     AssistantToolInfo.GetBalance, AssistantToolInfo.GetSpendingSummary, AssistantToolInfo.GetTopMerchants -> Icons.Default.Star
     AssistantToolInfo.SearchTransactions -> Icons.Default.Search
-    AssistantToolInfo.GetBudgetStatus, AssistantToolInfo.ListHolds -> Icons.Default.Notifications
+    AssistantToolInfo.GetBudgetStatus, AssistantToolInfo.GetPlanStatus, AssistantToolInfo.ListHolds -> Icons.Default.Notifications
     AssistantToolInfo.GetSettings -> Icons.Default.SettingsSuggest
     AssistantToolInfo.ProposeEntry -> Icons.Default.Edit
     AssistantToolInfo.OpenScreen -> Icons.Default.AutoAwesome
@@ -55,6 +55,7 @@ private fun toolTitle(tool: AssistantToolInfo): String = tr(
         AssistantToolInfo.GetSpendingSummary -> R.string.asst_tool_get_spending_summary
         AssistantToolInfo.SearchTransactions -> R.string.asst_tool_search_transactions
         AssistantToolInfo.GetBudgetStatus -> R.string.asst_tool_get_budget_status
+        AssistantToolInfo.GetPlanStatus -> R.string.asst_tool_get_plan_status
         AssistantToolInfo.ListHolds -> R.string.asst_tool_list_holds
         AssistantToolInfo.GetTopMerchants -> R.string.asst_tool_get_top_merchants
         AssistantToolInfo.GetSettings -> R.string.asst_tool_get_settings
@@ -70,6 +71,7 @@ private fun toolSub(tool: AssistantToolInfo): String = tr(
         AssistantToolInfo.GetSpendingSummary -> R.string.asst_tool_get_spending_summary_sub
         AssistantToolInfo.SearchTransactions -> R.string.asst_tool_search_transactions_sub
         AssistantToolInfo.GetBudgetStatus -> R.string.asst_tool_get_budget_status_sub
+        AssistantToolInfo.GetPlanStatus -> R.string.asst_tool_get_plan_status_sub
         AssistantToolInfo.ListHolds -> R.string.asst_tool_list_holds_sub
         AssistantToolInfo.GetTopMerchants -> R.string.asst_tool_get_top_merchants_sub
         AssistantToolInfo.GetSettings -> R.string.asst_tool_get_settings_sub

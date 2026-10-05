@@ -224,6 +224,17 @@ fun PlanifyScreen(
                             onMove = { moveSheet = Triple(b.category, null, null) },
                             onRemove = { page = Page.Home; saveWith(p, R.string.pl_bucket_removed) { items -> items.filter { it.category != b.category } } },
                             onViewTransaction = onViewTransaction,
+                            matches = p.matches.filter { it.bucket == b.category },
+                            missingCategory = b.category in missing,
+                            onCreateCategory = {
+                                scope.launch {
+                                    sessionDataStore.addCustomExpenseCategory(b.category, com.example.spendsync.data.planify.SmartCategories.iconFor(b.category))
+                                    toast = ToastMessage(tr(R.string.pl_cat_created), isError = false)
+                                }
+                            },
+                            onAnswerMatch = { m, verdict ->
+                                scope.launch { applied(financeRepository.answerPlanMatch(month, com.example.spendsync.data.remote.model.MatchAnswerRequest(m.bucket, m.kind, m.label, verdict)), R.string.pl_match_thanks) }
+                            },
                             onForget = { a ->
                                 scope.launch { applied(financeRepository.answerPlanMatch(month, com.example.spendsync.data.remote.model.MatchAnswerRequest(a.bucket, a.kind, a.label, "forget")), R.string.pl_alias_forgot) }
                             },
@@ -420,11 +431,11 @@ private fun PlanHome(
                                 if (group.isNotEmpty()) {
                                     HomeSectionHeader(groupTitle(kind))
                                     group.forEach { b ->
-                                        BucketCard(b, vis, onClick = { onOpenBucket(b) }, onFix = if (b.state == "over") ({ onFix(b) }) else null)
-                                        plan.matches.firstOrNull { it.bucket == b.category }?.let { m ->
-                                            MatchBox(m, vis, b.title(), onAnswer = { v -> onAnswerMatch(m, v) })
-                                        }
-                                        if (b.category in missingCategories) CreateCategoryRow({ onCreateCategory(b.category) })
+                                        BucketCard(
+                                            b, vis, onClick = { onOpenBucket(b) }, onFix = if (b.state == "over") ({ onFix(b) }) else null,
+                                            needsConfirm = plan.matches.any { it.bucket == b.category },
+                                            missingCategory = b.category in missingCategories,
+                                        )
                                     }
                                 }
                             }

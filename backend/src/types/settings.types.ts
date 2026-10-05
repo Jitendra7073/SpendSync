@@ -37,6 +37,9 @@ export const updateSettingsSchema = z.object({
   assistantTone: z.enum(ASSISTANT_TONES).optional(),
   assistantInstructions: z.string().max(300).optional(),
   assistantDisabledTools: z.string().max(600).optional(),
+  planifyAlerts: z.boolean().optional(),
+  planifyDaily: z.boolean().optional(),
+  planifySalaryMin: z.number().int().min(0).max(1_000_000).optional(),
 });
 
 /**

@@ -307,7 +307,7 @@ private fun Welcome(screen: String?, onPick: (String) -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val starters = when (screen) {
         "analytics" -> listOf(R.string.assistant_starter_categories, R.string.assistant_starter_month, R.string.assistant_starter_balance)
-        "budget" -> listOf(R.string.assistant_starter_budget, R.string.assistant_starter_month, R.string.assistant_starter_howto)
+        "budget", "planify" -> listOf(R.string.assistant_starter_budget, R.string.assistant_starter_month, R.string.assistant_starter_howto)
         "holds" -> listOf(R.string.assistant_starter_holds, R.string.assistant_starter_balance, R.string.assistant_starter_howto)
         else -> listOf(R.string.assistant_starter_balance, R.string.assistant_starter_month, R.string.assistant_starter_budget, R.string.assistant_starter_holds, R.string.assistant_starter_howto)
     }
@@ -634,6 +634,7 @@ internal fun toolLabel(name: String): String = tr(
         "get_spending_summary" -> R.string.assistant_tool_spending
         "search_transactions" -> R.string.assistant_tool_transactions
         "get_budget_status" -> R.string.assistant_tool_budget
+        "get_plan_status" -> R.string.assistant_tool_plan
         "list_holds" -> R.string.assistant_tool_holds
         "get_top_merchants" -> R.string.assistant_tool_merchants
         "get_settings" -> R.string.assistant_tool_settings
@@ -645,6 +646,7 @@ internal fun screenLabel(screen: String): String? = when (screen) {
     "home" -> tr(R.string.assistant_open_home)
     "analytics" -> tr(R.string.assistant_open_analytics)
     "budget" -> tr(R.string.assistant_open_budget)
+    "planify" -> tr(R.string.assistant_open_planify)
     "profile" -> tr(R.string.assistant_open_profile)
     "holds" -> tr(R.string.assistant_open_holds)
     "add_transaction" -> tr(R.string.assistant_open_add)

@@ -1,6 +1,8 @@
 package com.example.spendsync.ui.planify
 
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -91,6 +93,10 @@ internal fun BucketCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onFix: (() -> Unit)? = null,
+    /** Spending looks related and needs a Yes/No (answered inside the bucket). */
+    needsConfirm: Boolean = false,
+    /** The bucket's category does not exist yet (created inside the bucket). */
+    missingCategory: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     val color = stateColor(b.state)
@@ -117,7 +123,12 @@ internal fun BucketCard(
         }
         Spacer(Modifier.height(6.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(verdictLabel(b), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color)
+            // Notices first, then the state ("On track"): warnings and questions are seen before the all-clear.
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (missingCategory) NoticeChip(tr(R.string.pl_chip_missing), warn = true)
+                if (needsConfirm) NoticeChip(tr(R.string.pl_chip_confirm), warn = false)
+                Text(verdictLabel(b), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (b.remaining >= 0) {
                     MaskableAmountText(b.remaining, vis, fontSize = 12.sp, color = scheme.onSurfaceVariant)
@@ -240,5 +251,18 @@ internal fun MatchBox(m: com.example.spendsync.data.remote.model.MatchDto, vis: 
 internal fun CreateCategoryRow(onCreate: () -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
         AppButton(tr(R.string.pl_cat_create), onClick = onCreate, variant = ButtonVariant.Tonal, size = ButtonSize.Small, leadingIcon = androidx.compose.material.icons.Icons.Filled.Add)
+    }
+}
+
+/** A small label ahead of a bucket's state: amber for something missing, blue for something to confirm. */
+@Composable
+private fun NoticeChip(text: String, warn: Boolean) {
+    val color = if (warn) SemanticWarning else MaterialTheme.colorScheme.primary
+    Row(
+        Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(color.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(if (warn) androidx.compose.material.icons.Icons.Filled.Warning else androidx.compose.material.icons.Icons.Filled.Info, contentDescription = null, tint = color, modifier = Modifier.size(11.dp))
+        Text(text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1, modifier = Modifier.padding(start = 4.dp))
     }
 }

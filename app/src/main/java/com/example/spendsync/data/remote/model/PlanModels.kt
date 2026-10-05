@@ -14,10 +14,14 @@ data class PlanViewDto(
     @SerializedName("carryOver") val carryOver: Double,
     @SerializedName("status")    val status: PlanStatusDto,
     /** Spending the user confirmed also counts in a bucket (Food counts in Eating out). */
-    @SerializedName("aliases")   val aliases: List<AliasDto> = emptyList(),
+    @SerializedName("aliases")   private val aliasesRaw: List<AliasDto>? = null,
     /** Yes/No questions about spending that looks like it belongs in a bucket. */
-    @SerializedName("matches")   val matches: List<MatchDto> = emptyList(),
-)
+    @SerializedName("matches")   private val matchesRaw: List<MatchDto>? = null,
+) {
+    // Gson ignores Kotlin defaults: a server that has not been updated yet sends no field and Gson leaves null.
+    val aliases: List<AliasDto> get() = aliasesRaw.orEmpty()
+    val matches: List<MatchDto> get() = matchesRaw.orEmpty()
+}
 
 data class AliasDto(
     @SerializedName("bucket") val bucket: String,
@@ -116,16 +120,24 @@ data class SuggestionDto(
     @SerializedName("items")           val items: List<SuggestedItemDto>,
     @SerializedName("suggestedIncome") val suggestedIncome: Double,
     @SerializedName("monthsUsed")      val monthsUsed: Int,
-    @SerializedName("confidence")      val confidence: String = "good",
+    @SerializedName("confidence")      private val confidenceRaw: String? = null,
     /** What the income was read from ("Enacton Salary") and how sure that is: this_month, history, largest or none. */
-    @SerializedName("incomeLabel")     val incomeLabel: String = "",
-    @SerializedName("incomeSource")    val incomeSource: String = "none",
+    @SerializedName("incomeLabel")     private val incomeLabelRaw: String? = null,
+    @SerializedName("incomeSource")    private val incomeSourceRaw: String? = null,
     @SerializedName("carryOver")       val carryOver: Double = 0.0,
-    @SerializedName("carryLabel")      val carryLabel: String = "",
+    @SerializedName("carryLabel")      private val carryLabelRaw: String? = null,
     /** Net spend per category for each month used (oldest first), to test a draft plan against the past. */
-    @SerializedName("monthlySpend")    val monthlySpend: Map<String, List<Double>> = emptyMap(),
-    @SerializedName("monthLabels")     val monthLabels: List<String> = emptyList(),
-)
+    @SerializedName("monthlySpend")    private val monthlySpendRaw: Map<String, List<Double>>? = null,
+    @SerializedName("monthLabels")     private val monthLabelsRaw: List<String>? = null,
+) {
+    // Optional fields: an older server omits them and Gson then leaves null, so read them through these.
+    val confidence: String get() = confidenceRaw ?: "good"
+    val incomeLabel: String get() = incomeLabelRaw.orEmpty()
+    val incomeSource: String get() = incomeSourceRaw ?: "none"
+    val carryLabel: String get() = carryLabelRaw.orEmpty()
+    val monthlySpend: Map<String, List<Double>> get() = monthlySpendRaw.orEmpty()
+    val monthLabels: List<String> get() = monthLabelsRaw.orEmpty()
+}
 
 data class SuggestedItemDto(
     @SerializedName("category")  val category: String,
@@ -135,11 +147,13 @@ data class SuggestedItemDto(
     /** What was spent on average, shown as "last month" beside the new number. */
     @SerializedName("average")   val average: Double,
     @SerializedName("sortOrder") val sortOrder: Int,
-    @SerializedName("reason")     val reason: String = "average",
+    @SerializedName("reason")     private val reasonRaw: String? = null,
     @SerializedName("monthsSeen") val monthsSeen: Int = 0,
     @SerializedName("lowest")     val lowest: Double = 0.0,
     @SerializedName("highest")    val highest: Double = 0.0,
-)
+) {
+    val reason: String get() = reasonRaw ?: "average"
+}
 
 // ── AI planning guide ────────────────────────────────────────────────────────
 

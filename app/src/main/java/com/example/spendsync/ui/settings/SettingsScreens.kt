@@ -53,6 +53,9 @@ import com.example.spendsync.ui.components.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.filled.PieChart
+import com.example.spendsync.ui.components.AppChip
+import com.example.spendsync.utils.formatInr
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,6 +97,7 @@ data class SettingsModel(
     val assistant: com.example.spendsync.data.assistant.AssistantPrefs,
     /** Models the server reports; null while loading or if it could not be reached. */
     val assistantModels: List<AssistantModelInfo>?,
+    val planify: com.example.spendsync.data.local.PlanifySettings = com.example.spendsync.data.local.PlanifySettings(),
 )
 
 /** Every user-triggered change. The host decides persistence, syncing and dialogs. */
@@ -111,6 +115,7 @@ class SettingsActions(
     val openNotificationAccess: () -> Unit,
     val setMasking: (Boolean) -> Unit,
     val setAssistant: (Boolean) -> Unit,
+    val setPlanify: (com.example.spendsync.data.local.PlanifySettings) -> Unit,
     val setAssistantPrefs: (com.example.spendsync.data.assistant.AssistantPrefs) -> Unit,
     val refreshAssistantStatus: () -> Unit,
     val clearAssistantHistory: () -> Unit,
@@ -143,6 +148,9 @@ enum class SettingsPage(@StringRes val titleRes: Int, val icon: ImageVector, val
         if (it.maskingEnabled) tr(R.string.amounts_hidden_unlock_lasts, durationLabel(it.visibilitySeconds)) else tr(R.string.amounts_always_visible)
     }),
     Assistant(R.string.assistant_title, Icons.Default.AutoAwesome, { assistantSummary(it) }),
+    Planify(R.string.pl_set_title, Icons.Default.PieChart, {
+        tr(R.string.pl_set_summary, tr(if (it.planify.alerts) R.string.pl_set_on else R.string.pl_set_off), tr(if (it.planify.daily) R.string.pl_set_on else R.string.pl_set_off))
+    }),
     AutoCapture(R.string.auto_capture, Icons.Default.SettingsSuggest, {
         if (!it.autoCapture) tr(R.string.off) else tr(R.string.on_1_app_s, it.autoCapturePackages.size)
     }),
@@ -175,6 +183,7 @@ private fun searchIndex(): List<Pair<String, SettingsPage>> = listOf(
     tr(R.string.clear_local_data_cache) to SettingsPage.Data,
     tr(R.string.privacy_policy_2) to SettingsPage.About,
     tr(R.string.faq_help_support) to SettingsPage.About,
+    tr(R.string.pl_set_search) to SettingsPage.Planify,
 )
 
 // ── Hub ──────────────────────────────────────────────────────────────────────
@@ -260,6 +269,7 @@ fun SettingsPageScreen(page: SettingsPage, model: SettingsModel, actions: Settin
                             SettingsPage.Notifications -> NotificationsPage(model, actions)
                             SettingsPage.Privacy -> PrivacyPage(model, actions)
                             SettingsPage.Assistant -> AssistantPage(model, actions)
+                            SettingsPage.Planify -> PlanifySettingsPage(model, actions)
                             SettingsPage.AutoCapture -> AutoCapturePage(model, actions)
                             SettingsPage.Data -> DataPage(model, actions)
                             SettingsPage.About -> AboutPage(actions)
@@ -433,5 +443,30 @@ private fun AboutPage(a: SettingsActions) {
             FAQItem(tr(R.string.how_do_i_hide_my_balances), tr(R.string.privacy_security_hide_large_amounts_you))
             FAQItem(tr(R.string.how_do_i_delete_my_account), tr(R.string.account_delete_account_this_permanently_remo))
         }
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun PlanifySettingsPage(m: SettingsModel, a: SettingsActions) {
+    val p = m.planify
+    SettingsGroup(Modifier.cascadeIn(0), footer = tr(R.string.pl_set_footer)) {
+        SettingsToggleRow(Icons.Default.NotificationsActive, tr(R.string.pl_set_alerts), tr(R.string.pl_set_alerts_sub), p.alerts, onCheckedChange = { a.setPlanify(p.copy(alerts = it)) })
+        SettingsDivider()
+        SettingsToggleRow(Icons.Default.Notifications, tr(R.string.pl_set_daily), tr(R.string.pl_set_daily_sub), p.daily, onCheckedChange = { a.setPlanify(p.copy(daily = it)) })
+        ScopeTag(synced = true)
+    }
+    SettingsGroupLabel(tr(R.string.pl_set_salary))
+    SettingsGroup(Modifier.cascadeIn(1), footer = tr(R.string.pl_set_salary_sub)) {
+        androidx.compose.foundation.layout.FlowRow(
+            Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf(2000, 5000, 10000, 25000).forEach { v ->
+                AppChip(formatInr(v.toDouble()), selected = p.salaryMin == v, onClick = { a.setPlanify(p.copy(salaryMin = v)) })
+            }
+        }
+        ScopeTag(synced = true)
     }
 }

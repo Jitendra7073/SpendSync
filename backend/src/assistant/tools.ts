@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db } from '../db/index';
 import { transactions } from '../db/schema/index';
 import { budgetService } from '../services/budget.service';
+import { loadPlan } from '../planify/service';
 import { dashboardService } from '../services/dashboard.service';
 import { holdService } from '../services/hold.service';
 import { settingsService } from '../services/settings.service';
@@ -44,7 +45,7 @@ export interface AssistantTool<I = unknown> {
   run: (ctx: ToolContext, input: I) => Promise<ToolResult>;
 }
 
-const SCREENS = ['home', 'analytics', 'budget', 'profile', 'holds', 'add_transaction', 'support'] as const;
+const SCREENS = ['home', 'analytics', 'budget', 'planify', 'profile', 'holds', 'add_transaction', 'support'] as const;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -264,6 +265,56 @@ const getBudgetStatus = tool({
   },
 });
 
+const getPlanStatus = tool({
+  name: 'get_plan_status',
+  tier: 'read',
+  description:
+    "The user's Planify monthly plan for a month: money planned, what is left to plan, how much is safe to spend today, days left, and every bucket (fixed, spend or savings) with its limit, spent, remaining, percent, state (ok, close, over, paid, saved) and the day it would run out at the current pace, plus spending outside the plan and any spending the app is waiting for the user to confirm. Defaults to the current month. Use for 'how is my plan', 'can I spend X today', 'which bucket am I over', 'what is safe to spend'.",
+  input: z.object({ month: z.string().regex(MONTH).optional() }),
+  jsonSchema: {
+    type: 'object',
+    properties: { month: { type: 'string', description: 'YYYY-MM. Omit for the current month.' } },
+    additionalProperties: false,
+  },
+  async run(ctx, input) {
+    const month = input.month ?? ctx.today.slice(0, 7);
+    const plan = await loadPlan(ctx.userId, month, ctx.today);
+    if (!plan.exists) {
+      return { data: { currency: 'INR', month, has_plan: false, note: 'There is no plan for this month yet. The user can build one on the Planify tab.' } };
+    }
+    const s = plan.status;
+    return {
+      data: {
+        currency: 'INR',
+        month,
+        has_plan: true,
+        money_to_plan: money(s.available),
+        planned: money(s.planned),
+        left_to_plan: money(s.leftToPlan),
+        spent_in_plan: money(s.spentInPlan),
+        safe_to_spend_today: money(s.safeToSpendToday),
+        days_left: s.daysLeft,
+        buckets_ok: s.counts.ok,
+        buckets_close: s.counts.close,
+        buckets_over: s.counts.over,
+        buckets: s.buckets.map((b) => ({
+          name: b.name,
+          kind: b.kind,
+          limit: money(b.limit),
+          spent: money(b.spent),
+          remaining: money(b.remaining),
+          percent_used: Math.round(b.percent),
+          state: b.state,
+          runs_out_on_day: b.runsOutOnDay ?? null,
+        })),
+        spent_outside_plan: money(s.unplannedTotal),
+        outside_plan: s.unplanned.slice(0, 5).map((u) => ({ category: u.category, spent: money(u.spent) })),
+        waiting_for_confirmation: plan.matches.map((m) => ({ bucket: m.bucket, looks_like: m.label, spends: m.count })),
+      },
+    };
+  },
+});
+
 const listHolds = tool({
   name: 'list_holds',
   tier: 'read',
@@ -381,7 +432,7 @@ const openScreen = tool({
   name: 'open_screen',
   tier: 'navigate',
   description:
-    "Offer the user an 'Open <screen>' button. Use after answering when the user would act on a screen: home, analytics, budget, profile (settings and account), holds, add_transaction, support (report a problem to the support team). Only offers; the user taps it.",
+    "Offer the user an 'Open <screen>' button. Use after answering when the user would act on a screen: home, analytics, planify (the monthly plan, also used for budgets), budget, profile (settings and account), holds, add_transaction, support (report a problem to the support team). Only offers; the user taps it.",
   input: z.object({ screen: z.enum(SCREENS) }),
   jsonSchema: {
     type: 'object',
@@ -463,6 +514,7 @@ export const ASSISTANT_TOOLS: AssistantTool<any>[] = [
   getSpendingSummary,
   searchTransactions,
   getBudgetStatus,
+  getPlanStatus,
   listHolds,
   getTopMerchants,
   getSettings,

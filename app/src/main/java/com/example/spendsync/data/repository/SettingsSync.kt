@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 /** One entry per user-changeable preference that lives on the account (the PIN itself never does). */
-enum class SettingField { Theme, Accent, Language, DateFormat, Push, Email, Backup, Masking, MaskingSeconds, AutoCapture, AutoCapturePackages, Assistant }
+enum class SettingField { Theme, Accent, Language, DateFormat, Push, Email, Backup, Masking, MaskingSeconds, AutoCapture, AutoCapturePackages, Assistant, Planify }
 
 /**
  * Keeps preferences identical across devices without ever losing an edit.
@@ -72,6 +72,14 @@ class SettingsSynchronizer(
         if (free(SettingField.MaskingSeconds)) s.amountVisibilitySeconds?.let { store.updateAmountVisibilityDurationSeconds(it) }
         if (free(SettingField.AutoCapture)) s.autoCaptureEnabled?.let { store.updateAutoCaptureEnabled(it) }
         if (free(SettingField.AutoCapturePackages)) s.autoCapturePackages?.let { store.updateAutoCapturePackages(parseAutoCapturePackages(it)) }
+        if (free(SettingField.Planify) && (s.planifyAlerts != null || s.planifyDaily != null || s.planifySalaryMin != null)) {
+            val cur = store.planifySettings.first()
+            val merged = com.example.spendsync.data.local.PlanifySettings(
+                alerts = s.planifyAlerts ?: cur.alerts, daily = s.planifyDaily ?: cur.daily, salaryMin = s.planifySalaryMin ?: cur.salaryMin,
+            )
+            store.updatePlanifySettings(merged)
+            com.example.spendsync.notifications.PlanDailyWorker.sync(store.appContext, merged.daily)
+        }
         if (free(SettingField.Assistant) && s.assistantModel != null) {
             store.updateAssistantPrefs(
                 AssistantPrefs(
@@ -88,7 +96,11 @@ class SettingsSynchronizer(
     private suspend fun buildRequest(fields: Set<SettingField>): UpdateSettingsRequest {
         val theme = store.themeMode.first()
         val assistant = store.assistantPrefs.first().takeIf { SettingField.Assistant in fields }
+        val planify = store.planifySettings.first().takeIf { SettingField.Planify in fields }
         return UpdateSettingsRequest(
+            planifyAlerts = planify?.alerts,
+            planifyDaily = planify?.daily,
+            planifySalaryMin = planify?.salaryMin,
             assistantModel = assistant?.model,
             assistantStyle = assistant?.style,
             assistantTone = assistant?.tone,

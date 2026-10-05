@@ -173,6 +173,9 @@ data class SettingsDto(
     @SerializedName("assistantTone")           val assistantTone: String? = null,
     @SerializedName("assistantInstructions")   val assistantInstructions: String? = null,
     @SerializedName("assistantDisabledTools")  val assistantDisabledTools: String? = null,
+    @SerializedName("planifyAlerts")           val planifyAlerts: Boolean? = null,
+    @SerializedName("planifyDaily")            val planifyDaily: Boolean? = null,
+    @SerializedName("planifySalaryMin")        val planifySalaryMin: Int? = null,
 )
 
 data class UpdateSettingsRequest(
@@ -193,6 +196,9 @@ data class UpdateSettingsRequest(
     @SerializedName("assistantTone")           val assistantTone: String? = null,
     @SerializedName("assistantInstructions")   val assistantInstructions: String? = null,
     @SerializedName("assistantDisabledTools")  val assistantDisabledTools: String? = null,
+    @SerializedName("planifyAlerts")           val planifyAlerts: Boolean? = null,
+    @SerializedName("planifyDaily")            val planifyDaily: Boolean? = null,
+    @SerializedName("planifySalaryMin")        val planifySalaryMin: Int? = null,
 )
 
 // ── Categories ───────────────────────────────────────────────────────────────

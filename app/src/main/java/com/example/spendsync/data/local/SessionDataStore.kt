@@ -59,6 +59,9 @@ internal fun serializeAutoCapturePackages(packages: Set<String>): String =
  */
 class SessionDataStore(private val context: Context) {
 
+    /** For background work that has to be scheduled from outside the store. */
+    val appContext: Context get() = context.applicationContext
+
     companion object {
         private val KEY_SESSION_TOKEN = stringPreferencesKey("session_token")
         private val KEY_USER_EMAIL    = stringPreferencesKey("user_email")

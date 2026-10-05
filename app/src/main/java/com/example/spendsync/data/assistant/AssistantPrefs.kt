@@ -31,6 +31,7 @@ enum class AssistantToolInfo(val id: String) {
     GetSpendingSummary("get_spending_summary"),
     SearchTransactions("search_transactions"),
     GetBudgetStatus("get_budget_status"),
+    GetPlanStatus("get_plan_status"),
     ListHolds("list_holds"),
     GetTopMerchants("get_top_merchants"),
     GetSettings("get_settings"),

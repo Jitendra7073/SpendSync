@@ -244,6 +244,7 @@ fun MainScreen(
                                 amountVisibility = amountVisibility,
                                 currentScreen = when (lastTab) {
                                     BottomNavItem.Analytics.route -> "analytics"
+                                    BottomNavItem.Planify.route -> "planify"
                                     BottomNavItem.Profile.route -> "profile"
                                     else -> "home"
                                 },
