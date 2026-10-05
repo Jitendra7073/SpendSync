@@ -533,7 +533,7 @@ private fun AssistantBubble(
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(masked.text, color = scheme.onSurface, fontSize = 15.sp, lineHeight = 22.sp)
+            MarkdownText(masked.text, color = scheme.onSurface)
             if (masked.hidSomething) {
                 AppButton(tr(R.string.show_amounts), onClick = { vis.requestUnlock() }, variant = ButtonVariant.Tonal, size = ButtonSize.Small)
             }
