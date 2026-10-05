@@ -23,6 +23,8 @@ export interface EmailPayload {
   replyTo?: string;
   /** Shown as the sender's name (e.g. the person who wrote the report). The address stays the SMTP account. */
   fromName?: string;
+  /** Files to attach (for example a CSV export). */
+  attachments?: { filename: string; content: string; contentType?: string }[];
 }
 
 export type EmailResult = { ok: true; messageId?: string } | { ok: false; reason: 'not_configured' | 'failed'; error?: string };
@@ -80,6 +82,7 @@ export async function sendEmail(
       text: payload.text,
       html: payload.html,
       replyTo: payload.replyTo,
+      attachments: payload.attachments,
     });
     return { ok: true, messageId: info.messageId };
   } catch (err) {

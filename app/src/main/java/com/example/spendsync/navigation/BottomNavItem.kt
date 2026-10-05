@@ -4,7 +4,7 @@ import androidx.annotation.StringRes
 import com.example.spendsync.R
 import com.example.spendsync.ui.i18n.tr
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
@@ -63,8 +63,8 @@ sealed class BottomNavItem(
 
     object Profile : BottomNavItem(
         route = "tab_profile",
-        labelRes = R.string.profile,
-        icon  = Icons.Default.AccountCircle,
+        labelRes = R.string.settings,
+        icon  = Icons.Default.Settings,
     )
 
     companion object {
@@ -76,6 +76,6 @@ sealed class BottomNavItem(
         // assigned. The list would then contain `null` entries, causing a
         // NullPointerException in SpendSyncBottomBar (item.isFab). Deferring with
         // `by lazy` guarantees every object is fully constructed before use.
-        val all by lazy { listOf(Home, Analytics, Planify, Profile, Assistant, AddTransaction) }
+        val all by lazy { listOf(Home, Analytics, AddTransaction, Planify, Profile, Assistant) }
     }
 }

@@ -266,7 +266,7 @@ internal fun PlanGuideSheet(
 
         AnimatedContent(
             targetState = scr,
-            transitionSpec = {
+            transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) {
                 val forward = targetState.seq > initialState.seq
                 (slideInHorizontally(tween(320)) { if (forward) it / 3 else -it / 3 } + fadeIn(tween(320, delayMillis = 60))) togetherWith
                     (slideOutHorizontally(tween(220)) { if (forward) -it / 3 else it / 3 } + fadeOut(tween(160))) using

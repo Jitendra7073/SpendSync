@@ -197,6 +197,7 @@ private fun LazyListScope.skeletonDayGroups(
                             if (i != group.transactions.lastIndex) RowDivider()
                         }
                     }
+                                    Spacer(Modifier.height(14.dp)) // real day cards end with a gap too; without it the placeholders touch
                 }
             }
         }
@@ -251,6 +252,7 @@ fun HomeScreen(
     refreshKey: Int = 0,
     onEditTransaction: (TransactionDto) -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onNavigate: (com.example.spendsync.ui.search.SearchDest) -> Unit = {},
     onOpenHolds: () -> Unit = {},
     onOpenAssistant: () -> Unit = {},
     amountVisibility: AmountVisibilityState,
@@ -381,7 +383,7 @@ fun HomeScreen(
     ToastHost(toast = toast, onDismiss = { toast = null }) {
     AnimatedContent(
         targetState = page,
-        transitionSpec = {
+        transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) {
             val forward = targetState != null
             val enter = slideInHorizontally(tween(320)) { if (forward) it / 4 else -it / 4 } + fadeIn(tween(320))
             val exit = slideOutHorizontally(tween(320)) { if (forward) -it / 4 else it / 4 } + fadeOut(tween(200))
@@ -465,7 +467,8 @@ fun HomeScreen(
             }
 
             null -> SettingsBackdrop {
-                PullToRefreshBox(
+                com.example.spendsync.ui.components.AppPullToRefresh(
+                    onLongPull = { showGlobalSearch = true },
                     isRefreshing = isRefreshing,
                     onRefresh = {
                         scope.launch {
@@ -587,9 +590,9 @@ fun HomeScreen(
                 showGlobalSearch = false
                 transactionToView = tx
             },
-            onOpenSettings = {
+            onNavigate = { dest ->
                 showGlobalSearch = false
-                onOpenSettings()
+                onNavigate(dest)
             },
         )
     }

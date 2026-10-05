@@ -115,6 +115,7 @@ fun PlanifyScreen(
     dateFilterState: DateFilterState,
     amountVisibility: AmountVisibilityState,
     onOpenSettings: () -> Unit = {},
+    onNavigate: (com.example.spendsync.ui.search.SearchDest) -> Unit = {},
     onViewTransaction: (TransactionDto) -> Unit = {},
     onOpenAssistant: () -> Unit = {},
     /** Bump to open the plan builder (from the Home card or the salary notification). */
@@ -194,7 +195,7 @@ fun PlanifyScreen(
     ToastHost(toast = toast, onDismiss = { toast = null }) {
         AnimatedContent(
             targetState = page,
-            transitionSpec = {
+            transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) {
                 val forward = targetState != Page.Home
                 (slideInHorizontally(tween(320)) { if (forward) it / 4 else -it / 4 } + fadeIn(tween(320))) togetherWith
                     (slideOutHorizontally(tween(200)) { if (forward) -it / 4 else it / 4 } + fadeOut(tween(200)))
@@ -349,7 +350,7 @@ fun PlanifyScreen(
                 amountVisibility = amountVisibility,
                 onDismiss = { showSearch = false },
                 onTransactionSelected = { tx -> showSearch = false; onViewTransaction(tx) },
-                onOpenSettings = { showSearch = false; onOpenSettings() },
+                onNavigate = { dest -> showSearch = false; onNavigate(dest) },
             )
         }
     }
@@ -391,7 +392,7 @@ private fun PlanHome(
 ) {
     val status = plan?.status
     SettingsBackdrop {
-        PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
+        com.example.spendsync.ui.components.AppPullToRefresh(isRefreshing = refreshing, onRefresh = onRefresh, onLongPull = onSearch, modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 SettingsContentWidth {
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {

@@ -224,6 +224,8 @@ fun AddExpenseScreen(
     onBack: () -> Unit
 ) {
     val isEditing = editTransaction != null
+    // Back closes this screen (and only this screen); the icon picker below installs its own handler on top.
+    androidx.activity.compose.BackHandler(onBack = onBack)
     val NeutralOffWhite = MaterialTheme.colorScheme.background
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralBlack = MaterialTheme.colorScheme.onBackground

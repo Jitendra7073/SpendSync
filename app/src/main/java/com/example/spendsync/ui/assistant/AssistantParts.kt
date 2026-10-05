@@ -139,6 +139,7 @@ internal fun rememberElapsed(sinceMs: Long): String {
 @Composable
 internal fun MiniAction(icon: ImageVector, description: String, onClick: () -> Unit, tint: androidx.compose.ui.graphics.Color? = null) {
     val scheme = MaterialTheme.colorScheme
+    com.example.spendsync.ui.components.AppTooltip(description) {
     Box(
         Modifier
             .size(36.dp)
@@ -147,6 +148,7 @@ internal fun MiniAction(icon: ImageVector, description: String, onClick: () -> U
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = description, tint = tint ?: scheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+    }
     }
 }
 
@@ -288,7 +290,6 @@ private fun categoryLabel(code: String): String =
 internal fun SupportSheet(
     hasChat: Boolean,
     submit: suspend (category: String, message: String, includeChat: Boolean) -> String?,
-    loadTickets: suspend () -> List<SupportTicketSummary>?,
     onDismiss: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -299,8 +300,6 @@ internal fun SupportSheet(
     var sending by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     var sentRef by remember { mutableStateOf<String?>(null) }
-    var tickets by remember { mutableStateOf<List<SupportTicketSummary>?>(null) }
-    LaunchedEffect(sentRef) { tickets = loadTickets() }
 
     AppSheet(onDismiss = onDismiss, title = tr(R.string.asst_sup_title), subtitle = tr(R.string.asst_sup_intro)) {
         if (sentRef != null) {
@@ -308,6 +307,7 @@ internal fun SupportSheet(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(scheme.primary.copy(alpha = 0.10f)).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                Text(tr(R.string.rp_see), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = scheme.primary)
                 Text(tr(R.string.asst_sup_sent_title), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = scheme.primary)
                 Text(tr(R.string.asst_sup_sent_body, sentRef.orEmpty()), fontSize = 14.sp, color = scheme.onSurface)
             }
@@ -367,29 +367,6 @@ internal fun SupportSheet(
                 fullWidth = true,
             )
             Text(tr(R.string.asst_sup_privacy), fontSize = 12.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-        }
-
-        val list = tickets
-        if (!list.isNullOrEmpty()) {
-            Spacer(Modifier.size(20.dp))
-            Text(tr(R.string.asst_sup_my_reports), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = scheme.onSurfaceVariant)
-            Spacer(Modifier.size(8.dp))
-            list.forEach { t ->
-                Column(
-                    Modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(14.dp))
-                        .border(BorderStroke(0.5.dp, scheme.outlineVariant), RoundedCornerShape(14.dp)).padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${t.ref} · ${categoryLabel(t.category)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = scheme.onSurface)
-                        Text(
-                            tr(when (t.status) { "resolved" -> R.string.asst_sup_status_resolved; "in_progress" -> R.string.asst_sup_status_progress; else -> R.string.asst_sup_status_open }),
-                            fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (t.status == "resolved") scheme.primary else scheme.onSurfaceVariant,
-                        )
-                    }
-                    Text(t.message, fontSize = 13.sp, color = scheme.onSurfaceVariant, maxLines = 2)
-                }
-            }
         }
     }
 }

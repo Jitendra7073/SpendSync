@@ -140,9 +140,11 @@ fun SettingsContentWidth(content: @Composable ColumnScope.() -> Unit) {
 
 /** Fade + rise entrance, delayed per [index] so a page's groups cascade in. Runs once per composition. */
 fun Modifier.cascadeIn(index: Int): Modifier = composed {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        progress.animateTo(1f, tween(420, delayMillis = 45 * index.coerceAtMost(8), easing = FastOutSlowInEasing))
+    val on = com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Entrance)
+    val progress = remember { Animatable(if (on) 0f else 1f) }
+    LaunchedEffect(on) {
+        if (on) progress.animateTo(1f, tween(420, delayMillis = 45 * index.coerceAtMost(8), easing = FastOutSlowInEasing))
+        else progress.snapTo(1f)
     }
     graphicsLayer {
         alpha = progress.value
@@ -204,9 +206,12 @@ fun SettingsGroup(
                 .border(BorderStroke(0.5.dp, scheme.outlineVariant.copy(alpha = 0.6f)), RoundedCornerShape(20.dp)),
             content = content,
         )
-        if (footer != null) {
+        // One short line is enough: long explanations under a group are dropped, the row names already say it.
+        if (footer != null && footer.length <= 70) {
             Text(
                 text = footer,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
                 color = scheme.onSurfaceVariant,
@@ -253,6 +258,8 @@ private fun RowText(
         if (subtitle != null) {
             Text(
                 subtitle,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 fontSize = 12.5.sp,
                 lineHeight = 17.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

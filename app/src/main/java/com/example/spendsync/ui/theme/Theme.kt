@@ -71,6 +71,7 @@ fun SpendSyncTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     accentColorName: String = "Brand Blue",
     dynamicColor: Boolean = false,
+    custom: CustomColors = CustomColors(),
     content: @Composable () -> Unit,
 ) {
     val primaryColor = when (accentColorName) {
@@ -156,9 +157,11 @@ fun SpendSyncTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography  = Typography,
-        content     = content,
-    )
+    androidx.compose.runtime.CompositionLocalProvider(LocalCustomColors provides custom) {
+        MaterialTheme(
+            colorScheme = colorScheme.withCustom(custom),
+            typography  = Typography,
+            content     = content,
+        )
+    }
 }

@@ -107,6 +107,8 @@ fun FollowUpPanel(
     initialChannel: Channel = Channel.WhatsApp,
     initialTone: Tone = Tone.Friendly,
     initialContext: String = "",
+    /** Smaller buttons, for the card inside the chat. */
+    compact: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -195,7 +197,7 @@ fun FollowUpPanel(
 
         AnimatedContent(
             targetState = step,
-            transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) },
+            transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) },
             label = "followup_step",
         ) { s ->
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -227,7 +229,7 @@ fun FollowUpPanel(
                             }
                         }
                         AppTextField(extra, { extra = it.take(300) }, label = tr(R.string.fu_context_hint), singleLine = false)
-                        AppButton(tr(R.string.fu_prepare), onClick = { scope.launch { write(null) } }, size = ButtonSize.Large, fullWidth = true)
+                        AppButton(tr(R.string.fu_prepare), onClick = { scope.launch { write(null) } }, size = if (compact) ButtonSize.Small else ButtonSize.Large, fullWidth = !compact)
                         Text(tr(R.string.fu_privacy), fontSize = 11.sp, color = scheme.onSurfaceVariant)
                     }
                     Step.Writing -> Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -248,7 +250,7 @@ fun FollowUpPanel(
                         problem?.let { Text(it, fontSize = 12.sp, color = scheme.error) }
                         if (askMore) {
                             AppTextField(extra, { extra = it.take(300) }, label = tr(R.string.fu_context_hint), singleLine = false)
-                            AppButton(tr(R.string.fu_rewrite_with), onClick = { rewrites++; scope.launch { write(draft) } }, variant = ButtonVariant.Tonal, fullWidth = true, enabled = extra.isNotBlank())
+                            AppButton(tr(R.string.fu_rewrite_with), onClick = { rewrites++; scope.launch { write(draft) } }, variant = ButtonVariant.Tonal, fullWidth = !compact, enabled = extra.isNotBlank())
                         }
                         AppButton(
                             tr(R.string.fu_yes_send),
@@ -256,7 +258,7 @@ fun FollowUpPanel(
                                 if (contact.canUse(channel) || channel == Channel.Email) open()
                                 else { problem = tr(if (channel == Channel.Email) R.string.fu_no_email else R.string.fu_no_phone); pendingSend = true; pick() }
                             },
-                            size = ButtonSize.Large, fullWidth = true, enabled = draft.isNotBlank(),
+                            size = if (compact) ButtonSize.Small else ButtonSize.Large, fullWidth = !compact, enabled = draft.isNotBlank(),
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             AppButton(tr(R.string.fu_no_rewrite), onClick = { rewrites++; scope.launch { write(draft) } }, variant = ButtonVariant.Outline, size = ButtonSize.Small, modifier = Modifier.weight(1f))
@@ -266,7 +268,7 @@ fun FollowUpPanel(
                     }
                     Step.Opened -> {
                         Text(tr(R.string.fu_opened, channelName()), fontSize = 14.sp, color = scheme.onSurface, modifier = Modifier.padding(vertical = 8.dp))
-                        AppButton(tr(R.string.got_it), onClick = onDone, size = ButtonSize.Large, fullWidth = true)
+                        AppButton(tr(R.string.got_it), onClick = onDone, size = if (compact) ButtonSize.Small else ButtonSize.Large, fullWidth = !compact)
                     }
                 }
             }

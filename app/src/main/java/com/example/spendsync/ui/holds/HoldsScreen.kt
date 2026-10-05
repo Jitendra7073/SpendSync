@@ -70,7 +70,8 @@ fun HoldsScreen(
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     var selectedPerson by remember { mutableStateOf<String?>(null) }
 
-    BackHandler(enabled = selectedPerson == null, onBack = onBack)
+    // Back from a person's holds returns to the list; from the list it closes Holds. Never leaves the app.
+    BackHandler { if (selectedPerson != null) selectedPerson = null else onBack() }
 
     LaunchedEffect(refreshKey) {
         when (val res = financeRepository.getHolds()) {

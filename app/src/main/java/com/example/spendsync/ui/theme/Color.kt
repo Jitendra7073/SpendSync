@@ -70,10 +70,10 @@ fun chartCategoricalColors(): List<Color> =
 
 /** Income / expense text+icon colours, re-stepped per theme so contrast holds in both. */
 @Composable
-fun incomeColor(): Color = if (isAppDark()) Color(0xFF4ADE80) else Color(0xFF15803D)
+fun incomeColor(): Color = customIncome() ?: if (isAppDark()) Color(0xFF4ADE80) else Color(0xFF15803D)
 
 @Composable
-fun expenseColor(): Color = if (isAppDark()) Color(0xFFF87171) else Color(0xFFB91C1C)
+fun expenseColor(): Color = customExpense() ?: if (isAppDark()) Color(0xFFF87171) else Color(0xFFB91C1C)
 
 // ── Legacy / Material fallbacks ──────────────────────────────────────────────
 val Purple80         = Color(0xFFD0BCFF)

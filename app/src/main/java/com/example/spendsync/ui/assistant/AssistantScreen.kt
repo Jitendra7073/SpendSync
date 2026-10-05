@@ -7,6 +7,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -124,6 +127,7 @@ fun AssistantScreen(
     var showSupport by remember { mutableStateOf(false) }
     var feedbackFor by remember { mutableStateOf<UiMessage?>(null) }
     var sharing by remember { mutableStateOf<String?>(null) }
+    val typedIds = remember { androidx.compose.runtime.mutableStateSetOf<Long>() }
     val financeRepository = remember(sessionDataStore) { com.example.spendsync.data.repository.FinanceRepository(sessionDataStore) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -196,6 +200,8 @@ fun AssistantScreen(
                             onCopy = ::copy,
                             onShare = ::share,
                             onReply = { text -> replyTo = text },
+                            typedIds = typedIds,
+                            onAsk = { text, ref -> viewModel.send(text, currentScreen, ref) },
                             onUp = { m -> viewModel.rate(m, "up") },
                             onDown = { m -> feedbackFor = m },
                             onConfirm = viewModel::confirm,
@@ -209,6 +215,15 @@ fun AssistantScreen(
                             FailureNote(failure, onRetry = { viewModel.retry(currentScreen) })
                         }
                     }
+                }
+                val away by remember { androidx.compose.runtime.derivedStateOf { listState.canScrollForward } }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = away,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                    enter = fadeIn() + androidx.compose.animation.scaleIn(),
+                    exit = fadeOut() + androidx.compose.animation.scaleOut(),
+                ) {
+                    JumpToBottom { scope.launch { listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)) } }
                 }
             }
 
@@ -273,7 +288,6 @@ fun AssistantScreen(
         SupportSheet(
             hasChat = state.messages.any { it.text.isNotBlank() },
             submit = { category, message, includeChat -> viewModel.submitTicket(category, message, includeChat, currentScreen) },
-            loadTickets = { viewModel.tickets() },
             onDismiss = { showSupport = false },
         )
     }
@@ -369,6 +383,8 @@ private fun MessageBubble(
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
     onReply: (String) -> Unit,
+    typedIds: MutableSet<Long>,
+    onAsk: (String, String) -> Unit,
     onUp: (UiMessage) -> Unit,
     onDown: (UiMessage) -> Unit,
     onConfirm: (String, Proposal) -> Unit,
@@ -388,8 +404,10 @@ private fun MessageBubble(
         ActivityPanel(msg.steps, footer = tr(R.string.asst_working_for, rememberElapsed(askedAt)))
         return
     }
-    val shown = rememberTyped(full, msg.animate, onProgress)
+    val typingOn = com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Typing)
+    val shown = rememberTyped(full, msg.animate && msg.id !in typedIds && typingOn, onProgress)
     val done = shown.length >= full.length
+    LaunchedEffect(done) { if (done && !msg.live) typedIds.add(msg.id) }
     var showSteps by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         AssistantBubble(
@@ -413,6 +431,9 @@ private fun MessageBubble(
             }
             msg.followUpCards.forEach { f ->
                 FollowUpCard(f, financeRepository, sessionDataStore)
+            }
+            msg.composeCards.forEach { c ->
+                ComposeCard(c, sessionDataStore, onAsk = onAsk)
             }
             if (msg.fast == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -661,7 +682,7 @@ private fun InputBar(
         OutlinedTextField(
             value = value,
             onValueChange = { if (it.length <= 1000) onValueChange(it) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).defaultMinSize(minHeight = 48.dp),
             placeholder = { Text(hint, fontSize = 14.sp, color = scheme.onSurfaceVariant) },
             maxLines = 4,
             shape = RoundedCornerShape(22.dp),
@@ -675,16 +696,11 @@ private fun InputBar(
                 cursorColor = scheme.primary,
             ),
         )
+        // The same 48dp height as the text field, so the row reads as one bar.
         if (busy) {
-            AppIconButton(Icons.Default.Stop, tr(R.string.assistant_stop), onClick = onStop, variant = ButtonVariant.Tonal)
+            RoundAction(Icons.Default.Stop, tr(R.string.assistant_stop), filled = false, enabled = true, onClick = onStop)
         } else {
-            AppIconButton(
-                Icons.AutoMirrored.Filled.Send,
-                tr(R.string.assistant_send),
-                onClick = onSend,
-                variant = ButtonVariant.Primary,
-                enabled = value.isNotBlank(),
-            )
+            RoundAction(Icons.AutoMirrored.Filled.Send, tr(R.string.assistant_send), filled = true, enabled = value.isNotBlank(), onClick = onSend)
         }
     }
 }
@@ -706,6 +722,7 @@ internal fun toolLabel(name: String): String = tr(
         "get_budget_status" -> R.string.assistant_tool_budget
         "get_plan_status" -> R.string.assistant_tool_plan
         "prepare_followup" -> R.string.assistant_tool_followup
+        "share_message" -> R.string.assistant_tool_compose
         "list_holds" -> R.string.assistant_tool_holds
         "get_top_merchants" -> R.string.assistant_tool_merchants
         "get_settings" -> R.string.assistant_tool_settings
@@ -766,6 +783,33 @@ private fun FollowUpCard(
             initialChannel = com.example.spendsync.data.holds.Channel.entries.firstOrNull { it.id == f.channel } ?: com.example.spendsync.data.holds.Channel.WhatsApp,
             initialTone = com.example.spendsync.data.holds.Tone.entries.firstOrNull { it.id == f.tone } ?: com.example.spendsync.data.holds.Tone.Friendly,
             initialContext = f.context.orEmpty(),
+            compact = true,
         )
     }
+}
+
+@Composable
+private fun RoundAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, filled: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val bg = when { !enabled -> scheme.onSurface.copy(alpha = 0.12f); filled -> scheme.primary; else -> scheme.primary.copy(alpha = 0.14f) }
+    val fg = when { !enabled -> scheme.onSurface.copy(alpha = 0.38f); filled -> scheme.onPrimary; else -> scheme.primary }
+    Box(
+        Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape).background(bg)
+            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp)) }
+}
+
+/** Appears when the chat is scrolled up; one tap goes back to the newest message. */
+@Composable
+private fun JumpToBottom(onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        Modifier.size(38.dp).shadow(4.dp, androidx.compose.foundation.shape.CircleShape).clip(androidx.compose.foundation.shape.CircleShape)
+            .background(scheme.surface).border(0.5.dp, scheme.outlineVariant, androidx.compose.foundation.shape.CircleShape)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .semantics { contentDescription = "Latest" },
+        contentAlignment = Alignment.Center,
+    ) { Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(22.dp)) }
 }

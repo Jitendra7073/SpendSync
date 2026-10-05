@@ -148,6 +148,22 @@ fun MainScreen(
     // to Home and opens that transaction's detail dialog there.
     var viewTransactionRequestId by remember { mutableStateOf(0) }
     var viewTransactionRequestData by remember { mutableStateOf<TransactionDto?>(null) }
+    // A search result: another tab, a Settings page, Holds, or the add-transaction flow.
+    var openSettingsPage by remember { mutableStateOf<com.example.spendsync.ui.settings.SettingsPage?>(null) }
+    fun navigateTo(dest: com.example.spendsync.ui.search.SearchDest) {
+        when (dest) {
+            is com.example.spendsync.ui.search.SearchDest.Settings -> {
+                openSettingsPage = dest.page
+                pagerScope.launch { pagerState.scrollToPage(pages.indexOf(BottomNavItem.Profile.route)) }
+                openSettingsRequestId++
+            }
+            is com.example.spendsync.ui.search.SearchDest.Tab -> pagerScope.launch { pagerState.scrollToPage(pages.indexOf(dest.route).coerceAtLeast(0)) }
+            com.example.spendsync.ui.search.SearchDest.Holds -> showHolds = true
+            is com.example.spendsync.ui.search.SearchDest.Add -> {
+                presetType = if (dest.income) TransactionType.INCOME else TransactionType.EXPENSE
+            }
+        }
+    }
     fun requestOpenSettings() {
         // A direct jump from another tab's search — snap instead of animating
         // through every page in between.
@@ -177,6 +193,15 @@ fun MainScreen(
         jumpToTab(pages.indexOf(BottomNavItem.Planify.route))
         if (link == com.example.spendsync.notifications.PlanifyLinks.BUILD) planifyBuildRequest++
     }
+
+    // Back never leaves the app from a tab: the assistant goes back to where it was opened from, any other tab goes
+    // to Home. Screens drawn on top (add expense, holds, nested pages) install their own handlers, which win.
+    androidx.activity.compose.BackHandler(enabled = selectedRoute == BottomNavItem.Assistant.route && !expenseOverlayVisible && !showHolds) {
+        jumpToTab(pages.indexOf(lastTab).coerceAtLeast(0))
+    }
+    androidx.activity.compose.BackHandler(
+        enabled = selectedRoute != BottomNavItem.Home.route && selectedRoute != BottomNavItem.Assistant.route && !expenseOverlayVisible && !showHolds,
+    ) { jumpToTab(0) }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -231,6 +256,7 @@ fun MainScreen(
                         dateFilterState = dateFilterState,
                         amountVisibility = amountVisibility,
                         onOpenSettings = ::requestOpenSettings,
+                        onNavigate = ::navigateTo,
                         onViewTransaction = ::requestViewTransaction,
                         onOpenAssistant = { jumpToTab(assistantIndex) },
                     )
@@ -270,6 +296,7 @@ fun MainScreen(
                         dateFilterState = dateFilterState,
                         amountVisibility = amountVisibility,
                         onOpenSettings = ::requestOpenSettings,
+                        onNavigate = ::navigateTo,
                         onViewTransaction = ::requestViewTransaction,
                         onOpenAssistant = { jumpToTab(assistantIndex) },
                         buildRequestId = planifyBuildRequest,
@@ -279,6 +306,7 @@ fun MainScreen(
                         repository       = repository,
                         financeRepository = financeRepository,
                         openSettingsRequestId = openSettingsRequestId,
+                        openSettingsPage = openSettingsPage,
                         amountVisibility = amountVisibility,
                         onSignOut        = onSignOut,
                     )
@@ -291,6 +319,7 @@ fun MainScreen(
                         refreshKey       = homeRefreshKey,
                         onEditTransaction = { tx -> editingTransaction = tx },
                         onOpenSettings   = ::requestOpenSettings,
+                        onNavigate       = ::navigateTo,
                         externalViewTransactionId = viewTransactionRequestId,
                         externalViewTransaction = viewTransactionRequestData,
                         onSignOut        = onSignOut,
@@ -310,7 +339,7 @@ fun MainScreen(
             )
             AnimatedContent(
                 targetState    = expenseOverlayVisible,
-                transitionSpec = {
+                transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) {
                     if (targetState) {
                         // Opening: spring up from the bottom
                         slideInVertically(animationSpec = overlaySlideSpec) { it } togetherWith fadeOut(tween(0))
@@ -337,7 +366,7 @@ fun MainScreen(
             // ── Holds list overlay — same spring as the add/edit-expense one ──
             AnimatedContent(
                 targetState    = showHolds,
-                transitionSpec = {
+                transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) {
                     if (targetState) {
                         slideInVertically(animationSpec = overlaySlideSpec) { it } togetherWith fadeOut(tween(0))
                     } else {

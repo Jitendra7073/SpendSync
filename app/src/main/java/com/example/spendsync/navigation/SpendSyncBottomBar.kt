@@ -67,8 +67,9 @@ fun SpendSyncBottomBar(
     onItemSelected: (BottomNavItem) -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val pillItems = BottomNavItem.all.filter { !it.isFab }
-    val plus = BottomNavItem.all.first { it.isFab }
+    // Home | Analytics | + | Planify | Settings sit in one pill; the assistant is its own button beside it.
+    val assistant = BottomNavItem.Assistant
+    val pillItems = BottomNavItem.all.filter { it !== assistant }
 
     // A soft fade behind the controls so scrolling content never collides with them visually.
     Box(
@@ -86,7 +87,7 @@ fun SpendSyncBottomBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             NavPill(Modifier.weight(1f), pillItems, currentRoute, onItemSelected)
-            PlusButton(onClick = { onItemSelected(plus) })
+            AssistantButton(onClick = { onItemSelected(assistant) })
         }
     }
 }
@@ -147,7 +148,8 @@ private fun NavSlot(modifier: Modifier, item: BottomNavItem, selected: Boolean, 
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val hovered by interaction.collectIsHoveredAsState()
-    val isAssistant = !item.selectable
+    val isAssistant = !item.selectable && !item.isFab
+    if (item.isFab) { AddSlot(modifier, item, onClick); return }
 
     val tint by animateColorAsState(
         when {
@@ -173,9 +175,10 @@ private fun NavSlot(modifier: Modifier, item: BottomNavItem, selected: Boolean, 
         spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "slot_scale",
     )
 
+    com.example.spendsync.ui.components.AppTooltip(item.label, modifier.fillMaxHeight()) {
     Box(
-        modifier
-            .fillMaxHeight()
+        Modifier
+            .fillMaxSize()
             .padding(6.dp)
             .clip(RoundedCornerShape(50))
             .background(wash)
@@ -196,38 +199,55 @@ private fun NavSlot(modifier: Modifier, item: BottomNavItem, selected: Boolean, 
             modifier = Modifier.size(26.dp).graphicsLayer { scaleX = scale; scaleY = scale },
         )
     }
+    }
 }
 
-/** The round "+" beside the pill: record a transaction. */
+/** The "+" in the middle of the pill: a filled circle, so recording a transaction is the obvious main action. */
 @Composable
-private fun PlusButton(onClick: () -> Unit) {
+private fun AddSlot(modifier: Modifier, item: BottomNavItem, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.9f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "add_scale")
+    com.example.spendsync.ui.components.AppTooltip(tr(R.string.add_transaction), modifier.fillMaxHeight()) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(BarHeight - 14.dp)
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .clip(CircleShape)
+                .background(scheme.primary)
+                .selectable(selected = false, interactionSource = interaction, indication = ripple(bounded = true, color = scheme.onPrimary), role = Role.Button, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Default.Add, contentDescription = tr(R.string.add_transaction), tint = scheme.onPrimary, modifier = Modifier.size(28.dp))
+        }
+    }
+    }
+}
+
+/** The assistant, separate from the pill: always in the accent colour so it reads as "AI". */
+@Composable
+private fun AssistantButton(onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val hovered by interaction.collectIsHoveredAsState()
     val scale by animateFloatAsState(
-        when {
-            pressed -> 0.9f
-            hovered -> 1.06f
-            else -> 1f
-        },
-        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "plus_scale",
+        when { pressed -> 0.9f; hovered -> 1.06f; else -> 1f },
+        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "assistant_scale",
     )
+    com.example.spendsync.ui.components.AppTooltip(BottomNavItem.Assistant.label) {
     Box(
         Modifier
             .size(BarHeight)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .floatingSurface(CircleShape)
             .hoverable(interaction)
-            .selectable(
-                selected = false,
-                interactionSource = interaction,
-                indication = ripple(bounded = true, color = scheme.primary),
-                role = Role.Button,
-                onClick = onClick,
-            ),
+            .selectable(selected = false, interactionSource = interaction, indication = ripple(bounded = true, color = scheme.primary), role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Default.Add, contentDescription = tr(R.string.add_transaction), tint = scheme.primary, modifier = Modifier.size(30.dp))
+        Icon(BottomNavItem.Assistant.icon, contentDescription = BottomNavItem.Assistant.label, tint = scheme.primary, modifier = Modifier.size(28.dp))
+    }
     }
 }

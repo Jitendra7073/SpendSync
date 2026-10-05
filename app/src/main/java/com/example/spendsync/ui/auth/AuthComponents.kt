@@ -192,7 +192,7 @@ fun AuthShell(
                         }
                         AnimatedContent(
                             targetState = page,
-                            transitionSpec = {
+                            transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) {
                                 val forward = targetState.ordinal > initialState.ordinal
                                 val dir = if (forward) 1 else -1
                                 (fadeIn(tween(240, delayMillis = 80)) + slideInHorizontally(tween(320)) { it / 8 * dir }) togetherWith

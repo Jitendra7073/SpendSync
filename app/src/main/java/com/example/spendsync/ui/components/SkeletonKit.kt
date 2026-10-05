@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -66,7 +67,8 @@ fun Skeleton(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val progress: State<Float> = if (loading) {
+    val shimmer = com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Skeleton)
+    val progress: State<Float> = if (loading && shimmer) {
         rememberInfiniteTransition(label = "skeleton_clock").animateFloat(
             initialValue = 0f,
             targetValue = 1f,
@@ -99,14 +101,21 @@ fun Modifier.skeletonBone(radius: Dp = 6.dp): Modifier {
     val progress = LocalShimmerProgress.current
     val base = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
     val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f)
-    return this
-        .clip(RoundedCornerShape(radius))
-        .drawBehind {
+    // Each bone is drawn a little shorter than its box, so lines that sit right above each other (a label over an
+    // amount, two rows of a list) keep a visible gap instead of fusing into one block.
+    return this.drawBehind {
+        val inset = (size.height * 0.14f).coerceIn(1.dp.toPx(), 4.dp.toPx())
+        val r = radius.toPx()
+        val shape = androidx.compose.ui.graphics.Path().apply {
+            addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, inset, size.width, size.height - inset, r, r))
+        }
+        clipPath(shape) {
             drawRect(base)
             val band = size.width * 0.6f
             val x = progress.value * (size.width + band) - band
             drawRect(Brush.horizontalGradient(listOf(Color.Transparent, highlight, Color.Transparent), startX = x, endX = x + band))
         }
+    }
 }
 
 /** A free-standing placeholder block (charts, images) used while [LocalSkeleton] is on. */

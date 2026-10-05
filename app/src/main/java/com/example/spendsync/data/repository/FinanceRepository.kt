@@ -270,6 +270,15 @@ class FinanceRepository(
         AuthResult.Error(e.toUserMessage())
     }
 
+    /** Emails the user's own data to their account address (server side). */
+    suspend fun emailExport(request: ExportEmailRequest): AuthResult<ExportEmailDto> = try {
+        val response = api.emailExport(getAuthHeader(), request)
+        if (response.isSuccessful && response.body() != null) AuthResult.Success(response.body()!!.data)
+        else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+    } catch (e: Exception) {
+        AuthResult.Error(e.toUserMessage())
+    }
+
     /** An AI-written follow-up draft for a hold, or source "none". Nothing is sent. */
     suspend fun holdMessage(request: HoldMessageRequest): AuthResult<HoldMessageDto> = try {
         val response = api.holdMessage(getAuthHeader(), request)

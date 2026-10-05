@@ -223,7 +223,7 @@ internal fun PlanBuilder(
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     AnimatedContent(
                         targetState = step,
-                        transitionSpec = {
+                        transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) {
                             val fwd = targetState > initialState
                             (slideInHorizontally(tween(280)) { if (fwd) it / 5 else -it / 5 } + fadeIn(tween(280))) togetherWith
                                 (slideOutHorizontally(tween(200)) { if (fwd) -it / 5 else it / 5 } + fadeOut(tween(160)))
@@ -381,7 +381,6 @@ private fun IncomeStep(
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Spacer(Modifier.height(8.dp))
                 Text(tr(R.string.pl_income_title), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = scheme.onBackground)
-                Text(tr(R.string.pl_income_sub), fontSize = 14.sp, color = scheme.onSurfaceVariant)
                 HowItWorks()
                 Column(Modifier.fillMaxWidth().glassCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     AppTextField(
@@ -457,7 +456,6 @@ private fun BucketsStep(
                             group.forEach { item -> DraftRow(item, vis, onRemove = { onRemove(item) }) }
                         }
                     }
-                    Text(tr(R.string.pl_bucket_explain), fontSize = 12.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
                     if (!loading && items.isEmpty()) Text(tr(R.string.pl_no_buckets), fontSize = 14.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp))
                     Spacer(Modifier.height(6.dp))
                     AppButton(tr(R.string.pl_add_bucket_title), onClick = onAdd, variant = ButtonVariant.Tonal, leadingIcon = Icons.Default.Add, fullWidth = true)

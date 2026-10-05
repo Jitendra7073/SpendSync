@@ -115,6 +115,16 @@ class SessionDataStore(private val context: Context) {
         private val KEY_ASSISTANT_INSTRUCTIONS = stringPreferencesKey("assistant_instructions")
         private val KEY_ASSISTANT_DISABLED_TOOLS = stringPreferencesKey("assistant_disabled_tools")
         private val KEY_HOLD_CONTACTS = stringPreferencesKey("hold_contacts")
+        private val KEY_CC = stringPreferencesKey("custom_colors")
+        private val KEY_EXPORT_ON_LOGIN = booleanPreferencesKey("export_on_login")
+        private val KEY_ANIM_ALL = booleanPreferencesKey("anim_all")
+        private val KEY_ANIM_COUNTS = booleanPreferencesKey("anim_counts")
+        private val KEY_ANIM_ENTRANCE = booleanPreferencesKey("anim_entrance")
+        private val KEY_ANIM_TRANSITIONS = booleanPreferencesKey("anim_transitions")
+        private val KEY_ANIM_TYPING = booleanPreferencesKey("anim_typing")
+        private val KEY_ANIM_SKELETON = booleanPreferencesKey("anim_skeleton")
+        private val KEY_ANIM_PRESS = booleanPreferencesKey("anim_press")
+        private val KEY_ANIM_CHARTS = booleanPreferencesKey("anim_charts")
         private val KEY_PLANIFY_ALERTS = booleanPreferencesKey("planify_alerts")
         private val KEY_PLANIFY_DAILY = booleanPreferencesKey("planify_daily")
         private val KEY_PLANIFY_SALARY_MIN = intPreferencesKey("planify_salary_min")
@@ -383,6 +393,42 @@ class SessionDataStore(private val context: Context) {
 
     suspend fun updateAutoCapturePackages(packages: Set<String>) {
         context.dataStore.edit { prefs -> prefs[KEY_AUTO_CAPTURE_PACKAGES] = serializeAutoCapturePackages(packages) }
+    }
+
+    val exportOnLogin: Flow<Boolean> = context.dataStore.data.map { it[KEY_EXPORT_ON_LOGIN] ?: false }
+    suspend fun updateExportOnLogin(on: Boolean) { context.dataStore.edit { it[KEY_EXPORT_ON_LOGIN] = on } }
+
+    // ── Custom colours (this phone only) ─────────────────────────────────────
+
+    /** "enabled|accent|background|cards|text|icons|income|expense", each an ARGB int or empty. */
+    val customColors: Flow<com.example.spendsync.ui.theme.CustomColors> = context.dataStore.data.map { p ->
+        val f = p[KEY_CC].orEmpty().split('|')
+        fun c(i: Int) = f.getOrNull(i)?.toIntOrNull()
+        com.example.spendsync.ui.theme.CustomColors(f.getOrNull(0) == "1", c(1), c(2), c(3), c(4), c(5), c(6), c(7))
+    }
+
+    suspend fun updateCustomColors(c: com.example.spendsync.ui.theme.CustomColors) {
+        context.dataStore.edit { p ->
+            p[KEY_CC] = listOf(if (c.enabled) "1" else "0", c.accent, c.background, c.cards, c.text, c.icons, c.income, c.expense).joinToString("|") { it?.toString().orEmpty() }
+        }
+    }
+
+    // ── Animations (this phone only) ─────────────────────────────────────────
+
+    val animationPrefs: Flow<com.example.spendsync.ui.theme.MotionPrefs> = context.dataStore.data.map { p ->
+        com.example.spendsync.ui.theme.MotionPrefs(
+            all = p[KEY_ANIM_ALL] ?: true, counts = p[KEY_ANIM_COUNTS] ?: true, entrance = p[KEY_ANIM_ENTRANCE] ?: true,
+            transitions = p[KEY_ANIM_TRANSITIONS] ?: true, typing = p[KEY_ANIM_TYPING] ?: true,
+            skeleton = p[KEY_ANIM_SKELETON] ?: true, press = p[KEY_ANIM_PRESS] ?: true, charts = p[KEY_ANIM_CHARTS] ?: true,
+        )
+    }
+
+    suspend fun updateAnimationPrefs(m: com.example.spendsync.ui.theme.MotionPrefs) {
+        context.dataStore.edit { p ->
+            p[KEY_ANIM_ALL] = m.all; p[KEY_ANIM_COUNTS] = m.counts; p[KEY_ANIM_ENTRANCE] = m.entrance
+            p[KEY_ANIM_TRANSITIONS] = m.transitions; p[KEY_ANIM_TYPING] = m.typing
+            p[KEY_ANIM_SKELETON] = m.skeleton; p[KEY_ANIM_PRESS] = m.press; p[KEY_ANIM_CHARTS] = m.charts
+        }
     }
 
     // ── Hold contacts (this phone only) ──────────────────────────────────────

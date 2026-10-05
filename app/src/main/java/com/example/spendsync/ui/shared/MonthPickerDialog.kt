@@ -144,7 +144,7 @@ fun MonthPickerDialog(
 
         AnimatedContent(
             targetState = mode,
-            transitionSpec = { (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.96f)) togetherWith (fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.96f)) },
+            transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) { (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.96f)) togetherWith (fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.96f)) },
             label = "picker_mode",
         ) { m ->
             when (m) {

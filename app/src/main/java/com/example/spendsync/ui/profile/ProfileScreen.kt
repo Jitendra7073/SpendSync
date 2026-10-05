@@ -149,6 +149,8 @@ fun ProfileScreen(
     financeRepository: FinanceRepository,
     amountVisibility: AmountVisibilityState,
     openSettingsRequestId: Int = 0,
+    /** The Settings page a search result asked for; null opens the Settings hub. */
+    openSettingsPage: SettingsPage? = null,
     onSignOut: () -> Unit,
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
@@ -181,6 +183,9 @@ fun ProfileScreen(
     val pinHash by sessionDataStore.pinHash.collectAsState(initial = null)
     val assistantConsent by sessionDataStore.assistantConsent.collectAsState(initial = false)
     val planifySettings by sessionDataStore.planifySettings.collectAsState(initial = com.example.spendsync.data.local.PlanifySettings())
+    val motionPrefs by sessionDataStore.animationPrefs.collectAsState(initial = com.example.spendsync.ui.theme.MotionPrefs())
+    val exportOnLogin by sessionDataStore.exportOnLogin.collectAsState(initial = false)
+    val customColors by sessionDataStore.customColors.collectAsState(initial = com.example.spendsync.ui.theme.CustomColors())
     val assistantPrefs by sessionDataStore.assistantPrefs.collectAsState(initial = com.example.spendsync.data.assistant.AssistantPrefs())
     var assistantModels by remember { mutableStateOf<List<com.example.spendsync.ui.settings.AssistantModelInfo>?>(null) }
     val assistantRepository = remember { com.example.spendsync.data.assistant.AssistantRepository(sessionDataStore) }
@@ -258,7 +263,7 @@ fun ProfileScreen(
     BackHandler(enabled = page != null) { page = null }
     // Global search's "open settings" jump lands on the hub.
     LaunchedEffect(openSettingsRequestId) {
-        if (openSettingsRequestId > 0) page = null
+        if (openSettingsRequestId > 0) page = openSettingsPage
     }
 
     // Every preference is written here first, then pushed to the account. If the push fails it
@@ -304,6 +309,9 @@ fun ProfileScreen(
         assistant = assistantPrefs,
         assistantModels = assistantModels,
         planify = planifySettings,
+        motion = motionPrefs,
+        colors = customColors,
+        exportOnLogin = exportOnLogin,
     )
 
     val actions = SettingsActions(
@@ -331,6 +339,11 @@ fun ProfileScreen(
             else commit(SettingField.Masking) { sessionDataStore.updateAmountMaskingEnabled(false) }
         },
         setAssistant = { v -> scope.launch { sessionDataStore.updateAssistantConsent(v) } },
+        setMotion = { m -> scope.launch { sessionDataStore.updateAnimationPrefs(m) } },
+        setExportOnLogin = { v -> scope.launch { sessionDataStore.updateExportOnLogin(v) } },
+        setColors = { c -> scope.launch { sessionDataStore.updateCustomColors(c) } },
+        loadReports = { assistantRepository.tickets() },
+        closeReport = { ref -> assistantRepository.closeTicket(ref) },
         setPlanify = { p ->
             commit(SettingField.Planify) { sessionDataStore.updatePlanifySettings(p) }
             // the evening job follows the switch right away
@@ -356,7 +369,7 @@ fun ProfileScreen(
 
     AnimatedContent(
         targetState = page,
-        transitionSpec = {
+        transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) {
             val forward = targetState != null
             val enter = slideInHorizontally(tween(320)) { if (forward) it / 4 else -it / 4 } + fadeIn(tween(320))
             val exit = slideOutHorizontally(tween(320)) { if (forward) -it / 4 else it / 4 } + fadeOut(tween(200))
@@ -368,7 +381,7 @@ fun ProfileScreen(
             SettingsPageScreen(current, model, actions, onBack = { page = null })
         } else {
             SettingsBackdrop {
-                PullToRefreshBox(
+                com.example.spendsync.ui.components.AppPullToRefresh(
                     isRefreshing = isRefreshing,
                     onRefresh = {
                         scope.launch {
@@ -443,7 +456,7 @@ fun ProfileScreen(
     }
 
     if (showExportDialog) {
-        ExportDataDialog(financeRepository = financeRepository, onDismiss = { showExportDialog = false })
+        ExportSheet(financeRepository = financeRepository, onDismiss = { showExportDialog = false })
     }
 
     if (showAutoCaptureExplainer) {

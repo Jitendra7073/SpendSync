@@ -219,7 +219,7 @@ export const supportTickets = pgTable('support_tickets', {
   message: text('message').notNull(),
   // JSON: app version, device, screen, language, recent assistant chat (only if the user allowed it).
   context: text('context').notNull().default('{}'),
-  status: text('status').notNull().default('open'), // open | in_progress | resolved
+  status: text('status').notNull().default('open'), // open | in_progress | resolved | closed (closed by the user)
   emailStatus: text('email_status').notNull().default('pending'), // pending | sent | failed | not_configured
   emailError: text('email_error'),
   createdAt: timestamp('created_at').notNull().defaultNow(),

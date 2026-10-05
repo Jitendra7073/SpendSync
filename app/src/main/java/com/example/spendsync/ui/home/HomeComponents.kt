@@ -7,6 +7,7 @@ import com.example.spendsync.ui.i18n.tr
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Star
@@ -95,14 +97,20 @@ enum class TypeFilter(@StringRes val labelRes: Int) {
 /** Counts smoothly from the previous value to [target] (first composition counts up from 0). */
 @Composable
 fun animatedAmount(target: Double): Double {
-    var from by remember { mutableStateOf(0.0) }
-    var to by remember { mutableStateOf(0.0) }
+    val on = com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Counts)
+    var from by remember { mutableStateOf(target) } // first composition: show the value, no count-up
+    var to by remember { mutableStateOf(target) }
     val progress = remember { Animatable(1f) }
-    LaunchedEffect(target) {
-        from = from + (to - from) * progress.value
-        to = target
-        progress.snapTo(0f)
-        progress.animateTo(1f, tween(800, easing = FastOutSlowInEasing))
+    LaunchedEffect(target, on) {
+        val current = from + (to - from) * progress.value
+        // Loading placeholders (to or from 0) and tiny changes swap instantly; only a real change on screen counts over.
+        if (!on || current == 0.0 || target == 0.0 || kotlin.math.abs(target - current) < 1.0) {
+            from = target; to = target; progress.snapTo(1f)
+        } else {
+            from = current; to = target
+            progress.snapTo(0f)
+            progress.animateTo(1f, tween(600, easing = FastOutSlowInEasing))
+        }
     }
     return from + (to - from) * progress.value
 }
@@ -431,7 +439,7 @@ fun TransactionRow(
         confirmValueChange = { value ->
             when (value) {
                 SwipeToDismissBoxValue.EndToStart -> onDelete()
-                SwipeToDismissBoxValue.StartToEnd -> onInfo()
+                SwipeToDismissBoxValue.StartToEnd -> onEdit() // swipe right = edit, tap = details
                 SwipeToDismissBoxValue.Settled -> Unit
             }
             false
@@ -444,7 +452,7 @@ fun TransactionRow(
         backgroundContent = {
             val (bg, icon, align) = when (dismissState.dismissDirection) {
                 SwipeToDismissBoxValue.EndToStart -> Triple(scheme.error, Icons.Default.Delete, Alignment.CenterEnd)
-                SwipeToDismissBoxValue.StartToEnd -> Triple(scheme.primary, Icons.Default.Info, Alignment.CenterStart)
+                SwipeToDismissBoxValue.StartToEnd -> Triple(scheme.primary, Icons.Default.Edit, Alignment.CenterStart)
                 SwipeToDismissBoxValue.Settled -> Triple(Color.Transparent, null, Alignment.Center)
             }
             Box(Modifier.fillMaxSize().background(bg), contentAlignment = align) {
@@ -464,7 +472,7 @@ fun TransactionRow(
                 .fillMaxWidth()
                 .heightIn(min = 60.dp)
                 .background(scheme.surface)
-                .clickable(onClick = onEdit)
+                .clickable(onClick = onInfo)
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -549,9 +557,10 @@ fun AmountRow(
 /** Staggered fade + rise driven by a hoisted [visible] flag, so lazy-list scrolling never replays it. */
 @Composable
 fun Modifier.introIn(visible: Boolean, index: Int): Modifier {
+    val on = com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Entrance)
     val p by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(450, delayMillis = 70 * index, easing = FastOutSlowInEasing),
+        animationSpec = if (on) tween(450, delayMillis = 70 * index, easing = FastOutSlowInEasing) else snap(),
         label = "intro_$index",
     )
     return this.graphicsLayer {
@@ -582,9 +591,10 @@ fun HeroCard(modifier: Modifier = Modifier, content: @Composable androidx.compos
 /** Fades a bar/fill in from 0 to [target] once, then follows changes. */
 @Composable
 fun animatedFraction(target: Float): Float {
-    var go by remember { mutableStateOf(false) }
+    val on = com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Charts)
+    var go by remember { mutableStateOf(!on) }
     LaunchedEffect(Unit) { go = true }
-    val v by animateFloatAsState(if (go) target else 0f, tween(650, easing = FastOutSlowInEasing), label = "fraction")
+    val v by animateFloatAsState(if (go) target else 0f, if (on) tween(650, easing = FastOutSlowInEasing) else snap(), label = "fraction")
     return v
 }
 

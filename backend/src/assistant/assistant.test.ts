@@ -124,6 +124,16 @@ describe('tool registry', () => {
     expect(JSON.stringify(f.jsonSchema)).not.toMatch(/phone|email_address|number/);
   });
 
+  it('can prepare a message for WhatsApp, SMS or email but only as a card', () => {
+    const m = tools.findTool('share_message')!;
+    expect(m.tier).toBe('propose');
+    expect(m.input.safeParse({ message: 'Hi, you spent 4,500 on food' }).success).toBe(true);
+    expect(m.input.parse({ message: 'Hi' }).channel).toBe('whatsapp');
+    expect(m.input.safeParse({ message: '' }).success).toBe(false);
+    expect(m.input.safeParse({ message: 'Hi', channel: 'fax' }).success).toBe(false);
+    expect(looksBlocked('share_message')).toBe(false);
+  });
+
   it('validates tool arguments', () => {
     const search = tools.findTool('search_transactions')!;
     expect(search.input.safeParse({ type: 'debit', limit: 5, start_date: '2026-10-01' }).success).toBe(true);

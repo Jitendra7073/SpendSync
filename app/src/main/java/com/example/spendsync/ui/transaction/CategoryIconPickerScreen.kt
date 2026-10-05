@@ -79,6 +79,7 @@ fun CategoryIconPickerScreen(
     onDismiss: () -> Unit,
     onCategoryCreated: (name: String, iconId: String) -> Unit,
 ) {
+    androidx.activity.compose.BackHandler(onBack = onDismiss)
     val NeutralOffWhite = MaterialTheme.colorScheme.background
     val NeutralWhite = MaterialTheme.colorScheme.surface
     val NeutralBlack = MaterialTheme.colorScheme.onBackground

@@ -105,7 +105,7 @@ fun AppButton(
     val border = variant.border()
 
     val scale by animateFloatAsState(
-        targetValue = if (pressed && active) 0.96f else 1f,
+        targetValue = if (pressed && active && com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Press)) 0.96f else 1f,
         animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium),
         label = "button_scale",
     )
@@ -223,7 +223,8 @@ fun AppIconButton(
     val focused by interaction.collectIsFocusedAsState()
     val (container, content) = variant.colors()
     val iconColor = tint ?: if (variant == ButtonVariant.Text) MaterialTheme.colorScheme.onSurface else content
-    val scale by animateFloatAsState(if (pressed && enabled) 0.88f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "icon_btn_scale")
+    val pressOn = com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Press)
+    val scale by animateFloatAsState(if (pressed && enabled && pressOn) 0.88f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "icon_btn_scale")
     val overlay by animateColorAsState(
         when {
             !enabled -> Color.Transparent
@@ -233,18 +234,21 @@ fun AppIconButton(
         },
         tween(120), label = "icon_btn_overlay",
     )
-    Box(
-        modifier = modifier
-            .size(48.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.45f }
-            .clip(CircleShape)
-            .background(container)
-            .then(if (focused) Modifier.border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), CircleShape) else Modifier)
-            .hoverable(interaction)
-            .clickable(interactionSource = interaction, indication = ripple(color = iconColor), enabled = enabled, role = Role.Button, onClick = onClick)
-            .background(overlay),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription = contentDescription, tint = iconColor, modifier = Modifier.size(22.dp))
+    AppTooltip(contentDescription) {
+        Box(
+            modifier = modifier
+                .size(48.dp)
+                .graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.45f }
+                .clip(CircleShape)
+                .background(container)
+                .then(if (focused) Modifier.border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), CircleShape) else Modifier)
+                .hoverable(interaction)
+                .clickable(interactionSource = interaction, indication = ripple(color = iconColor), enabled = enabled, role = Role.Button, onClick = onClick)
+                .background(overlay),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = contentDescription, tint = iconColor, modifier = Modifier.size(22.dp))
+        }
+
     }
 }

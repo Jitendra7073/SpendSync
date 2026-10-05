@@ -67,6 +67,12 @@ class MainActivity : ComponentActivity() {
             val themeMode by sessionDataStore.themeMode.collectAsState(initial = "System")
             val accentColor by sessionDataStore.accentColor.collectAsState(initial = "Brand Blue")
             val resolvedStart = startDestination
+            val customColors by sessionDataStore.customColors.collectAsState(initial = com.example.spendsync.ui.theme.CustomColors())
+            val stored by sessionDataStore.animationPrefs.collectAsState(initial = com.example.spendsync.ui.theme.MotionPrefs())
+            val systemOff = remember {
+                android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+            }
+            val motion = if (systemOff) stored.copy(all = false) else stored
 
             SpendSyncTheme(
                 darkTheme = when (themeMode) {
@@ -74,8 +80,10 @@ class MainActivity : ComponentActivity() {
                     "Light" -> false
                     else    -> androidx.compose.foundation.isSystemInDarkTheme()
                 },
-                accentColorName = accentColor
+                accentColorName = accentColor,
+                custom = customColors,
             ) {
+                androidx.compose.runtime.CompositionLocalProvider(com.example.spendsync.ui.theme.LocalMotion provides motion) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (resolvedStart != null) {
                         AppNavigation(
@@ -84,6 +92,7 @@ class MainActivity : ComponentActivity() {
                             startDestination = resolvedStart,
                         )
                     }
+                }
                 }
             }
         }

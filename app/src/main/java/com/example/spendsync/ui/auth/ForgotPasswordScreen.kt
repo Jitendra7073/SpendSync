@@ -52,7 +52,7 @@ fun ForgotContent(viewModel: AuthViewModel, onBackToLogin: () -> Unit) {
         )
         AnimatedContent(
             targetState = uiState.resetStep,
-            transitionSpec = { (slideInHorizontally { it / 4 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 4 } + fadeOut()) },
+            transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) { (slideInHorizontally { it / 4 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 4 } + fadeOut()) },
             label = "reset_step",
         ) { step ->
             when (step) {

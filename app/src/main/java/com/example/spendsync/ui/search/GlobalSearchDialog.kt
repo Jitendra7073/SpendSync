@@ -76,24 +76,6 @@ import com.example.spendsync.ui.components.AppButton
 import com.example.spendsync.ui.components.AppIconButton
 import com.example.spendsync.ui.components.ButtonSize
 
-private data class SettingsSearchItem(
-    val label: String,
-    val keywords: List<String>,
-    val icon: ImageVector,
-)
-
-private fun settingsItems() = listOf(
-    SettingsSearchItem(tr(R.string.theme_light_dark), listOf(tr(R.string.dark_mode), "appearance", "night", "accent", "colour"), Icons.Default.DarkMode),
-    SettingsSearchItem(tr(R.string.language), listOf("translate", "hindi", "spanish", "french", "german", "english"), Icons.Default.Language),
-    SettingsSearchItem(tr(R.string.hide_amounts_pin), listOf("privacy", "mask", "security", "pin"), Icons.Default.Lock),
-    SettingsSearchItem(tr(R.string.push_notifications), listOf("alerts"), Icons.Default.NotificationsActive),
-    SettingsSearchItem(tr(R.string.auto_backup), listOf("backup", "sync"), Icons.Default.Backup),
-    SettingsSearchItem(tr(R.string.date_format), listOf("date"), Icons.Default.CalendarMonth),
-    SettingsSearchItem(tr(R.string.privacy_policy), listOf("legal", "data"), Icons.Default.PrivacyTip),
-    SettingsSearchItem(tr(R.string.support_faqs), listOf("help", "contact"), Icons.AutoMirrored.Filled.HelpOutline),
-    SettingsSearchItem(tr(R.string.sign_out), listOf("logout", tr(R.string.log_out)), Icons.AutoMirrored.Filled.Logout),
-)
-
 /**
  * Full-screen modal that searches across the whole app — transactions (by
  * merchant/category/note) and Settings items (by label/keyword). Opened from
@@ -107,7 +89,7 @@ fun GlobalSearchDialog(
     amountVisibility: AmountVisibilityState,
     onDismiss: () -> Unit,
     onTransactionSelected: (TransactionDto) -> Unit,
-    onOpenSettings: () -> Unit,
+    onNavigate: (SearchDest) -> Unit,
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
     val NeutralWhite = MaterialTheme.colorScheme.surface
@@ -148,12 +130,8 @@ fun GlobalSearchDialog(
         }.take(20)
     }
 
-    val matchingSettings = remember(query) {
-        if (query.isBlank()) emptyList() else settingsItems().filter { item ->
-            item.label.contains(query, ignoreCase = true) ||
-                item.keywords.any { it.contains(query, ignoreCase = true) }
-        }
-    }
+    val entries = remember { appSearchEntries() }
+    val matchingSettings = remember(query) { searchApp(entries, query).take(30) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -226,9 +204,9 @@ fun GlobalSearchDialog(
                 }
                 else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                     if (matchingSettings.isNotEmpty()) {
-                        item { SectionHeader(tr(R.string.settings)) }
-                        items(matchingSettings) { settingsItem ->
-                            SettingsResultRow(settingsItem, onClick = onOpenSettings)
+                        item { SectionHeader(tr(R.string.search_in_app)) }
+                        items(matchingSettings) { entry ->
+                            SettingsResultRow(entry, onClick = { onNavigate(entry.dest) })
                         }
                     }
                     if (matchingTransactions.isNotEmpty()) {
@@ -257,7 +235,7 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-private fun SettingsResultRow(item: SettingsSearchItem, onClick: () -> Unit) {
+private fun SettingsResultRow(item: AppSearchEntry, onClick: () -> Unit) {
     val NeutralBlack = MaterialTheme.colorScheme.onBackground
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -276,7 +254,10 @@ private fun SettingsResultRow(item: SettingsSearchItem, onClick: () -> Unit) {
             Icon(item.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(12.dp))
-        Text(text = item.label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = NeutralBlack)
+        Column {
+            Text(text = item.title, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = NeutralBlack)
+            Text(text = item.where, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

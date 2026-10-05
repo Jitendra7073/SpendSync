@@ -30,6 +30,7 @@ import com.example.spendsync.ui.auth.AuthFlowScreen
 import com.example.spendsync.ui.main.MainScreen
 import com.example.spendsync.data.repository.hydrateSettingsFromBackend
 import com.example.spendsync.data.repository.warmFinanceCache
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 // ── Top-level route constants ─────────────────────────────────────────────────
@@ -73,6 +74,12 @@ fun AppNavigation(
         if (navController.currentDestination?.route != Route.LOGIN) return
         scope.launch { hydrateSettingsFromBackend(financeRepository, sessionDataStore) }
         scope.launch { warmFinanceCache(financeRepository) }
+        // Optional: email the user a copy of their data right after they sign in (Settings -> Data -> Email my data).
+        scope.launch {
+            if (sessionDataStore.exportOnLogin.first()) {
+                financeRepository.emailExport(com.example.spendsync.data.remote.model.ExportEmailRequest(null, null, listOf("transactions", "holds", "plan"), "all", "csv"))
+            }
+        }
         // Clear the auth screen off the stack. Stack: [MAIN].
         navController.navigate(Route.MAIN) {
             popUpTo(Route.LOGIN) { inclusive = true }

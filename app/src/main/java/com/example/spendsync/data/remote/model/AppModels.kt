@@ -253,3 +253,15 @@ data class HoldMessageDto(
     @SerializedName("text")   val text: String? = null,
     @SerializedName("model")  val model: String? = null,
 )
+
+// ── Export by email ──────────────────────────────────────────────────────────
+
+data class ExportEmailRequest(
+    @SerializedName("from")   val from: String?,
+    @SerializedName("to")     val to: String?,
+    @SerializedName("kinds")  val kinds: List<String>,
+    @SerializedName("type")   val type: String,
+    @SerializedName("format") val format: String,
+)
+
+data class ExportEmailDto(@SerializedName("sentTo") val sentTo: String = "")

@@ -17,6 +17,8 @@ sealed interface AssistantEvent {
     data class Proposed(val proposal: Proposal) : AssistantEvent
     /** The assistant started a follow-up message about a hold. The phone writes it; the user confirms before it is sent. */
     data class FollowUpStarted(val followUp: FollowUpProposal) : AssistantEvent
+    /** A message the assistant prepared for WhatsApp, SMS or email. The user checks it and taps Send. */
+    data class ComposeStarted(val compose: ComposeProposal) : AssistantEvent
     data object Done : AssistantEvent
     data class Failure(val kind: FailureKind) : AssistantEvent
 }
@@ -43,6 +45,8 @@ data class FollowUpProposal(
     val tone: String?,
     val context: String?,
 )
+
+data class ComposeProposal(val message: String, val channel: String, val toName: String?, val subject: String?)
 
 enum class ToolStatus { Running, Done, Failed }
 
@@ -71,6 +75,12 @@ object AssistantEventParser {
                         val kind = e.str("kind")?.takeIf { it == "expense" || it == "income" } ?: return@let null
                         AssistantEvent.Proposed(
                             Proposal(kind, amount, e.str("category") ?: "Other", e.str("note"), e.str("person"), e.str("returnDate"), e.str("date").orEmpty()),
+                        )
+                    }
+                    "compose" -> a.getAsJsonObject("compose")?.let { m ->
+                        val message = m.str("message")?.takeIf { it.isNotBlank() } ?: return@let null
+                        AssistantEvent.ComposeStarted(
+                            ComposeProposal(message, m.str("channel")?.takeIf { it == "sms" || it == "email" } ?: "whatsapp", m.str("toName"), m.str("subject")),
                         )
                     }
                     "followup" -> a.getAsJsonObject("followup")?.let { f ->

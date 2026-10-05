@@ -1,7 +1,8 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../db/index';
 import { supportTickets, user } from '../db/schema/index';
 import { sendEmail } from '../lib/email';
+import { NotFoundError } from '../utils/errors';
 import { logger } from '../utils/logger';
 import { supportRecipients } from './recipients';
 import { composeReceiptEmail } from './templates';
@@ -66,4 +67,15 @@ export async function listTickets(userId: string, limit = 30) {
     .where(eq(supportTickets.userId, userId))
     .orderBy(desc(supportTickets.createdAt))
     .limit(Math.min(limit, 100));
+}
+
+/** Closes one of the user's own reports. Only their own, and only moving to `closed`; the report itself stays on record. */
+export async function closeTicket(userId: string, ref: string) {
+  const [row] = await db
+    .update(supportTickets)
+    .set({ status: 'closed' })
+    .where(and(eq(supportTickets.userId, userId), eq(supportTickets.ref, ref)))
+    .returning({ ref: supportTickets.ref, status: supportTickets.status });
+  if (!row) throw new NotFoundError('Report not found');
+  return row;
 }

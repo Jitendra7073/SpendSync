@@ -271,6 +271,7 @@ fun AnalyticsScreen(
     dateFilterState: DateFilterState,
     amountVisibility: AmountVisibilityState,
     onOpenSettings: () -> Unit = {},
+    onNavigate: (com.example.spendsync.ui.search.SearchDest) -> Unit = {},
     onViewTransaction: (TransactionDto) -> Unit = {},
     onOpenAssistant: () -> Unit = {},
 ) {
@@ -344,7 +345,7 @@ fun AnalyticsScreen(
 
     AnimatedContent(
         targetState = page,
-        transitionSpec = {
+        transitionSpec = com.example.spendsync.ui.theme.motionSpec(com.example.spendsync.ui.theme.LocalMotion.current.enabled(com.example.spendsync.ui.theme.MotionKind.Transitions)) {
             val forward = targetState != null
             val enter = slideInHorizontally(tween(320)) { if (forward) it / 4 else -it / 4 } + fadeIn(tween(320))
             val exit = slideOutHorizontally(tween(320)) { if (forward) -it / 4 else it / 4 } + fadeOut(tween(200))
@@ -375,7 +376,8 @@ fun AnalyticsScreen(
             }
         } else {
             SettingsBackdrop {
-                PullToRefreshBox(
+                com.example.spendsync.ui.components.AppPullToRefresh(
+                    onLongPull = { showGlobalSearch = true },
                     isRefreshing = isRefreshing,
                     onRefresh = {
                         scope.launch {
@@ -476,9 +478,9 @@ fun AnalyticsScreen(
                 showGlobalSearch = false
                 onViewTransaction(tx)
             },
-            onOpenSettings = {
+            onNavigate = { dest ->
                 showGlobalSearch = false
-                onOpenSettings()
+                onNavigate(dest)
             },
         )
     }

@@ -40,7 +40,15 @@ export interface ProposedFollowup {
   context?: string;
 }
 
+export interface ProposedMessage {
+  message: string;
+  channel: 'whatsapp' | 'sms' | 'email';
+  toName?: string;
+  subject?: string;
+}
+
 export type UiAction =
+  | { type: 'compose'; compose: ProposedMessage }
   | { type: 'open_screen'; screen: ScreenId }
   | { type: 'propose_entry'; entry: ProposedEntry }
   | { type: 'followup'; followup: ProposedFollowup };
@@ -519,6 +527,45 @@ const proposeEntry = tool({
   },
 });
 
+const shareMessage = tool({
+  name: 'share_message',
+  tier: 'propose',
+  description:
+    "Prepare a message for the user to send through WhatsApp, SMS or email (to a person they name, or to anyone they pick). Use when the user says 'send this on WhatsApp', 'message this to Asha', 'email this', 'share this with my wife', including when they reply to one of your earlier answers (the <replying_to> block is then the content to send). " +
+    "You CAN do this: it shows a small card where the user checks the message, picks or confirms the contact and taps Send; the app then opens WhatsApp/SMS/email with the text ready and the user taps Send there. NOTHING is sent by you, so say you prepared it for them to check, and NEVER say you cannot send messages. " +
+    "message: the exact text to send, as plain text without markdown (copy it from the quoted answer when replying; keep numbers exactly). Write it in the voice of the user. Do not add facts. channel: whatsapp unless the user says sms or email. to_name: the person's name only if the user said it. subject: only for email, a few words. " +
+    "For a reminder about money on hold use prepare_followup instead.",
+  input: z.object({
+    message: z.string().min(1).max(1500),
+    channel: z.enum(['whatsapp', 'sms', 'email']).default('whatsapp'),
+    to_name: z.string().max(80).optional(),
+    subject: z.string().max(120).optional(),
+  }),
+  jsonSchema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' },
+      channel: { type: 'string', enum: ['whatsapp', 'sms', 'email'] },
+      to_name: { type: 'string' },
+      subject: { type: 'string' },
+    },
+    required: ['message'],
+    additionalProperties: false,
+  },
+  async run(_ctx, input) {
+    const compose: ProposedMessage = {
+      message: input.message.trim(),
+      channel: input.channel ?? 'whatsapp',
+      ...(input.to_name ? { toName: input.to_name.trim() } : {}),
+      ...(input.subject ? { subject: input.subject.trim() } : {}),
+    };
+    return {
+      data: { status: 'message_card_shown', sent: false, message: 'A card was shown in the chat. The user checks the message, picks the contact and taps Send. Nothing has been sent by you.' },
+      uiAction: { type: 'compose', compose },
+    };
+  },
+});
+
 const prepareFollowup = tool({
   name: 'prepare_followup',
   tier: 'propose',
@@ -589,6 +636,7 @@ export const ASSISTANT_TOOLS: AssistantTool<any>[] = [
   getSettings,
   proposeEntry,
   prepareFollowup,
+  shareMessage,
   openScreen,
 ];
 

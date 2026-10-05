@@ -111,6 +111,12 @@ interface AppApiService {
         @Body body: MoveMoneyRequest,
     ): Response<SuccessResponse<PlanViewDto>>
 
+    @POST("api/export/email")
+    suspend fun emailExport(
+        @Header("Authorization") token: String,
+        @Body body: ExportEmailRequest,
+    ): Response<SuccessResponse<ExportEmailDto>>
+
     @POST("api/holds/message")
     suspend fun holdMessage(
         @Header("Authorization") token: String,

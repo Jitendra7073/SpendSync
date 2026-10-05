@@ -129,6 +129,13 @@ class AssistantRepository(
         }
     }
 
+    /** The user closes one of their own reports. False when it did not reach the server. */
+    suspend fun closeTicket(ref: String): Boolean = authed(
+        "/api/support/tickets/$ref",
+        { patch(json(mapOf("status" to "closed"))) },
+        { true },
+    ) == true
+
     fun chat(
         turns: List<ChatTurn>,
         language: String,

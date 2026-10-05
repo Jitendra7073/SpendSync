@@ -53,7 +53,20 @@ import com.example.spendsync.ui.components.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.toArgb
+import kotlinx.coroutines.launch
+import com.example.spendsync.ui.components.ButtonSize
+import com.example.spendsync.ui.components.ButtonVariant
+import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.i18n.categoryLabel
+import com.example.spendsync.ui.home.glassCard
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Animation
+import androidx.compose.material.icons.filled.ReportProblem
 import com.example.spendsync.ui.components.AppChip
 import com.example.spendsync.utils.formatInr
 import androidx.compose.runtime.getValue
@@ -98,6 +111,9 @@ data class SettingsModel(
     /** Models the server reports; null while loading or if it could not be reached. */
     val assistantModels: List<AssistantModelInfo>?,
     val planify: com.example.spendsync.data.local.PlanifySettings = com.example.spendsync.data.local.PlanifySettings(),
+    val motion: com.example.spendsync.ui.theme.MotionPrefs = com.example.spendsync.ui.theme.MotionPrefs(),
+    val exportOnLogin: Boolean = false,
+    val colors: com.example.spendsync.ui.theme.CustomColors = com.example.spendsync.ui.theme.CustomColors(),
 )
 
 /** Every user-triggered change. The host decides persistence, syncing and dialogs. */
@@ -116,6 +132,11 @@ class SettingsActions(
     val setMasking: (Boolean) -> Unit,
     val setAssistant: (Boolean) -> Unit,
     val setPlanify: (com.example.spendsync.data.local.PlanifySettings) -> Unit,
+    val setMotion: (com.example.spendsync.ui.theme.MotionPrefs) -> Unit,
+    val setExportOnLogin: (Boolean) -> Unit,
+    val setColors: (com.example.spendsync.ui.theme.CustomColors) -> Unit,
+    val loadReports: suspend () -> List<com.example.spendsync.data.assistant.SupportTicketSummary>?,
+    val closeReport: suspend (String) -> Boolean,
     val setAssistantPrefs: (com.example.spendsync.data.assistant.AssistantPrefs) -> Unit,
     val refreshAssistantStatus: () -> Unit,
     val clearAssistantHistory: () -> Unit,
@@ -151,6 +172,12 @@ enum class SettingsPage(@StringRes val titleRes: Int, val icon: ImageVector, val
     Planify(R.string.pl_set_title, Icons.Default.PieChart, {
         tr(R.string.pl_set_summary, tr(if (it.planify.alerts) R.string.pl_set_on else R.string.pl_set_off), tr(if (it.planify.daily) R.string.pl_set_on else R.string.pl_set_off))
     }),
+    Animations(R.string.an_title, Icons.Default.Animation, {
+        val p = it.motion
+        val n = if (!p.all) 0 else listOf(p.counts, p.entrance, p.transitions, p.typing, p.skeleton, p.press, p.charts).count { v -> v }
+        if (n == 0) tr(R.string.an_summary_off) else tr(R.string.an_summary_on, n)
+    }),
+    Reports(R.string.rp_title, Icons.Default.ReportProblem, { tr(R.string.asst_sup_title) }),
     AutoCapture(R.string.auto_capture, Icons.Default.SettingsSuggest, {
         if (!it.autoCapture) tr(R.string.off) else tr(R.string.on_1_app_s, it.autoCapturePackages.size)
     }),
@@ -270,6 +297,8 @@ fun SettingsPageScreen(page: SettingsPage, model: SettingsModel, actions: Settin
                             SettingsPage.Privacy -> PrivacyPage(model, actions)
                             SettingsPage.Assistant -> AssistantPage(model, actions)
                             SettingsPage.Planify -> PlanifySettingsPage(model, actions)
+                            SettingsPage.Animations -> AnimationsPage(model, actions)
+                            SettingsPage.Reports -> ReportsPage(actions)
                             SettingsPage.AutoCapture -> AutoCapturePage(model, actions)
                             SettingsPage.Data -> DataPage(model, actions)
                             SettingsPage.About -> AboutPage(actions)
@@ -336,6 +365,7 @@ private fun AppearancePage(m: SettingsModel, a: SettingsActions) {
         )
         ScopeTag(synced = true)
     }
+    CustomColorsGroup(m, a)
     SettingsGroupLabel(tr(R.string.language_formats))
     SettingsGroup(Modifier.cascadeIn(2)) {
         SettingsNavRow(Icons.Default.Language, tr(R.string.language), value = m.language.nativeName, onClick = a.pickLanguage)
@@ -420,7 +450,9 @@ private fun DataPage(m: SettingsModel, a: SettingsActions) {
         ScopeTag(synced = true)
     }
     SettingsGroup(Modifier.cascadeIn(1)) {
-        SettingsNavRow(Icons.Default.FileDownload, tr(R.string.export_data), tr(R.string.download_your_transactions_as_csv_or), onClick = a.export)
+        SettingsNavRow(Icons.Default.FileDownload, tr(R.string.export_data), null, onClick = a.export)
+        SettingsDivider()
+        SettingsToggleRow(Icons.Default.Email, tr(R.string.ex_login), null, m.exportOnLogin, onCheckedChange = a.setExportOnLogin)
     }
     SettingsGroup(Modifier.cascadeIn(2), footer = tr(R.string.clearing_removes_custom_categories_stored_on)) {
         SettingsNavRow(
@@ -468,5 +500,135 @@ private fun PlanifySettingsPage(m: SettingsModel, a: SettingsActions) {
             }
         }
         ScopeTag(synced = true)
+    }
+}
+
+/** One switch for everything, then one per kind of motion. Labels only: each name says what it does. */
+@Composable
+private fun AnimationsPage(m: SettingsModel, a: SettingsActions) {
+    val p = m.motion
+    SettingsGroup(Modifier.cascadeIn(0)) {
+        SettingsToggleRow(Icons.Default.Animation, tr(R.string.an_all), null, p.all, onCheckedChange = { a.setMotion(p.copy(all = it)) })
+        ScopeTag(synced = false)
+    }
+    SettingsGroup(Modifier.cascadeIn(1)) {
+        val rows = listOf(
+            Triple(R.string.an_counts, p.counts) { v: Boolean -> p.copy(counts = v) },
+            Triple(R.string.an_entrance, p.entrance) { v: Boolean -> p.copy(entrance = v) },
+            Triple(R.string.an_transitions, p.transitions) { v: Boolean -> p.copy(transitions = v) },
+            Triple(R.string.an_typing, p.typing) { v: Boolean -> p.copy(typing = v) },
+            Triple(R.string.an_skeleton, p.skeleton) { v: Boolean -> p.copy(skeleton = v) },
+            Triple(R.string.an_press, p.press) { v: Boolean -> p.copy(press = v) },
+            Triple(R.string.an_charts, p.charts) { v: Boolean -> p.copy(charts = v) },
+        )
+        rows.forEachIndexed { i, (label, on, change) ->
+            if (i > 0) SettingsDivider()
+            SettingsToggleRow(Icons.Default.Animation, tr(label), null, on && p.all, enabled = p.all, onCheckedChange = { a.setMotion(change(it)) })
+        }
+    }
+}
+
+/** The user's own support reports: status at a glance, and a way to close one that is no longer needed. */
+@Composable
+private fun ReportsPage(a: SettingsActions) {
+    val scheme = MaterialTheme.colorScheme
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var tickets by remember { mutableStateOf<List<com.example.spendsync.data.assistant.SupportTicketSummary>?>(null) }
+    var failed by remember { mutableStateOf(false) }
+    var toClose by remember { mutableStateOf<com.example.spendsync.data.assistant.SupportTicketSummary?>(null) }
+    suspend fun reload() { val r = a.loadReports(); failed = r == null; tickets = r ?: tickets }
+    androidx.compose.runtime.LaunchedEffect(Unit) { reload() }
+
+    val list = tickets
+    when {
+        list == null && !failed -> Text(tr(R.string.rp_loading), color = scheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
+        list == null -> Text(tr(R.string.rp_failed), color = scheme.error, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
+        list.isEmpty() -> Text(tr(R.string.rp_empty), color = scheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
+        else -> list.forEachIndexed { i, t ->
+            val closed = t.status == "closed"
+            val statusText = tr(when (t.status) {
+                "resolved" -> R.string.asst_sup_status_resolved; "in_progress" -> R.string.asst_sup_status_progress
+                "closed" -> R.string.rp_status_closed; else -> R.string.asst_sup_status_open
+            })
+            Column(
+                Modifier.cascadeIn(i).padding(horizontal = 16.dp).fillMaxWidth().glassCard().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("${t.ref} · ${categoryLabel(t.category)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
+                    Text(statusText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (closed) scheme.onSurfaceVariant else scheme.primary)
+                }
+                Text(t.createdAt.take(10), fontSize = 11.sp, color = scheme.onSurfaceVariant)
+                Text(t.message, fontSize = 13.sp, color = scheme.onSurface, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (!closed && t.status != "resolved") {
+                    AppButton(tr(R.string.rp_close), onClick = { toClose = t }, variant = ButtonVariant.Outline, size = ButtonSize.Small)
+                }
+            }
+        }
+    }
+    toClose?.let { t ->
+        com.example.spendsync.ui.components.AppConfirmDialog(
+            title = tr(R.string.rp_close_title), message = tr(R.string.rp_close_body),
+            confirmLabel = tr(R.string.rp_close), cancelLabel = tr(R.string.cancel),
+            onConfirm = { toClose = null; scope.launch { if (a.closeReport(t.ref)) reload() } },
+            onDismiss = { toClose = null },
+        )
+    }
+}
+
+/** Deep colour customisation: every role has its own picker, plus ready-made sets and a reset. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun CustomColorsGroup(m: SettingsModel, a: SettingsActions) {
+    val scheme = MaterialTheme.colorScheme
+    val c = m.colors
+    var editing by remember { mutableStateOf<Int?>(null) }
+    SettingsGroupLabel(tr(R.string.cc_title))
+    SettingsGroup(Modifier.cascadeIn(2)) {
+        SettingsToggleRow(Icons.Default.Palette, tr(R.string.cc_use), null, c.enabled, onCheckedChange = { a.setColors(c.copy(enabled = it)) })
+        if (c.enabled) {
+            SettingsDivider()
+            Text(tr(R.string.cc_presets), fontSize = 12.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, top = 12.dp))
+            androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.example.spendsync.ui.theme.CustomColors.presets.forEach { (name, preset) ->
+                    val label = tr(when (name) { "Midnight" -> R.string.cc_p_Midnight; "Sand" -> R.string.cc_p_Sand; "Forest" -> R.string.cc_p_Forest; "Rose" -> R.string.cc_p_Rose; "Ocean" -> R.string.cc_p_Ocean; else -> R.string.cc_p_Mono })
+                    AppChip(label, selected = false, onClick = { a.setColors(preset) })
+                }
+            }
+            val roles = listOf(
+                Triple(R.string.cc_accent, c.accent, 0), Triple(R.string.cc_background, c.background, 1), Triple(R.string.cc_cards, c.cards, 2),
+                Triple(R.string.cc_text, c.text, 3), Triple(R.string.cc_icons, c.icons, 4), Triple(R.string.cc_income, c.income, 5), Triple(R.string.cc_expense, c.expense, 6),
+            )
+            roles.forEach { (label, color, idx) ->
+                SettingsDivider()
+                Row(
+                    Modifier.fillMaxWidth().clickable { editing = idx }.padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(tr(label), fontSize = 15.sp, color = scheme.onSurface, modifier = Modifier.weight(1f))
+                    Text(color?.let { "#%06X".format(0xFFFFFF and it) } ?: "—", fontSize = 12.sp, color = scheme.onSurfaceVariant, modifier = Modifier.padding(end = 10.dp))
+                    Box(Modifier.size(26.dp).clip(CircleShape).background(color?.let { androidx.compose.ui.graphics.Color(it) } ?: scheme.surfaceVariant).border(0.5.dp, scheme.outlineVariant, CircleShape))
+                }
+            }
+            SettingsDivider()
+            Row(Modifier.fillMaxWidth().padding(12.dp)) {
+                AppButton(tr(R.string.cc_reset), onClick = { a.setColors(com.example.spendsync.ui.theme.CustomColors(enabled = true)) }, variant = ButtonVariant.Text, size = ButtonSize.Small)
+            }
+        }
+        ScopeTag(synced = false)
+    }
+    editing?.let { idx ->
+        val current = listOf(c.accent, c.background, c.cards, c.text, c.icons, c.income, c.expense)[idx] ?: scheme.primary.toArgb()
+        val titleRes = listOf(R.string.cc_accent, R.string.cc_background, R.string.cc_cards, R.string.cc_text, R.string.cc_icons, R.string.cc_income, R.string.cc_expense)[idx]
+        ColorPickerDialog(
+            title = tr(titleRes), initial = current, onDismiss = { editing = null },
+            onPick = { picked ->
+                editing = null
+                a.setColors(when (idx) {
+                    0 -> c.copy(accent = picked); 1 -> c.copy(background = picked); 2 -> c.copy(cards = picked)
+                    3 -> c.copy(text = picked); 4 -> c.copy(icons = picked); 5 -> c.copy(income = picked); else -> c.copy(expense = picked)
+                })
+            },
+        )
     }
 }
