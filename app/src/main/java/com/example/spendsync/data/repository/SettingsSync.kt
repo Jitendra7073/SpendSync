@@ -72,10 +72,14 @@ class SettingsSynchronizer(
         if (free(SettingField.MaskingSeconds)) s.amountVisibilitySeconds?.let { store.updateAmountVisibilityDurationSeconds(it) }
         if (free(SettingField.AutoCapture)) s.autoCaptureEnabled?.let { store.updateAutoCaptureEnabled(it) }
         if (free(SettingField.AutoCapturePackages)) s.autoCapturePackages?.let { store.updateAutoCapturePackages(parseAutoCapturePackages(it)) }
-        if (free(SettingField.Planify) && (s.planifyAlerts != null || s.planifyDaily != null || s.planifySalaryMin != null)) {
+        if (free(SettingField.Planify) && (s.planifyAlerts != null || s.planifyDaily != null || s.planifySalaryMin != null || s.planifyFundingSource != null || s.planifyCustomAmount != null)) {
             val cur = store.planifySettings.first()
             val merged = com.example.spendsync.data.local.PlanifySettings(
-                alerts = s.planifyAlerts ?: cur.alerts, daily = s.planifyDaily ?: cur.daily, salaryMin = s.planifySalaryMin ?: cur.salaryMin,
+                alerts = s.planifyAlerts ?: cur.alerts, 
+                daily = s.planifyDaily ?: cur.daily, 
+                salaryMin = s.planifySalaryMin ?: cur.salaryMin,
+                fundingSource = s.planifyFundingSource ?: cur.fundingSource,
+                customAmount = s.planifyCustomAmount ?: cur.customAmount
             )
             store.updatePlanifySettings(merged)
             com.example.spendsync.notifications.PlanDailyWorker.sync(store.appContext, merged.daily)
@@ -101,6 +105,8 @@ class SettingsSynchronizer(
             planifyAlerts = planify?.alerts,
             planifyDaily = planify?.daily,
             planifySalaryMin = planify?.salaryMin,
+            planifyFundingSource = planify?.fundingSource,
+            planifyCustomAmount = planify?.customAmount,
             assistantModel = assistant?.model,
             assistantStyle = assistant?.style,
             assistantTone = assistant?.tone,

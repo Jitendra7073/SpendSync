@@ -176,6 +176,8 @@ data class SettingsDto(
     @SerializedName("planifyAlerts")           val planifyAlerts: Boolean? = null,
     @SerializedName("planifyDaily")            val planifyDaily: Boolean? = null,
     @SerializedName("planifySalaryMin")        val planifySalaryMin: Int? = null,
+    @SerializedName("planifyFundingSource")    val planifyFundingSource: String? = null,
+    @SerializedName("planifyCustomAmount")     val planifyCustomAmount: Int? = null,
 )
 
 data class UpdateSettingsRequest(
@@ -199,6 +201,8 @@ data class UpdateSettingsRequest(
     @SerializedName("planifyAlerts")           val planifyAlerts: Boolean? = null,
     @SerializedName("planifyDaily")            val planifyDaily: Boolean? = null,
     @SerializedName("planifySalaryMin")        val planifySalaryMin: Int? = null,
+    @SerializedName("planifyFundingSource")    val planifyFundingSource: String? = null,
+    @SerializedName("planifyCustomAmount")     val planifyCustomAmount: Int? = null,
 )
 
 // ── Categories ───────────────────────────────────────────────────────────────

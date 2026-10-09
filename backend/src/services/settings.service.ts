@@ -54,6 +54,8 @@ export class SettingsService {
         planifyAlerts: true,
         planifyDaily: false,
         planifySalaryMin: 5000,
+        planifyFundingSource: 'detected_salary',
+        planifyCustomAmount: 0,
       })
       .returning();
 
@@ -88,6 +90,8 @@ export class SettingsService {
       planifyAlerts?: boolean;
       planifyDaily?: boolean;
       planifySalaryMin?: number;
+      planifyFundingSource?: string;
+      planifyCustomAmount?: number;
     }
   ) {
     // Ensure settings exist

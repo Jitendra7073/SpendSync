@@ -488,8 +488,46 @@ private fun PlanifySettingsPage(m: SettingsModel, a: SettingsActions) {
         SettingsToggleRow(Icons.Default.Notifications, tr(R.string.pl_set_daily), tr(R.string.pl_set_daily_sub), p.daily, onCheckedChange = { a.setPlanify(p.copy(daily = it)) })
         ScopeTag(synced = true)
     }
+    
+    SettingsGroupLabel("Planify Funding Source")
+    SettingsGroup(Modifier.cascadeIn(1), footer = "Choose how Planify calculates your available money") {
+        SettingsSegmented(
+            options = listOf(
+                SegmentOption("detected_salary", "Detected Salary", Icons.Default.AutoAwesome),
+                SegmentOption("net_balance", "Net Balance", Icons.Default.PieChart),
+                SegmentOption("custom", "Custom", Icons.Default.Edit)
+            ),
+            selected = p.fundingSource,
+            onSelect = { a.setPlanify(p.copy(fundingSource = it)) },
+        )
+        
+        if (p.fundingSource == "custom") {
+            SettingsDivider()
+            var customAmtStr by remember { mutableStateOf(if (p.customAmount > 0) p.customAmount.toString() else "") }
+            TextField(
+                value = customAmtStr,
+                onValueChange = { 
+                    customAmtStr = it
+                    val num = it.toIntOrNull() ?: 0
+                    a.setPlanify(p.copy(customAmount = num))
+                },
+                singleLine = true,
+                placeholder = { Text("Enter Custom Amount") },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                ),
+                modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
+            )
+        }
+        ScopeTag(synced = true)
+    }
+
     SettingsGroupLabel(tr(R.string.pl_set_salary))
-    SettingsGroup(Modifier.cascadeIn(1), footer = tr(R.string.pl_set_salary_sub)) {
+    SettingsGroup(Modifier.cascadeIn(2), footer = tr(R.string.pl_set_salary_sub)) {
         androidx.compose.foundation.layout.FlowRow(
             Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

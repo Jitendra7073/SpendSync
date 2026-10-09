@@ -52,7 +52,7 @@ private fun serializeHoldContacts(m: Map<String, HoldContact>): String = m.entri
 }
 
 /** Planify preferences. Defaults: alerts on, no daily summary, salary prompt for credits of 5,000 or more. */
-data class PlanifySettings(val alerts: Boolean = true, val daily: Boolean = false, val salaryMin: Int = 5000)
+data class PlanifySettings(val alerts: Boolean = true, val daily: Boolean = false, val salaryMin: Int = 5000, val fundingSource: String = "detected_salary", val customAmount: Int = 0)
 
 private fun parsePersistedCategories(raw: String?): List<PersistedCategory> {
     if (raw.isNullOrBlank()) return emptyList()
@@ -128,6 +128,8 @@ class SessionDataStore(private val context: Context) {
         private val KEY_PLANIFY_ALERTS = booleanPreferencesKey("planify_alerts")
         private val KEY_PLANIFY_DAILY = booleanPreferencesKey("planify_daily")
         private val KEY_PLANIFY_SALARY_MIN = intPreferencesKey("planify_salary_min")
+        private val KEY_PLANIFY_FUNDING_SOURCE = stringPreferencesKey("planify_funding_source")
+        private val KEY_PLANIFY_CUSTOM_AMOUNT = intPreferencesKey("planify_custom_amount")
         private val KEY_PLAN_ALERT_MEMORY = stringPreferencesKey("plan_alert_memory")
         private val KEY_PLAN_DAILY_COUNT = stringPreferencesKey("plan_daily_count")
         private val KEY_PLAN_SALARY_PROMPTED = stringPreferencesKey("plan_salary_prompted")
@@ -465,6 +467,8 @@ class SessionDataStore(private val context: Context) {
             alerts = prefs[KEY_PLANIFY_ALERTS] ?: true,
             daily = prefs[KEY_PLANIFY_DAILY] ?: false,
             salaryMin = prefs[KEY_PLANIFY_SALARY_MIN] ?: 5000,
+            fundingSource = prefs[KEY_PLANIFY_FUNDING_SOURCE] ?: "detected_salary",
+            customAmount = prefs[KEY_PLANIFY_CUSTOM_AMOUNT] ?: 0,
         )
     }
 
@@ -473,6 +477,8 @@ class SessionDataStore(private val context: Context) {
             prefs[KEY_PLANIFY_ALERTS] = s.alerts
             prefs[KEY_PLANIFY_DAILY] = s.daily
             prefs[KEY_PLANIFY_SALARY_MIN] = s.salaryMin
+            prefs[KEY_PLANIFY_FUNDING_SOURCE] = s.fundingSource
+            prefs[KEY_PLANIFY_CUSTOM_AMOUNT] = s.customAmount
         }
     }
 

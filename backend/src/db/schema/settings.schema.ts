@@ -49,6 +49,8 @@ export const userSettings = pgTable('user_settings', {
   planifyAlerts: boolean('planify_alerts').notNull().default(true),
   planifyDaily: boolean('planify_daily').notNull().default(false),
   planifySalaryMin: integer('planify_salary_min').notNull().default(5000),
+  planifyFundingSource: text('planify_funding_source').notNull().default('detected_salary'), // 'detected_salary' | 'net_balance' | 'custom'
+  planifyCustomAmount: integer('planify_custom_amount').notNull().default(0),
 
   // Timestamps
   createdAt: timestamp('created_at').notNull().defaultNow(),

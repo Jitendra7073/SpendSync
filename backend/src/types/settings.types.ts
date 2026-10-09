@@ -40,6 +40,8 @@ export const updateSettingsSchema = z.object({
   planifyAlerts: z.boolean().optional(),
   planifyDaily: z.boolean().optional(),
   planifySalaryMin: z.number().int().min(0).max(1_000_000).optional(),
+  planifyFundingSource: z.enum(['detected_salary', 'net_balance', 'custom']).optional(),
+  planifyCustomAmount: z.number().int().min(0).max(10_000_000).optional(),
 });
 
 /**
