@@ -29,6 +29,7 @@ describe('help search (RAG)', () => {
     ['who owes me money', 'holds'],
     ['auto capture is not working', 'troubleshooting_capture'],
     ['what is the dark theme setting', 'theme_accent'],
+    ['how do I attach a bill to an expense', 'bills'],
   ])('"%s" finds %s', (q, id) => {
     expect(top(q)).toBe(id);
   });
