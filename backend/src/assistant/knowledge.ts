@@ -42,7 +42,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     title: 'Edit, view or delete a transaction',
     screen: 'home',
     text:
-      'On Home or the Transactions list, tap a transaction to edit it, swipe it right to see its details, or swipe it left to delete it (you are asked to confirm and it cannot be undone).',
+      'On Home or the Transactions list, tap a transaction to edit it, swipe it right to see its details, or swipe it left to delete it. A deleted transaction goes to the Trash: tap Undo right away, or restore it later from Settings → Trash.',
   },
   {
     id: 'categories',
