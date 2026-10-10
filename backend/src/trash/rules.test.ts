@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { trashQuerySchema, trashTargetSchema } from '../types/trash.types';
 import { assertInTrash, assertParentLive, decodeCursor, encodeCursor, mergePage } from './rules';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -46,5 +47,18 @@ describe('guards', () => {
   it('a hold cannot come back while its transaction is in the Trash', () => {
     expect(() => assertParentLive(new Date())).toThrow(expect.objectContaining({ statusCode: 409, code: 'PARENT_DELETED' }));
     expect(() => assertParentLive(null)).not.toThrow();
+  });
+});
+
+describe('trash input', () => {
+  it('limits page size and defaults it', () => {
+    expect(trashQuerySchema.parse({}).limit).toBe(30);
+    expect(trashQuerySchema.parse({ limit: '10' }).limit).toBe(10);
+    expect(trashQuerySchema.safeParse({ limit: '500' }).success).toBe(false);
+  });
+  it('accepts only known kinds and uuids', () => {
+    expect(trashTargetSchema.safeParse({ kind: 'transaction', id: id(1) }).success).toBe(true);
+    expect(trashTargetSchema.safeParse({ kind: 'user', id: id(1) }).success).toBe(false);
+    expect(trashTargetSchema.safeParse({ kind: 'hold', id: '1 OR 1=1' }).success).toBe(false);
   });
 });
