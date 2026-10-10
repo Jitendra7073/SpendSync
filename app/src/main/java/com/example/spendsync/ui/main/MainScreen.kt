@@ -194,6 +194,20 @@ fun MainScreen(
         if (link == com.example.spendsync.notifications.PlanifyLinks.BUILD) planifyBuildRequest++
     }
 
+    // "Attach bill" on a capture notification: open the scanner for that transaction.
+    val billLink by com.example.spendsync.notifications.BillLinks.pending.collectAsState()
+    var billTx by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(billLink) {
+        val id = billLink ?: return@LaunchedEffect
+        com.example.spendsync.notifications.BillLinks.pending.value = null
+        billTx = id
+    }
+    billTx?.let { id ->
+        com.example.spendsync.ui.components.AppSheet(onDismiss = { billTx = null }, title = com.example.spendsync.ui.i18n.tr(com.example.spendsync.R.string.bills_title)) {
+            com.example.spendsync.ui.bills.BillsSection(id, financeRepository, amountVisibility, autoScan = true, onChanged = { homeRefreshKey++ })
+        }
+    }
+
     // Back never leaves the app from a tab: the assistant goes back to where it was opened from, any other tab goes
     // to Home. Screens drawn on top (add expense, holds, nested pages) install their own handlers, which win.
     androidx.activity.compose.BackHandler(enabled = selectedRoute == BottomNavItem.Assistant.route && !expenseOverlayVisible && !showHolds) {

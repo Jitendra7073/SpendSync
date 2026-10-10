@@ -349,7 +349,11 @@ fun ProfileScreen(
         closeReport = { ref -> assistantRepository.closeTicket(ref) },
         loadTrash = { cursor -> (financeRepository.getTrash(cursor) as? AuthResult.Success)?.data },
         restoreTrashItem = { item ->
-            if (item.kind == "transaction") {
+            if (item.kind == "bill") {
+                val r = financeRepository.restoreBill(item.id)
+                if (r is AuthResult.Success) onDataChanged()
+                r is AuthResult.Success
+            } else if (item.kind == "transaction") {
                 val r = financeRepository.restoreTransaction(item.id)
                 if (r is AuthResult.Success) {
                     r.data.holds.forEach { HoldReminderWorker.scheduleFor(context, it) }
@@ -367,6 +371,7 @@ fun ProfileScreen(
         },
         deleteTrashItem = { item -> financeRepository.deleteForever(item.kind, item.id) is AuthResult.Success },
         emptyTrash = { financeRepository.emptyTrash() is AuthResult.Success },
+        loadBillUsage = { (financeRepository.billUsage() as? AuthResult.Success)?.data },
         amountVisibility = amountVisibility,
         setPlanify = { p ->
             commit(SettingField.Planify) { sessionDataStore.updatePlanifySettings(p) }
