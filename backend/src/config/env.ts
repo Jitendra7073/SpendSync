@@ -33,6 +33,14 @@ const envSchema = z.object({
   // CORS
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),
 
+  // Bills (Cloudinary). Without the three keys, bill endpoints answer 503 BILLS_NOT_CONFIGURED.
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  CRON_SECRET: z.string().optional(),
+  BILLS_MAX_BYTES_PER_USER: z.string().default('524288000'),
+  BILLS_MAX_UPLOADS_PER_DAY: z.string().default('50'),
+
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 });
@@ -77,6 +85,17 @@ export const config = {
     authMax: parseInt(env.AUTH_RATE_LIMIT_MAX, 10),
   },
   
+  bills: {
+    cloudinary:
+      env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET
+        ? { cloudName: env.CLOUDINARY_CLOUD_NAME, apiKey: env.CLOUDINARY_API_KEY, apiSecret: env.CLOUDINARY_API_SECRET }
+        : null,
+    maxBytes: parseInt(env.BILLS_MAX_BYTES_PER_USER, 10),
+    maxUploadsPerDay: parseInt(env.BILLS_MAX_UPLOADS_PER_DAY, 10),
+    cronSecret: env.CRON_SECRET,
+    notificationUrl: `${env.API_URL.replace(/\/$/, '')}/api/bills/webhook`,
+  },
+
   cors: {
     allowedOrigins: env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()),
   },

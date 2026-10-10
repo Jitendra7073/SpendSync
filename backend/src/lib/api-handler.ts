@@ -105,18 +105,19 @@ type ApiHandler = (request: NextRequest, ctx: HandlerCtx) => Promise<NextRespons
  * middleware/{auth,rateLimiter,error}.middleware.ts and server.ts's CORS
  * setup in one place. `auth: 'required'` mirrors `authenticate`,
  * `auth: 'optional'` mirrors `optionalAuthenticate`; omitting it skips the
- * session lookup entirely.
+ * session lookup entirely. `rateLimit: false` is for machine callers with their own auth
+ * (Cloudinary webhook, Vercel cron).
  */
 export function withApi(
   handler: ApiHandler,
-  options: { auth?: 'required' | 'optional' } = {}
+  options: { auth?: 'required' | 'optional'; rateLimit?: boolean } = {}
 ) {
   return async function (
     request: NextRequest,
     routeCtx: { params?: any } = {}
   ): Promise<NextResponse> {
     try {
-      checkRateLimit(request);
+      if (options.rateLimit !== false) checkRateLimit(request);
 
       let userId: string | undefined;
       if (options.auth) {
