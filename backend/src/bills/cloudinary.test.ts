@@ -17,8 +17,10 @@ describe('upload signing', () => {
     const { uploadUrl, params } = uploadParams(c, 'spendsync/bills/u1/x', 'https://api.test/api/bills/webhook', 1700000000);
     expect(uploadUrl).toBe('https://api.cloudinary.com/v1_1/demo/image/upload');
     expect(params).toMatchObject({ type: 'authenticated', overwrite: 'false', allowed_formats: 'jpg,png,webp,heic,pdf', timestamp: '1700000000', api_key: '1234' });
-    const { signature, api_key, ...signed } = params;
-    expect(signature).toBe(cloudinary.utils.api_sign_request(signed, 'abcd'));
+    const signed: Record<string, string> = { ...params };
+    delete signed.signature;
+    delete signed.api_key; // the key is sent but never signed
+    expect(params.signature).toBe(cloudinary.utils.api_sign_request(signed, 'abcd'));
     expect(Object.values(params).every((v) => typeof v === 'string')).toBe(true);
   });
 });
