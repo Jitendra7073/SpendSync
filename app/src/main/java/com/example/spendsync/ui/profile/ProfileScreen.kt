@@ -115,6 +115,7 @@ import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.repository.AuthRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
+import com.example.spendsync.notifications.HoldReminderWorker
 import com.example.spendsync.data.remote.model.DashboardSummaryDto
 import androidx.compose.runtime.LaunchedEffect
 import com.example.spendsync.notifications.NotificationAppAllowlist
@@ -344,6 +345,21 @@ fun ProfileScreen(
         setColors = { c -> scope.launch { sessionDataStore.updateCustomColors(c) } },
         loadReports = { assistantRepository.tickets() },
         closeReport = { ref -> assistantRepository.closeTicket(ref) },
+        loadTrash = { cursor -> (financeRepository.getTrash(cursor) as? AuthResult.Success)?.data },
+        restoreTrashItem = { item ->
+            if (item.kind == "transaction") {
+                val r = financeRepository.restoreTransaction(item.id)
+                if (r is AuthResult.Success) r.data.holds.forEach { HoldReminderWorker.scheduleFor(context, it) }
+                r is AuthResult.Success
+            } else {
+                val r = financeRepository.restoreHold(item.id)
+                if (r is AuthResult.Success) HoldReminderWorker.scheduleFor(context, r.data)
+                r is AuthResult.Success
+            }
+        },
+        deleteTrashItem = { item -> financeRepository.deleteForever(item.kind, item.id) is AuthResult.Success },
+        emptyTrash = { financeRepository.emptyTrash() is AuthResult.Success },
+        amountVisibility = amountVisibility,
         setPlanify = { p ->
             commit(SettingField.Planify) { sessionDataStore.updatePlanifySettings(p) }
             // the evening job follows the switch right away

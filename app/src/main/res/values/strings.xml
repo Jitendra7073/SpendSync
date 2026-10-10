@@ -437,4 +437,20 @@
     <string name="your_transactions_and_settings_they_are">Your transactions and settings. They are linked to your account so they are there when you sign in on another phone.</string>
     <string name="trash_moved">Moved to Trash</string>
     <string name="trash_undo">Undo</string>
+    <string name="trash_title">Trash</string>
+    <string name="trash_summary">Deleted transactions and holds</string>
+    <string name="trash_restore">Restore</string>
+    <string name="trash_delete_forever">Delete forever</string>
+    <string name="trash_delete_forever_title">Delete forever?</string>
+    <string name="trash_cannot_undo">This can\'t be undone.</string>
+    <string name="trash_empty">Empty Trash</string>
+    <string name="trash_empty_title">Empty Trash?</string>
+    <string name="trash_empty_body">Everything in the Trash will be deleted forever. This can\'t be undone.</string>
+    <string name="trash_empty_state">Trash is empty. Deleted items stay here until you restore or delete them.</string>
+    <string name="trash_failed">Couldn\'t load the Trash. Try again.</string>
+    <string name="trash_action_failed">That didn\'t work. Try again.</string>
+    <string name="trash_load_more">Load more</string>
+    <string name="trash_deleted_on">Deleted %1$s</string>
+    <string name="trash_with_hold">Includes hold with %1$s</string>
+    <string name="trash_hold_label">Hold · %1$s</string>
 </resources>

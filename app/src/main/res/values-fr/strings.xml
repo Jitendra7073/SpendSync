@@ -722,4 +722,20 @@
     <string name="auth_pw_sub">Code accepté. Choisissez maintenant un nouveau mot de passe pour votre compte.</string>
     <string name="trash_moved">Déplacé dans la corbeille</string>
     <string name="trash_undo">Annuler</string>
+    <string name="trash_title">Corbeille</string>
+    <string name="trash_summary">Transactions et retenues supprimées</string>
+    <string name="trash_restore">Restaurer</string>
+    <string name="trash_delete_forever">Supprimer définitivement</string>
+    <string name="trash_delete_forever_title">Supprimer définitivement ?</string>
+    <string name="trash_cannot_undo">Action irréversible.</string>
+    <string name="trash_empty">Vider la corbeille</string>
+    <string name="trash_empty_title">Vider la corbeille ?</string>
+    <string name="trash_empty_body">Tout le contenu de la corbeille sera supprimé définitivement. Action irréversible.</string>
+    <string name="trash_empty_state">La corbeille est vide. Les éléments supprimés restent ici jusqu\'à ce que vous les restauriez ou les supprimiez.</string>
+    <string name="trash_failed">Impossible de charger la corbeille. Réessayez.</string>
+    <string name="trash_action_failed">Cela n\'a pas fonctionné. Réessayez.</string>
+    <string name="trash_load_more">Charger plus</string>
+    <string name="trash_deleted_on">Supprimé le %1$s</string>
+    <string name="trash_with_hold">Inclut la retenue avec %1$s</string>
+    <string name="trash_hold_label">Retenue · %1$s</string>
 </resources>

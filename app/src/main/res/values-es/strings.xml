@@ -722,4 +722,20 @@
     <string name="auth_pw_sub">Código aceptado. Ahora elige una contraseña nueva para tu cuenta.</string>
     <string name="trash_moved">Movido a la papelera</string>
     <string name="trash_undo">Deshacer</string>
+    <string name="trash_title">Papelera</string>
+    <string name="trash_summary">Transacciones y retenciones eliminadas</string>
+    <string name="trash_restore">Restaurar</string>
+    <string name="trash_delete_forever">Eliminar para siempre</string>
+    <string name="trash_delete_forever_title">¿Eliminar para siempre?</string>
+    <string name="trash_cannot_undo">No se puede deshacer.</string>
+    <string name="trash_empty">Vaciar papelera</string>
+    <string name="trash_empty_title">¿Vaciar la papelera?</string>
+    <string name="trash_empty_body">Todo lo de la papelera se eliminará para siempre. No se puede deshacer.</string>
+    <string name="trash_empty_state">La papelera está vacía. Lo eliminado se queda aquí hasta que lo restaures o lo borres.</string>
+    <string name="trash_failed">No se pudo cargar la papelera. Inténtalo de nuevo.</string>
+    <string name="trash_action_failed">No funcionó. Inténtalo de nuevo.</string>
+    <string name="trash_load_more">Cargar más</string>
+    <string name="trash_deleted_on">Eliminado el %1$s</string>
+    <string name="trash_with_hold">Incluye retención con %1$s</string>
+    <string name="trash_hold_label">Retención · %1$s</string>
 </resources>

@@ -722,4 +722,20 @@
     <string name="auth_pw_sub">Code akzeptiert. Wähle jetzt ein neues Passwort für dein Konto.</string>
     <string name="trash_moved">In den Papierkorb verschoben</string>
     <string name="trash_undo">Rückgängig</string>
+    <string name="trash_title">Papierkorb</string>
+    <string name="trash_summary">Gelöschte Buchungen und Rückforderungen</string>
+    <string name="trash_restore">Wiederherstellen</string>
+    <string name="trash_delete_forever">Endgültig löschen</string>
+    <string name="trash_delete_forever_title">Endgültig löschen?</string>
+    <string name="trash_cannot_undo">Das kann nicht rückgängig gemacht werden.</string>
+    <string name="trash_empty">Papierkorb leeren</string>
+    <string name="trash_empty_title">Papierkorb leeren?</string>
+    <string name="trash_empty_body">Alles im Papierkorb wird endgültig gelöscht. Das kann nicht rückgängig gemacht werden.</string>
+    <string name="trash_empty_state">Der Papierkorb ist leer. Gelöschtes bleibt hier, bis du es wiederherstellst oder löschst.</string>
+    <string name="trash_failed">Papierkorb konnte nicht geladen werden. Versuche es erneut.</string>
+    <string name="trash_action_failed">Das hat nicht geklappt. Versuche es erneut.</string>
+    <string name="trash_load_more">Mehr laden</string>
+    <string name="trash_deleted_on">Gelöscht am %1$s</string>
+    <string name="trash_with_hold">Inklusive Rückforderung bei %1$s</string>
+    <string name="trash_hold_label">Rückforderung · %1$s</string>
 </resources>
