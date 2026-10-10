@@ -295,6 +295,9 @@ class SessionDataStore(private val context: Context) {
             prefs.remove(KEY_PLAN_SALARY_PROMPTED)
             prefs.remove(KEY_HOLD_CONTACTS) // contacts of the previous account must not follow the next one
         }
+        // Bills queued by the previous account must not upload under the next one.
+        com.example.spendsync.data.bills.BillUploadWorker.cancel(context)
+        com.example.spendsync.data.bills.BillQueue.clear(context)
     }
 
     // Update settings functions
