@@ -135,7 +135,10 @@ export class TransactionService {
       if (row.deletedAt) return { holdIds: [] };
 
       const now = new Date();
-      await tx.update(transactions).set({ deletedAt: now }).where(mine);
+      // `liveTx` here too: a request racing this one (e.g. a network retry) waits on the row lock,
+      // then updates nothing instead of overwriting deleted_at and splitting it from the holds'.
+      const won = await tx.update(transactions).set({ deletedAt: now }).where(and(mine, liveTx)).returning({ id: transactions.id });
+      if (won.length === 0) return { holdIds: [] };
       const moved = await tx
         .update(holds)
         .set({ deletedAt: now })
