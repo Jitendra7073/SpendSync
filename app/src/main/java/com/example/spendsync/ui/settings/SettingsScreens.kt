@@ -507,7 +507,8 @@ private fun AboutPage(a: SettingsActions) {
 @Composable
 private fun PlanifySettingsPage(m: SettingsModel, a: SettingsActions) {
     val p = m.planify
-    SettingsGroup(Modifier.cascadeIn(0), footer = tr(R.string.pl_set_footer)) {
+    SettingsGroup(Modifier.cascadeIn(0), footer =
+        tr(R.string.pl_set_footer)) {
         SettingsToggleRow(Icons.Default.NotificationsActive, tr(R.string.pl_set_alerts), tr(R.string.pl_set_alerts_sub), p.alerts, onCheckedChange = { a.setPlanify(p.copy(alerts = it)) })
         SettingsDivider()
         SettingsToggleRow(Icons.Default.Notifications, tr(R.string.pl_set_daily), tr(R.string.pl_set_daily_sub), p.daily, onCheckedChange = { a.setPlanify(p.copy(daily = it)) })
