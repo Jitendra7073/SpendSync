@@ -38,7 +38,7 @@ class BillUploadWorker(context: Context, params: WorkerParameters) : CoroutineWo
         repeat(2) { attempt ->
             if (BillQueueRules.needsSign(item, System.currentTimeMillis())) {
                 val r = if (item.billId == null) repo.reserveBill(item.txId, ReserveBillRequest(item.clientKey, item.mime, item.bytes, item.position, item.replaces))
-                        else repo.signBill(item.billId!!)
+                        else repo.signBill(item.billId)
                 when (r) {
                     is BillCall.Ok -> {
                         item = BillQueueRules.afterReserve(item, r.data, System.currentTimeMillis())
