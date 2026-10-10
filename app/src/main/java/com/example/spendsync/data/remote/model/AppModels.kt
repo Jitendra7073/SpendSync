@@ -34,6 +34,7 @@ data class TransactionDto(
     @SerializedName("note")      val note: String?,
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String?,
+    @SerializedName("billCount") val billCount: Int = 0,
 )
 
 data class CreateTransactionRequest(
@@ -289,6 +290,9 @@ data class TrashItemDto(
     @SerializedName("transaction") val transaction: TransactionDto?,
     @SerializedName("holds")       val holds: List<HoldDto>?,
     @SerializedName("hold")        val hold: HoldDto?,
+    @SerializedName("bills")       val bills: List<BillDto>? = null,
+    @SerializedName("bill")        val bill: BillDto? = null,
+    @SerializedName("merchant")    val merchant: String? = null,
 )
 
 data class TrashPageDto(
@@ -298,4 +302,53 @@ data class TrashPageDto(
 
 data class TrashEmptiedDto(
     @SerializedName("deleted") val deleted: Int,
+)
+
+// ── Bills ─────────────────────────────────────────────────────────────────────
+
+data class BillDto(
+    @SerializedName("id")            val id: String,
+    @SerializedName("transactionId") val transactionId: String,
+    @SerializedName("position")      val position: Int,
+    @SerializedName("status")        val status: String,
+    @SerializedName("format")        val format: String?,
+    @SerializedName("pages")         val pages: Int?,
+    @SerializedName("thumb")         val thumb: String,
+    @SerializedName("full")          val full: String,
+    @SerializedName("blurred")       val blurred: String,
+    @SerializedName("pageUrls")      val pageUrls: List<String>,
+    @SerializedName("original")      val original: String?,
+)
+
+data class BillReservationDto(
+    @SerializedName("billId")    val billId: String,
+    @SerializedName("status")    val status: String,
+    @SerializedName("uploadUrl") val uploadUrl: String?,
+    @SerializedName("params")    val params: Map<String, String>?,
+)
+
+data class ReserveBillRequest(
+    @SerializedName("clientKey")   val clientKey: String,
+    @SerializedName("contentType") val contentType: String,
+    @SerializedName("bytes")       val bytes: Long,
+    @SerializedName("position")    val position: Int? = null,
+    @SerializedName("replaces")    val replaces: String? = null,
+)
+
+data class ConfirmBillRequest(
+    @SerializedName("public_id") val publicId: String,
+    @SerializedName("version")   val version: Long,
+    @SerializedName("signature") val signature: String,
+    @SerializedName("format")    val format: String,
+    @SerializedName("bytes")     val bytes: Long,
+    @SerializedName("width")     val width: Int? = null,
+    @SerializedName("height")    val height: Int? = null,
+    @SerializedName("pages")     val pages: Int? = null,
+)
+
+data class BillUsageDto(
+    @SerializedName("bytesUsed")     val bytesUsed: Long,
+    @SerializedName("bytesLimit")    val bytesLimit: Long,
+    @SerializedName("uploadsToday")  val uploadsToday: Int,
+    @SerializedName("uploadsPerDay") val uploadsPerDay: Int,
 )

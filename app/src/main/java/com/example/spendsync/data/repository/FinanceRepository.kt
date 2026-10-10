@@ -6,6 +6,7 @@ import com.example.spendsync.ui.i18n.tr
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.remote.ApiClient
 import com.example.spendsync.data.remote.model.*
+import com.example.spendsync.data.bills.BillCall
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.coroutines.flow.firstOrNull
@@ -546,6 +547,48 @@ class FinanceRepository(
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    // ── Bills ─────────────────────────────────────────────────────────────────
+
+    private suspend fun <T> billCall(block: suspend () -> retrofit2.Response<SuccessResponse<T>>): BillCall<T> = try {
+        val r = block()
+        val data = r.body()?.data
+        if (r.isSuccessful && data != null) BillCall.Ok(data)
+        else BillCall.Fail(parseErrorMessage(r.errorBody()?.string()), BillCall.isPermanent(r.code()))
+    } catch (e: Exception) {
+        BillCall.Fail(e.toUserMessage(), permanent = false)
+    }
+
+    suspend fun listBills(txId: String): AuthResult<List<BillDto>> = when (val r = billCall { api.listBills(getAuthHeader(), txId) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data)
+        is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+
+    suspend fun reserveBill(txId: String, req: ReserveBillRequest) = billCall { api.reserveBill(getAuthHeader(), txId, req) }
+    suspend fun signBill(id: String) = billCall { api.signBill(getAuthHeader(), id) }
+
+    suspend fun confirmBill(id: String, req: ConfirmBillRequest): BillCall<BillDto> =
+        billCall { api.confirmBill(getAuthHeader(), id, req) }.also { if (it is BillCall.Ok) cacheInvalidate("transactions") }
+
+    suspend fun deleteBill(id: String): AuthResult<Unit> = try {
+        val r = api.deleteBill(getAuthHeader(), id)
+        if (r.isSuccessful) { cacheInvalidate("transactions"); AuthResult.Success(Unit) } else AuthResult.Error(parseErrorMessage(r.errorBody()?.string()))
+    } catch (e: Exception) { AuthResult.Error(e.toUserMessage()) }
+
+    suspend fun restoreBill(id: String): AuthResult<BillDto> = when (val r = billCall { api.restoreBill(getAuthHeader(), id) }) {
+        is BillCall.Ok -> { cacheInvalidate("transactions"); AuthResult.Success(r.data) }
+        is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+
+    suspend fun billUsage(): AuthResult<BillUsageDto> = when (val r = billCall { api.billUsage(getAuthHeader()) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data)
+        is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+
+    suspend fun getTransaction(id: String): AuthResult<TransactionDto> = when (val r = billCall { api.getTransactionById(getAuthHeader(), id) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data)
+        is BillCall.Fail -> AuthResult.Error(r.message)
+    }
 
     private fun parseErrorMessage(errorBody: String?): String {
         if (errorBody.isNullOrBlank()) return tr(R.string.an_unexpected_error_occurred)
