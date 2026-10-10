@@ -308,6 +308,7 @@ fun MainScreen(
                         openSettingsRequestId = openSettingsRequestId,
                         openSettingsPage = openSettingsPage,
                         amountVisibility = amountVisibility,
+                        onDataChanged    = { homeRefreshKey++ },
                         onSignOut        = onSignOut,
                     )
                     else -> HomeScreen(

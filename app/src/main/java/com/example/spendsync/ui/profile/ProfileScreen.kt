@@ -152,6 +152,8 @@ fun ProfileScreen(
     openSettingsRequestId: Int = 0,
     /** The Settings page a search result asked for; null opens the Settings hub. */
     openSettingsPage: SettingsPage? = null,
+    /** Something on another tab changed (e.g. a Trash restore): Home must reload. */
+    onDataChanged: () -> Unit = {},
     onSignOut: () -> Unit,
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
@@ -349,11 +351,17 @@ fun ProfileScreen(
         restoreTrashItem = { item ->
             if (item.kind == "transaction") {
                 val r = financeRepository.restoreTransaction(item.id)
-                if (r is AuthResult.Success) r.data.holds.forEach { HoldReminderWorker.scheduleFor(context, it) }
+                if (r is AuthResult.Success) {
+                    r.data.holds.forEach { HoldReminderWorker.scheduleFor(context, it) }
+                    onDataChanged()
+                }
                 r is AuthResult.Success
             } else {
                 val r = financeRepository.restoreHold(item.id)
-                if (r is AuthResult.Success) HoldReminderWorker.scheduleFor(context, r.data)
+                if (r is AuthResult.Success) {
+                    HoldReminderWorker.scheduleFor(context, r.data)
+                    onDataChanged()
+                }
                 r is AuthResult.Success
             }
         },
