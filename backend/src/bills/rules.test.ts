@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmBillSchema, reserveBillSchema } from '../types/bill.types';
 import { checkDaily, checkQuota, confirmDecision, firstFreePosition, newPublicId, purgeBackoffMs, restorePosition, userPrefix, utcDay } from './rules';
 
 const MB = 1024 * 1024;
@@ -57,5 +58,19 @@ describe('ids', () => {
     expect(newPublicId('u_1', 'abc')).toBe('spendsync/bills/u_1/abc');
     expect(newPublicId('u_1', 'abc').startsWith(userPrefix('u_1'))).toBe(true);
     expect(utcDay(new Date('2026-10-10T23:30:00-05:00'))).toBe('2026-10-11');
+  });
+});
+
+describe('bill input', () => {
+  const key = '00000000-0000-4000-8000-000000000001';
+  it('reserve accepts the allowed types up to 10 MB', () => {
+    expect(reserveBillSchema.safeParse({ clientKey: key, contentType: 'application/pdf', bytes: 10 * MB }).success).toBe(true);
+    expect(reserveBillSchema.safeParse({ clientKey: key, contentType: 'image/gif', bytes: 1 }).success).toBe(false);
+    expect(reserveBillSchema.safeParse({ clientKey: key, contentType: 'image/jpeg', bytes: 10 * MB + 1 }).success).toBe(false);
+    expect(reserveBillSchema.safeParse({ clientKey: key, contentType: 'image/jpeg', bytes: 1, position: 5 }).success).toBe(false);
+  });
+  it("confirm needs Cloudinary's signature fields", () => {
+    expect(confirmBillSchema.safeParse({ public_id: 'p', version: 1, signature: 'abcdefabcdef', format: 'jpg', bytes: 5 }).success).toBe(true);
+    expect(confirmBillSchema.safeParse({ public_id: 'p', version: 1, format: 'jpg', bytes: 5 }).success).toBe(false);
   });
 });
