@@ -269,3 +269,33 @@ data class ExportEmailRequest(
 )
 
 data class ExportEmailDto(@SerializedName("sentTo") val sentTo: String = "")
+
+// ── Trash ─────────────────────────────────────────────────────────────────────
+
+data class DeleteTransactionResult(
+    @SerializedName("holdIds") val holdIds: List<String>,
+)
+
+data class RestoredTransactionDto(
+    @SerializedName("transaction") val transaction: TransactionDto,
+    @SerializedName("holds")       val holds: List<HoldDto>,
+)
+
+/** kind "transaction" → [transaction] + [holds]; kind "hold" → [hold]. */
+data class TrashItemDto(
+    @SerializedName("kind")        val kind: String,
+    @SerializedName("id")          val id: String,
+    @SerializedName("deletedAt")   val deletedAt: String,
+    @SerializedName("transaction") val transaction: TransactionDto?,
+    @SerializedName("holds")       val holds: List<HoldDto>?,
+    @SerializedName("hold")        val hold: HoldDto?,
+)
+
+data class TrashPageDto(
+    @SerializedName("items")      val items: List<TrashItemDto>,
+    @SerializedName("nextCursor") val nextCursor: String?,
+)
+
+data class TrashEmptiedDto(
+    @SerializedName("deleted") val deleted: Int,
+)
