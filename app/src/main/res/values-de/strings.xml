@@ -720,4 +720,6 @@
     <string name="auth_verify_button">Code prüfen</string>
     <string name="auth_pw_title">Wähle ein neues Passwort</string>
     <string name="auth_pw_sub">Code akzeptiert. Wähle jetzt ein neues Passwort für dein Konto.</string>
+    <string name="trash_moved">In den Papierkorb verschoben</string>
+    <string name="trash_undo">Rückgängig</string>
 </resources>

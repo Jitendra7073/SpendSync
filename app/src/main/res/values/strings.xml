@@ -435,4 +435,6 @@
     <string name="your_pin_never_leaves_this_phone">Your PIN never leaves this phone and isn\'t recoverable — if you forget it, turn masking off and set a new one.</string>
     <string name="your_privacy">Your privacy</string>
     <string name="your_transactions_and_settings_they_are">Your transactions and settings. They are linked to your account so they are there when you sign in on another phone.</string>
+    <string name="trash_moved">Moved to Trash</string>
+    <string name="trash_undo">Undo</string>
 </resources>

@@ -720,4 +720,6 @@
     <string name="auth_verify_button">Verificar código</string>
     <string name="auth_pw_title">Elige una contraseña nueva</string>
     <string name="auth_pw_sub">Código aceptado. Ahora elige una contraseña nueva para tu cuenta.</string>
+    <string name="trash_moved">Movido a la papelera</string>
+    <string name="trash_undo">Deshacer</string>
 </resources>

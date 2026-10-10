@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,6 +48,9 @@ data class ToastMessage(
     val message: String,
     val isError: Boolean = true,
     val id: Long = System.currentTimeMillis(), // unique ID so same text re-triggers
+    /** Optional action (e.g. Undo). With an action the toast stays 5 s. */
+    val actionLabel: String? = null,
+    val onAction: (() -> Unit)? = null,
 )
 
 // ── Host ──────────────────────────────────────────────────────────────────────
@@ -76,7 +80,7 @@ fun ToastHost(
         if (toast != null) {
             current = toast
             visible = true
-            delay(autoDismissMs)
+            delay(if (toast.onAction != null) 5_000L else autoDismissMs)
             visible = false
             delay(300) // wait for exit animation
             onDismiss()
@@ -99,7 +103,12 @@ fun ToastHost(
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
             current?.let { msg ->
-                ToastBanner(message = msg.message, isError = msg.isError)
+                ToastBanner(
+                    message = msg.message,
+                    isError = msg.isError,
+                    actionLabel = msg.actionLabel,
+                    onAction = msg.onAction?.let { action -> { action(); visible = false } },
+                )
             }
         }
     }
@@ -108,7 +117,7 @@ fun ToastHost(
 // ── Banner ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ToastBanner(message: String, isError: Boolean) {
+private fun ToastBanner(message: String, isError: Boolean, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
     val bgColor   = if (isError) SemanticError else SemanticSuccess
     val icon      = if (isError) Icons.Default.Warning else Icons.Default.CheckCircle
     val iconDesc  = if (isError) tr(R.string.error_label) else tr(R.string.success_label)
@@ -136,5 +145,17 @@ private fun ToastBanner(message: String, isError: Boolean) {
             fontWeight = FontWeight.Medium,
             modifier   = Modifier.weight(1f),
         )
+        if (actionLabel != null && onAction != null) {
+            Text(
+                text       = actionLabel,
+                color      = NeutralWhite,
+                fontSize   = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier   = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onAction)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
     }
 }

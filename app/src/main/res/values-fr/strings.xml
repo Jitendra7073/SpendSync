@@ -720,4 +720,6 @@
     <string name="auth_verify_button">Vérifier le code</string>
     <string name="auth_pw_title">Choisissez un nouveau mot de passe</string>
     <string name="auth_pw_sub">Code accepté. Choisissez maintenant un nouveau mot de passe pour votre compte.</string>
+    <string name="trash_moved">Déplacé dans la corbeille</string>
+    <string name="trash_undo">Annuler</string>
 </resources>

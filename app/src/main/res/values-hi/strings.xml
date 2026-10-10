@@ -720,4 +720,6 @@
     <string name="auth_verify_button">कोड जाँचें</string>
     <string name="auth_pw_title">नया पासवर्ड चुनें</string>
     <string name="auth_pw_sub">कोड सही है। अब अपने खाते के लिए नया पासवर्ड चुनें।</string>
+    <string name="trash_moved">ट्रैश में भेजा गया</string>
+    <string name="trash_undo">वापस लें</string>
 </resources>
