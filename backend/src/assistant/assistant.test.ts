@@ -33,6 +33,14 @@ describe('help search (RAG)', () => {
     expect(top(q)).toBe(id);
   });
 
+  it('never tells users a deleted transaction is gone for good: it is in the Trash', () => {
+    for (const q of ['how do I delete a transaction', 'I deleted a transaction by mistake, can I get it back']) {
+      const texts = searchHelp(q).map((h) => h.entry.text).join(' ');
+      expect(texts).toMatch(/Trash/);
+      expect(texts).not.toMatch(/asked to confirm and it cannot be undone/);
+    }
+  });
+
   it('returns nothing for questions outside SpendSync', () => {
     expect(searchHelp('who won the football world cup')).toEqual([]);
     expect(searchHelp('write me a python script')).toEqual([]);

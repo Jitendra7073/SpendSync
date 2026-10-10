@@ -2,6 +2,7 @@ import { db } from '../db';
 import { budgets, planMatches } from '../db/schema/budgets.schema';
 import { transactions } from '../db/schema/transactions.schema';
 import { eq, and, gt, desc } from 'drizzle-orm';
+import { liveTx } from '../lib/live';
 import { askModel } from '../assistant/llm/ask';
 
 export class AutoClassifyService {
@@ -30,6 +31,7 @@ export class AutoClassifyService {
       .where(
         and(
           eq(transactions.userId, userId),
+          liveTx,
           eq(transactions.type, 'debit'),
           gt(transactions.createdAt, thirtyDaysAgo)
         )

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
@@ -62,6 +63,9 @@ import kotlinx.coroutines.launch
 import com.example.spendsync.ui.components.ButtonSize
 import com.example.spendsync.ui.components.ButtonVariant
 import com.example.spendsync.ui.components.AppButton
+import com.example.spendsync.ui.components.Skeleton
+import com.example.spendsync.ui.theme.expenseColor
+import com.example.spendsync.ui.theme.incomeColor
 import com.example.spendsync.ui.i18n.categoryLabel
 import com.example.spendsync.ui.home.glassCard
 import androidx.compose.material.icons.filled.PieChart
@@ -137,6 +141,11 @@ class SettingsActions(
     val setColors: (com.example.spendsync.ui.theme.CustomColors) -> Unit,
     val loadReports: suspend () -> List<com.example.spendsync.data.assistant.SupportTicketSummary>?,
     val closeReport: suspend (String) -> Boolean,
+    val loadTrash: suspend (cursor: String?) -> com.example.spendsync.data.remote.model.TrashPageDto?,
+    val restoreTrashItem: suspend (com.example.spendsync.data.remote.model.TrashItemDto) -> Boolean,
+    val deleteTrashItem: suspend (com.example.spendsync.data.remote.model.TrashItemDto) -> Boolean,
+    val emptyTrash: suspend () -> Boolean,
+    val amountVisibility: com.example.spendsync.ui.shared.AmountVisibilityState,
     val setAssistantPrefs: (com.example.spendsync.data.assistant.AssistantPrefs) -> Unit,
     val refreshAssistantStatus: () -> Unit,
     val clearAssistantHistory: () -> Unit,
@@ -182,6 +191,7 @@ enum class SettingsPage(@StringRes val titleRes: Int, val icon: ImageVector, val
         if (!it.autoCapture) tr(R.string.off) else tr(R.string.on_1_app_s, it.autoCapturePackages.size)
     }),
     Data(R.string.data_backup, Icons.Default.Backup, { if (it.autoBackup) tr(R.string.daily_backup_on) else tr(R.string.backup_off) }),
+    Trash(R.string.trash_title, Icons.Default.Delete, { tr(R.string.trash_summary) }),
     About(R.string.help_about, Icons.Default.Help, { tr(R.string.faq_privacy_policy) });
 
     val title: String get() = tr(titleRes)
@@ -299,6 +309,7 @@ fun SettingsPageScreen(page: SettingsPage, model: SettingsModel, actions: Settin
                             SettingsPage.Planify -> PlanifySettingsPage(model, actions)
                             SettingsPage.Animations -> AnimationsPage(model, actions)
                             SettingsPage.Reports -> ReportsPage(actions)
+                            SettingsPage.Trash -> TrashPage(actions)
                             SettingsPage.AutoCapture -> AutoCapturePage(model, actions)
                             SettingsPage.Data -> DataPage(model, actions)
                             SettingsPage.About -> AboutPage(actions)
@@ -613,6 +624,131 @@ private fun ReportsPage(a: SettingsActions) {
         )
     }
 }
+
+@Composable
+private fun TrashPage(a: SettingsActions) {
+    val scheme = MaterialTheme.colorScheme
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var items by remember { mutableStateOf<List<com.example.spendsync.data.remote.model.TrashItemDto>?>(null) }
+    var next by remember { mutableStateOf<String?>(null) }
+    var failed by remember { mutableStateOf(false) }
+    var actionFailed by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var toDelete by remember { mutableStateOf<com.example.spendsync.data.remote.model.TrashItemDto?>(null) }
+    var confirmEmpty by remember { mutableStateOf(false) }
+
+    suspend fun load(cursor: String?) {
+        val page = a.loadTrash(cursor)
+        failed = page == null && items == null
+        if (page != null) {
+            items = if (cursor == null) page.items else items.orEmpty() + page.items
+            next = page.nextCursor
+        }
+    }
+    fun act(block: suspend () -> Boolean) {
+        scope.launch {
+            busy = true
+            actionFailed = !block()
+            if (!actionFailed) load(null)
+            busy = false
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) { load(null) }
+
+    val list = items
+    if (!list.isNullOrEmpty()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
+            AppButton(tr(R.string.trash_empty), onClick = { confirmEmpty = true }, variant = ButtonVariant.Outline, size = ButtonSize.Small, enabled = !busy)
+        }
+    }
+    if (actionFailed) Text(tr(R.string.trash_action_failed), color = scheme.error, modifier = Modifier.padding(horizontal = 24.dp))
+    when {
+        list == null && failed -> Text(tr(R.string.trash_failed), color = scheme.error, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
+        list == null -> Skeleton(loading = true) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { repeat(3) { i -> TrashRow(trashPlaceholder(i), a, busy = true, onRestore = {}, onDelete = {}) } }
+        }
+        list.isEmpty() -> Text(tr(R.string.trash_empty_state), color = scheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
+        else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            list.forEachIndexed { i, item ->
+                TrashRow(
+                    item, a, busy, Modifier.cascadeIn(i),
+                    onRestore = { act { a.restoreTrashItem(item) } },
+                    onDelete = { toDelete = item },
+                )
+            }
+            if (next != null) {
+                AppButton(tr(R.string.trash_load_more), onClick = { scope.launch { load(next) } }, variant = ButtonVariant.Text, size = ButtonSize.Small, modifier = Modifier.padding(horizontal = 16.dp))
+            }
+        }
+    }
+
+    toDelete?.let { item ->
+        com.example.spendsync.ui.components.AppConfirmDialog(
+            title = tr(R.string.trash_delete_forever_title), message = tr(R.string.trash_cannot_undo),
+            confirmLabel = tr(R.string.trash_delete_forever), cancelLabel = tr(R.string.cancel), destructive = true,
+            onConfirm = { toDelete = null; act { a.deleteTrashItem(item) } },
+            onDismiss = { toDelete = null },
+        )
+    }
+    if (confirmEmpty) {
+        com.example.spendsync.ui.components.AppConfirmDialog(
+            title = tr(R.string.trash_empty_title), message = tr(R.string.trash_empty_body),
+            confirmLabel = tr(R.string.trash_empty), cancelLabel = tr(R.string.cancel), destructive = true,
+            onConfirm = { confirmEmpty = false; act { a.emptyTrash() } },
+            onDismiss = { confirmEmpty = false },
+        )
+    }
+}
+
+@Composable
+private fun TrashRow(
+    item: com.example.spendsync.data.remote.model.TrashItemDto,
+    a: SettingsActions,
+    busy: Boolean,
+    modifier: Modifier = Modifier,
+    onRestore: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val tx = item.transaction
+    val hold = item.hold
+    val title = tx?.merchant ?: tr(R.string.trash_hold_label, hold?.personName.orEmpty())
+    val amount = (tx?.amount ?: hold?.amount)?.toDoubleOrNull() ?: 0.0
+    val isDebit = tx?.type == "debit"
+    Column(
+        modifier.padding(horizontal = 16.dp).fillMaxWidth().glassCard().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface, modifier = Modifier.weight(1f))
+            com.example.spendsync.ui.shared.MaskableAmountText(
+                amount = amount,
+                visibility = a.amountVisibility,
+                prefix = if (tx == null) "" else if (isDebit) "-" else "+",
+                color = if (tx == null) scheme.onSurface else if (isDebit) expenseColor() else incomeColor(),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        tx?.let { Text("${categoryLabel(it.category)} · ${it.createdAt.take(10)}", fontSize = 12.sp, color = scheme.onSurfaceVariant) }
+        item.holds.orEmpty().forEach { h -> Text(tr(R.string.trash_with_hold, h.personName), fontSize = 12.sp, color = scheme.onSurfaceVariant) }
+        Text(tr(R.string.trash_deleted_on, item.deletedAt.take(10)), fontSize = 11.sp, color = scheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AppButton(tr(R.string.trash_restore), onClick = onRestore, variant = ButtonVariant.Tonal, size = ButtonSize.Small, enabled = !busy)
+            AppButton(tr(R.string.trash_delete_forever), onClick = onDelete, variant = ButtonVariant.Text, size = ButtonSize.Small, enabled = !busy)
+        }
+    }
+}
+
+/** Fake rows the skeleton turns into bones while the Trash loads. */
+private fun trashPlaceholder(i: Int) = com.example.spendsync.data.remote.model.TrashItemDto(
+    kind = "transaction", id = "placeholder-$i", deletedAt = "2026-01-01",
+    transaction = com.example.spendsync.data.remote.model.TransactionDto(
+        id = "placeholder-$i", userId = "", amount = "100.00", type = "debit", merchant = "Merchant name",
+        category = "Shopping", sourceApp = null, note = null, createdAt = "2026-01-01", updatedAt = null,
+    ),
+    holds = emptyList(), hold = null,
+)
 
 /** Deep colour customisation: every role has its own picker, plus ready-made sets and a reset. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)

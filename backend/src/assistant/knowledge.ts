@@ -31,11 +31,18 @@ export const HELP_ENTRIES: HelpEntry[] = [
       'Tap the + button in the bottom bar and choose Money in (income) or Money out (expense). Enter the amount, an optional note about what it was for, pick a date (never in the future) and a category, then tap Add. Typing a note can suggest a category from what you picked before. Turn on "Expect this back?" to also track the money as a hold.',
   },
   {
+    id: 'trash',
+    title: 'Deleted items and the Trash',
+    screen: 'profile',
+    text:
+      'Deleting an expense, income or hold moves it to the Trash instead of erasing it. Right after deleting, tap Undo to bring it back. Later, open Profile → Settings → Trash: every deleted item is listed with Restore and Delete forever. Items in the Trash do not count in your balance, plans, analytics or exports. They stay there until you delete them forever or tap Empty Trash, which cannot be undone.',
+  },
+  {
     id: 'edit_delete_transaction',
     title: 'Edit, view or delete a transaction',
     screen: 'home',
     text:
-      'On Home or the Transactions list, tap a transaction to edit it, swipe it right to see its details, or swipe it left to delete it (you are asked to confirm and it cannot be undone).',
+      'On Home or the Transactions list, tap a transaction to edit it, swipe it right to see its details, or swipe it left to delete it. A deleted transaction goes to the Trash: tap Undo right away, or restore it later from Settings → Trash.',
   },
   {
     id: 'categories',

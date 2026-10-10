@@ -720,4 +720,22 @@
     <string name="auth_verify_button">कोड जाँचें</string>
     <string name="auth_pw_title">नया पासवर्ड चुनें</string>
     <string name="auth_pw_sub">कोड सही है। अब अपने खाते के लिए नया पासवर्ड चुनें।</string>
+    <string name="trash_moved">ट्रैश में भेजा गया</string>
+    <string name="trash_undo">वापस लें</string>
+    <string name="trash_title">ट्रैश</string>
+    <string name="trash_summary">हटाए गए लेन-देन और होल्ड</string>
+    <string name="trash_restore">वापस लाएँ</string>
+    <string name="trash_delete_forever">हमेशा के लिए हटाएँ</string>
+    <string name="trash_delete_forever_title">हमेशा के लिए हटाएँ?</string>
+    <string name="trash_cannot_undo">इसे वापस नहीं लिया जा सकता।</string>
+    <string name="trash_empty">ट्रैश खाली करें</string>
+    <string name="trash_empty_title">ट्रैश खाली करें?</string>
+    <string name="trash_empty_body">ट्रैश की हर चीज़ हमेशा के लिए हट जाएगी। इसे वापस नहीं लिया जा सकता।</string>
+    <string name="trash_empty_state">ट्रैश खाली है। हटाई गई चीज़ें तब तक यहाँ रहती हैं जब तक आप उन्हें वापस न लाएँ या हटा न दें।</string>
+    <string name="trash_failed">ट्रैश लोड नहीं हो सका। फिर से कोशिश करें।</string>
+    <string name="trash_action_failed">यह नहीं हो सका। फिर से कोशिश करें।</string>
+    <string name="trash_load_more">और दिखाएँ</string>
+    <string name="trash_deleted_on">%1$s को हटाया</string>
+    <string name="trash_with_hold">%1$s के साथ होल्ड शामिल</string>
+    <string name="trash_hold_label">होल्ड · %1$s</string>
 </resources>

@@ -153,17 +153,79 @@ class FinanceRepository(
         }
     }
 
-    suspend fun deleteTransaction(id: String): AuthResult<Unit> {
+    /** Moves it to the Trash. Returns the ids of holds that went with it (their reminders must stop). */
+    suspend fun deleteTransaction(id: String): AuthResult<List<String>> {
         return try {
             val response = api.deleteTransaction(getAuthHeader(), id)
             if (response.isSuccessful) {
-                // "holds" too — the backend cascade-deletes the linked hold with
-                // its transaction, so a cached holds list would keep counting it.
+                // "holds" too — the backend moves the linked holds to the Trash with it.
                 cacheInvalidate("transactions", "dashboard", "holds", "plan")
-                AuthResult.Success(Unit)
+                AuthResult.Success(response.body()?.data?.holdIds.orEmpty())
             } else {
                 AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
             }
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    suspend fun restoreTransaction(id: String): AuthResult<RestoredTransactionDto> {
+        return try {
+            val response = api.restoreTransaction(getAuthHeader(), id)
+            val data = response.body()?.data
+            if (response.isSuccessful && data != null) {
+                cacheInvalidate("transactions", "dashboard", "holds", "plan")
+                AuthResult.Success(data)
+            } else {
+                AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    suspend fun restoreHold(id: String): AuthResult<HoldDto> {
+        return try {
+            val response = api.restoreHold(getAuthHeader(), id)
+            val data = response.body()?.data
+            if (response.isSuccessful && data != null) {
+                cacheInvalidate("holds")
+                AuthResult.Success(data)
+            } else {
+                AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    /** Never cached: the Trash changes from several screens. */
+    suspend fun getTrash(cursor: String?): AuthResult<TrashPageDto> {
+        return try {
+            val response = api.getTrash(getAuthHeader(), cursor)
+            val data = response.body()?.data
+            if (response.isSuccessful && data != null) AuthResult.Success(data)
+            else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    suspend fun deleteForever(kind: String, id: String): AuthResult<Unit> {
+        return try {
+            val response = api.deleteForever(getAuthHeader(), kind, id)
+            if (response.isSuccessful) AuthResult.Success(Unit)
+            else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    suspend fun emptyTrash(): AuthResult<Int> {
+        return try {
+            val response = api.emptyTrash(getAuthHeader())
+            if (response.isSuccessful) AuthResult.Success(response.body()?.data?.deleted ?: 0)
+            else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
         } catch (e: Exception) {
             AuthResult.Error(e.toUserMessage())
         }
@@ -229,6 +291,7 @@ class FinanceRepository(
         }
     }
 
+    /** Moves the hold to the Trash. */
     suspend fun deleteHold(id: String): AuthResult<Unit> {
         return try {
             val response = api.deleteHold(getAuthHeader(), id)

@@ -1,4 +1,5 @@
 import { and, eq, gte, lt } from 'drizzle-orm';
+import { liveHold, liveTx } from '../lib/live';
 import { z } from 'zod';
 import { db } from '../db/index';
 import { holds, transactions, user } from '../db/schema/index';
@@ -53,12 +54,12 @@ export async function emailExport(userId: string, input: ExportEmailInput, now =
     const rows = await db
       .select()
       .from(transactions)
-      .where(and(eq(transactions.userId, userId), gte(transactions.createdAt, from), lt(transactions.createdAt, to)))
+      .where(and(eq(transactions.userId, userId), liveTx, gte(transactions.createdAt, from), lt(transactions.createdAt, to)))
       .orderBy(transactions.createdAt);
     data.transactions = rows.filter((r) => input.type === 'all' || (input.type === 'income' ? r.type === 'credit' : r.type === 'debit'));
   }
   if (input.kinds.includes('holds')) {
-    data.holds = await db.select().from(holds).where(eq(holds.userId, userId)).orderBy(holds.createdAt);
+    data.holds = await db.select().from(holds).where(and(eq(holds.userId, userId), liveHold)).orderBy(holds.createdAt);
   }
   if (input.kinds.includes('plan')) {
     const today = new Date(now).toISOString().slice(0, 10);

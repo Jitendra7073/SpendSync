@@ -49,7 +49,39 @@ interface AppApiService {
     suspend fun deleteTransaction(
         @Header("Authorization") token: String,
         @Path("id") id: String
-    ): Response<SuccessResponse<Unit>>
+    ): Response<SuccessResponse<DeleteTransactionResult>>
+
+    @POST("api/transactions/{id}/restore")
+    suspend fun restoreTransaction(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<SuccessResponse<RestoredTransactionDto>>
+
+    @POST("api/holds/{id}/restore")
+    suspend fun restoreHold(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<SuccessResponse<HoldDto>>
+
+    // ── Trash ─────────────────────────────────────────────────────────────────
+
+    @GET("api/trash")
+    suspend fun getTrash(
+        @Header("Authorization") token: String,
+        @Query("cursor") cursor: String?
+    ): Response<SuccessResponse<TrashPageDto>>
+
+    @DELETE("api/trash/{kind}/{id}")
+    suspend fun deleteForever(
+        @Header("Authorization") token: String,
+        @Path("kind") kind: String,
+        @Path("id") id: String
+    ): Response<Unit>
+
+    @DELETE("api/trash")
+    suspend fun emptyTrash(
+        @Header("Authorization") token: String
+    ): Response<SuccessResponse<TrashEmptiedDto>>
 
     // ── Holds ─────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index';
-import { transactions } from '../db/schema/index';
+import { holds, transactions } from '../db/schema/index';
+import { liveHold, liveTx } from '../lib/live';
 import type { CreateTransactionInput, UpdateTransactionInput, TransactionQuery } from '../types/transaction.types';
 import { NotFoundError } from '../utils/errors';
 
@@ -38,7 +39,7 @@ export class TransactionService {
     const offset = (page - 1) * limit;
 
     // Build where conditions
-    const conditions = [eq(transactions.userId, userId)];
+    const conditions = [eq(transactions.userId, userId), liveTx];
 
     if (startDate) {
       conditions.push(gte(transactions.createdAt, new Date(startDate)));
@@ -89,7 +90,7 @@ export class TransactionService {
     const [transaction] = await db
       .select()
       .from(transactions)
-      .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId)));
+      .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId), liveTx));
 
     if (!transaction) {
       throw new NotFoundError('Transaction not found');
@@ -115,22 +116,62 @@ export class TransactionService {
         ...(transactionDate ? { createdAt: new Date(transactionDate) } : {}),
         updatedAt: new Date(),
       })
-      .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId)))
+      .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId), liveTx))
       .returning();
 
     return updated;
   }
 
   /**
-   * Delete a transaction
+   * Move a transaction to the Trash, together with its live holds, in one DB transaction.
+   * Both get the same `deleted_at`, which is how `restore` knows which holds went with it.
+   * Already in the Trash → no-op (a double tap must not error).
    */
-  async delete(userId: string, transactionId: string) {
-    // Check if transaction exists and belongs to user
-    await this.getById(userId, transactionId);
+  async delete(userId: string, transactionId: string): Promise<{ holdIds: string[] }> {
+    return db.transaction(async (tx) => {
+      const mine = and(eq(transactions.id, transactionId), eq(transactions.userId, userId));
+      const [row] = await tx.select({ deletedAt: transactions.deletedAt }).from(transactions).where(mine);
+      if (!row) throw new NotFoundError('Transaction not found');
+      if (row.deletedAt) return { holdIds: [] };
 
-    await db
-      .delete(transactions)
-      .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId)));
+      const now = new Date();
+      // `liveTx` here too: a request racing this one (e.g. a network retry) waits on the row lock,
+      // then updates nothing instead of overwriting deleted_at and splitting it from the holds'.
+      const won = await tx.update(transactions).set({ deletedAt: now }).where(and(mine, liveTx)).returning({ id: transactions.id });
+      if (won.length === 0) return { holdIds: [] };
+      const moved = await tx
+        .update(holds)
+        .set({ deletedAt: now })
+        .where(and(eq(holds.transactionId, transactionId), eq(holds.userId, userId), liveHold))
+        .returning({ id: holds.id });
+      return { holdIds: moved.map((h) => h.id) };
+    });
+  }
+
+  /** Bring a transaction back, plus only the holds that were deleted WITH it (same deleted_at). */
+  async restore(userId: string, transactionId: string) {
+    return db.transaction(async (tx) => {
+      const mine = and(eq(transactions.id, transactionId), eq(transactions.userId, userId));
+      // trash-aware: this read must see deleted rows
+      const [row] = await tx.select().from(transactions).where(mine);
+      if (!row) throw new NotFoundError('Transaction not found');
+      if (!row.deletedAt) return { transaction: row, holds: [] };
+
+      // Compared in SQL against the parent's own value, so no timestamp round-trip through JS.
+      const restoredHolds = await tx
+        .update(holds)
+        .set({ deletedAt: null })
+        .where(
+          and(
+            eq(holds.transactionId, transactionId),
+            eq(holds.userId, userId),
+            sql`${holds.deletedAt} = (SELECT deleted_at FROM transactions WHERE id = ${transactionId})`,
+          ),
+        )
+        .returning();
+      const [transaction] = await tx.update(transactions).set({ deletedAt: null, updatedAt: new Date() }).where(mine).returning();
+      return { transaction, holds: restoredHolds };
+    });
   }
 }
 

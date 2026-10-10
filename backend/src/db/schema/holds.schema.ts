@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, decimal, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, decimal, timestamp, index } from 'drizzle-orm/pg-core';
 import { user } from './auth.schema';
 import { transactions } from './transactions.schema';
 
@@ -13,7 +13,9 @@ export type HoldStatus = (typeof holdStatuses)[number];
  * snapshot taken at creation — editing the linked transaction later never
  * retroactively changes what this hold expects back.
  */
-export const holds = pgTable('holds', {
+export const holds = pgTable(
+  'holds',
+  {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id')
     .notNull()
@@ -29,7 +31,11 @@ export const holds = pgTable('holds', {
   settledAt: timestamp('settled_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+  // Set when moved to Trash (with its transaction, or on its own); null = live.
+  deletedAt: timestamp('deleted_at'),
+  },
+  (t) => ({ userDeleted: index('holds_user_deleted_idx').on(t.userId, t.deletedAt) }),
+);
 
 export type Hold = typeof holds.$inferSelect;
 export type NewHold = typeof holds.$inferInsert;

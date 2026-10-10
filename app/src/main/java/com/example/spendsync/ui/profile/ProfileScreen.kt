@@ -115,6 +115,7 @@ import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.repository.AuthRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
+import com.example.spendsync.notifications.HoldReminderWorker
 import com.example.spendsync.data.remote.model.DashboardSummaryDto
 import androidx.compose.runtime.LaunchedEffect
 import com.example.spendsync.notifications.NotificationAppAllowlist
@@ -151,6 +152,8 @@ fun ProfileScreen(
     openSettingsRequestId: Int = 0,
     /** The Settings page a search result asked for; null opens the Settings hub. */
     openSettingsPage: SettingsPage? = null,
+    /** Something on another tab changed (e.g. a Trash restore): Home must reload. */
+    onDataChanged: () -> Unit = {},
     onSignOut: () -> Unit,
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
@@ -344,6 +347,27 @@ fun ProfileScreen(
         setColors = { c -> scope.launch { sessionDataStore.updateCustomColors(c) } },
         loadReports = { assistantRepository.tickets() },
         closeReport = { ref -> assistantRepository.closeTicket(ref) },
+        loadTrash = { cursor -> (financeRepository.getTrash(cursor) as? AuthResult.Success)?.data },
+        restoreTrashItem = { item ->
+            if (item.kind == "transaction") {
+                val r = financeRepository.restoreTransaction(item.id)
+                if (r is AuthResult.Success) {
+                    r.data.holds.forEach { HoldReminderWorker.scheduleFor(context, it) }
+                    onDataChanged()
+                }
+                r is AuthResult.Success
+            } else {
+                val r = financeRepository.restoreHold(item.id)
+                if (r is AuthResult.Success) {
+                    HoldReminderWorker.scheduleFor(context, r.data)
+                    onDataChanged()
+                }
+                r is AuthResult.Success
+            }
+        },
+        deleteTrashItem = { item -> financeRepository.deleteForever(item.kind, item.id) is AuthResult.Success },
+        emptyTrash = { financeRepository.emptyTrash() is AuthResult.Success },
+        amountVisibility = amountVisibility,
         setPlanify = { p ->
             commit(SettingField.Planify) { sessionDataStore.updatePlanifySettings(p) }
             // the evening job follows the switch right away

@@ -2,7 +2,7 @@
  * Complete schema definitions for Drizzle Kit
  * All tables defined inline to avoid module resolution issues
  */
-import { pgTable, text, timestamp, boolean, uuid, decimal, integer, unique } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, uuid, decimal, integer, unique, index } from 'drizzle-orm/pg-core';
 
 // ============================================================================
 // AUTH TABLES (Better Auth)
@@ -63,7 +63,9 @@ export const verification = pgTable('verification', {
 // APPLICATION TABLES
 // ============================================================================
 
-export const transactions = pgTable('transactions', {
+export const transactions = pgTable(
+  'transactions',
+  {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id')
     .notNull()
@@ -76,7 +78,10 @@ export const transactions = pgTable('transactions', {
   note: text('note'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+  deletedAt: timestamp('deleted_at'),
+  },
+  (t) => ({ userDeleted: index('transactions_user_deleted_idx').on(t.userId, t.deletedAt) }),
+);
 
 export const categories = pgTable('categories', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -106,7 +111,9 @@ export const budgets = pgTable('budgets', {
   rollover: boolean('rollover').notNull().default(false),
 });
 
-export const holds = pgTable('holds', {
+export const holds = pgTable(
+  'holds',
+  {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id')
     .notNull()
@@ -122,7 +129,10 @@ export const holds = pgTable('holds', {
   settledAt: timestamp('settled_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+  deletedAt: timestamp('deleted_at'),
+  },
+  (t) => ({ userDeleted: index('holds_user_deleted_idx').on(t.userId, t.deletedAt) }),
+);
 
 // ============================================================================
 // USER SETTINGS TABLE
