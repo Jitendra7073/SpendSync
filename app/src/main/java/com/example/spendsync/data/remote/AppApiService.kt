@@ -273,4 +273,27 @@ interface AppApiService {
         @Header("Authorization") token: String,
         @Body body: CategorySuggestRequest
     ): Response<SuccessResponse<CategorySuggestResponse>>
+
+    // ── Bills ─────────────────────────────────────────────────────────────────
+
+    @GET("api/transactions/{id}/bills")
+    suspend fun listBills(@Header("Authorization") token: String, @Path("id") txId: String): Response<SuccessResponse<List<BillDto>>>
+
+    @POST("api/transactions/{id}/bills")
+    suspend fun reserveBill(@Header("Authorization") token: String, @Path("id") txId: String, @Body body: ReserveBillRequest): Response<SuccessResponse<BillReservationDto>>
+
+    @POST("api/bills/{id}/sign")
+    suspend fun signBill(@Header("Authorization") token: String, @Path("id") id: String): Response<SuccessResponse<BillReservationDto>>
+
+    @POST("api/bills/{id}/confirm")
+    suspend fun confirmBill(@Header("Authorization") token: String, @Path("id") id: String, @Body body: ConfirmBillRequest): Response<SuccessResponse<BillDto>>
+
+    @DELETE("api/bills/{id}")
+    suspend fun deleteBill(@Header("Authorization") token: String, @Path("id") id: String): Response<Unit>
+
+    @POST("api/bills/{id}/restore")
+    suspend fun restoreBill(@Header("Authorization") token: String, @Path("id") id: String): Response<SuccessResponse<BillDto>>
+
+    @GET("api/bills/usage")
+    suspend fun billUsage(@Header("Authorization") token: String): Response<SuccessResponse<BillUsageDto>>
 }

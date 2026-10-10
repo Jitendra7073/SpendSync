@@ -584,6 +584,7 @@ fun HomeScreen(
             transaction = tx,
             amountVisibility = amountVisibility,
             onDismiss = { transactionToView = null },
+            financeRepository = financeRepository,
         )
     }
 

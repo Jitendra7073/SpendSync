@@ -6,7 +6,7 @@ export const trashQuerySchema = z.object({
 });
 
 export const trashTargetSchema = z.object({
-  kind: z.enum(['transaction', 'hold']),
+  kind: z.enum(['transaction', 'hold', 'bill']),
   id: z.string().uuid(),
 });
 export type TrashKind = z.infer<typeof trashTargetSchema>['kind'];

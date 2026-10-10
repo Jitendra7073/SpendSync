@@ -75,6 +75,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.svg)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.mlkit.document.scanner)
     // DataStore
     implementation(libs.androidx.datastore.preferences)
     // Splash Screen

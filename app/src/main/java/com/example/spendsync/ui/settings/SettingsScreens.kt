@@ -1,5 +1,7 @@
 package com.example.spendsync.ui.settings
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.blur
 import com.example.spendsync.ui.i18n.accentLabel
 import com.example.spendsync.ui.i18n.themeLabel
 import androidx.annotation.StringRes
@@ -145,6 +147,7 @@ class SettingsActions(
     val restoreTrashItem: suspend (com.example.spendsync.data.remote.model.TrashItemDto) -> Boolean,
     val deleteTrashItem: suspend (com.example.spendsync.data.remote.model.TrashItemDto) -> Boolean,
     val emptyTrash: suspend () -> Boolean,
+    val loadBillUsage: suspend () -> com.example.spendsync.data.remote.model.BillUsageDto?,
     val amountVisibility: com.example.spendsync.ui.shared.AmountVisibilityState,
     val setAssistantPrefs: (com.example.spendsync.data.assistant.AssistantPrefs) -> Unit,
     val refreshAssistantStatus: () -> Unit,
@@ -471,6 +474,17 @@ private fun DataPage(m: SettingsModel, a: SettingsActions) {
             destructive = true, onClick = a.clearLocalData,
         )
     }
+    var usage by remember { mutableStateOf<com.example.spendsync.data.remote.model.BillUsageDto?>(null) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { usage = a.loadBillUsage() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    usage?.let { u ->
+        val fmt = { b: Long -> android.text.format.Formatter.formatShortFileSize(context, b) }
+        Text(
+            tr(R.string.bills_usage, fmt(u.bytesUsed), fmt(u.bytesLimit)),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 24.dp),
+        )
+    }
 }
 
 @Composable
@@ -493,7 +507,8 @@ private fun AboutPage(a: SettingsActions) {
 @Composable
 private fun PlanifySettingsPage(m: SettingsModel, a: SettingsActions) {
     val p = m.planify
-    SettingsGroup(Modifier.cascadeIn(0), footer = tr(R.string.pl_set_footer)) {
+    SettingsGroup(Modifier.cascadeIn(0), footer =
+        tr(R.string.pl_set_footer)) {
         SettingsToggleRow(Icons.Default.NotificationsActive, tr(R.string.pl_set_alerts), tr(R.string.pl_set_alerts_sub), p.alerts, onCheckedChange = { a.setPlanify(p.copy(alerts = it)) })
         SettingsDivider()
         SettingsToggleRow(Icons.Default.Notifications, tr(R.string.pl_set_daily), tr(R.string.pl_set_daily_sub), p.daily, onCheckedChange = { a.setPlanify(p.copy(daily = it)) })
@@ -712,7 +727,12 @@ private fun TrashRow(
     val scheme = MaterialTheme.colorScheme
     val tx = item.transaction
     val hold = item.hold
-    val title = tx?.merchant ?: tr(R.string.trash_hold_label, hold?.personName.orEmpty())
+    val bill = item.bill
+    val title = when {
+        bill != null -> tr(R.string.bills_trash_label, item.merchant.orEmpty())
+        tx != null -> tx.merchant
+        else -> tr(R.string.trash_hold_label, hold?.personName.orEmpty())
+    }
     val amount = (tx?.amount ?: hold?.amount)?.toDoubleOrNull() ?: 0.0
     val isDebit = tx?.type == "debit"
     Column(
@@ -720,8 +740,19 @@ private fun TrashRow(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            if (bill != null) {
+                val masked = a.amountVisibility.isMaskingEnabled && !a.amountVisibility.isVisible
+                coil3.compose.AsyncImage(
+                    model = com.example.spendsync.ui.bills.billImageUrl(bill, masked, android.os.Build.VERSION.SDK_INT, thumb = true),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.size(48.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                        .then(if (masked && android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(12.dp) else Modifier),
+                )
+                Spacer(Modifier.width(12.dp))
+            }
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface, modifier = Modifier.weight(1f))
-            com.example.spendsync.ui.shared.MaskableAmountText(
+            if (bill == null) com.example.spendsync.ui.shared.MaskableAmountText(
                 amount = amount,
                 visibility = a.amountVisibility,
                 prefix = if (tx == null) "" else if (isDebit) "-" else "+",
@@ -732,6 +763,7 @@ private fun TrashRow(
         }
         tx?.let { Text("${categoryLabel(it.category)} · ${it.createdAt.take(10)}", fontSize = 12.sp, color = scheme.onSurfaceVariant) }
         item.holds.orEmpty().forEach { h -> Text(tr(R.string.trash_with_hold, h.personName), fontSize = 12.sp, color = scheme.onSurfaceVariant) }
+        if (!item.bills.isNullOrEmpty()) Text(tr(R.string.bills_in_trash_with, item.bills.size), fontSize = 12.sp, color = scheme.onSurfaceVariant)
         Text(tr(R.string.trash_deleted_on, item.deletedAt.take(10)), fontSize = 11.sp, color = scheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AppButton(tr(R.string.trash_restore), onClick = onRestore, variant = ButtonVariant.Tonal, size = ButtonSize.Small, enabled = !busy)

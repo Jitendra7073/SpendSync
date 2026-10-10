@@ -1,5 +1,6 @@
 package com.example.spendsync.ui.home
 
+import androidx.compose.material.icons.filled.AttachFile
 import com.example.spendsync.ui.i18n.categoryLabel
 import androidx.annotation.StringRes
 import com.example.spendsync.R
@@ -500,6 +501,11 @@ fun TransactionRow(
                 }
             }
             Spacer(Modifier.width(12.dp))
+            if (transaction.billCount > 0) {
+                Icon(Icons.Default.AttachFile, contentDescription = tr(R.string.bills_title), tint = scheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                if (transaction.billCount > 1) Text("${transaction.billCount}", fontSize = 11.sp, color = scheme.onSurfaceVariant)
+                Spacer(Modifier.width(6.dp))
+            }
             MaskableAmountText(
                 amount = amountVal,
                 visibility = amountVisibility,

@@ -7,3 +7,4 @@ export * from './settings.schema';
 export * from './holds.schema';
 export * from './assistant.schema';
 export * from './password-reset.schema';
+export * from './bills.schema';
