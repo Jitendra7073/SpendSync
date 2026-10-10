@@ -1,4 +1,5 @@
 import { eq, and, desc } from 'drizzle-orm';
+import { liveHold } from '../lib/live';
 import { db } from '../db/index';
 import { holds } from '../db/schema/index';
 import type { CreateHoldInput, UpdateHoldInput, HoldQuery } from '../types/hold.types';
@@ -22,7 +23,7 @@ export class HoldService {
   }
 
   async getAll(userId: string, query: HoldQuery) {
-    const conditions = [eq(holds.userId, userId)];
+    const conditions = [eq(holds.userId, userId), liveHold];
     if (query.status) conditions.push(eq(holds.status, query.status));
     if (query.direction) conditions.push(eq(holds.direction, query.direction));
 
@@ -37,7 +38,7 @@ export class HoldService {
     const [hold] = await db
       .select()
       .from(holds)
-      .where(and(eq(holds.id, holdId), eq(holds.userId, userId)));
+      .where(and(eq(holds.id, holdId), eq(holds.userId, userId), liveHold));
 
     if (!hold) {
       throw new NotFoundError('Hold not found');
@@ -60,7 +61,7 @@ export class HoldService {
         ...(status ? { status, settledAt: status === 'settled' ? new Date() : null } : {}),
         updatedAt: new Date(),
       })
-      .where(and(eq(holds.id, holdId), eq(holds.userId, userId)))
+      .where(and(eq(holds.id, holdId), eq(holds.userId, userId), liveHold))
       .returning();
 
     return updated;

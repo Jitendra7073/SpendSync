@@ -1,4 +1,5 @@
 import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
+import { liveTx } from '../lib/live';
 import { db } from '../db/index';
 import { transactions } from '../db/schema/index';
 import type { CreateTransactionInput, UpdateTransactionInput, TransactionQuery } from '../types/transaction.types';
@@ -38,7 +39,7 @@ export class TransactionService {
     const offset = (page - 1) * limit;
 
     // Build where conditions
-    const conditions = [eq(transactions.userId, userId)];
+    const conditions = [eq(transactions.userId, userId), liveTx];
 
     if (startDate) {
       conditions.push(gte(transactions.createdAt, new Date(startDate)));
@@ -89,7 +90,7 @@ export class TransactionService {
     const [transaction] = await db
       .select()
       .from(transactions)
-      .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId)));
+      .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId), liveTx));
 
     if (!transaction) {
       throw new NotFoundError('Transaction not found');
@@ -115,7 +116,7 @@ export class TransactionService {
         ...(transactionDate ? { createdAt: new Date(transactionDate) } : {}),
         updatedAt: new Date(),
       })
-      .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId)))
+      .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId), liveTx))
       .returning();
 
     return updated;

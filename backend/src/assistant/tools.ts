@@ -3,6 +3,7 @@ import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index';
 import { transactions } from '../db/schema/index';
+import { liveTx } from '../lib/live';
 import { budgetService } from '../services/budget.service';
 import { loadPlan } from '../planify/service';
 import { dashboardService } from '../services/dashboard.service';
@@ -96,7 +97,7 @@ const getBalance = tool({
         debit: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'debit' THEN ${transactions.amount}::numeric ELSE 0 END), 0)`,
       })
       .from(transactions)
-      .where(eq(transactions.userId, ctx.userId));
+      .where(and(eq(transactions.userId, ctx.userId), liveTx));
     const pending = await holdService.getAll(ctx.userId, { status: 'pending' });
     const owedToMe = pending.filter((h) => h.direction === 'owed_to_me').reduce((s, h) => s + num(h.amount), 0);
     const owedByMe = pending.filter((h) => h.direction === 'owed_by_me').reduce((s, h) => s + num(h.amount), 0);
@@ -192,7 +193,7 @@ const searchTransactions = tool({
     additionalProperties: false,
   },
   async run(ctx, input) {
-    const conditions = [eq(transactions.userId, ctx.userId)];
+    const conditions = [eq(transactions.userId, ctx.userId), liveTx];
     if (input.query) {
       // Escape LIKE wildcards so user text is matched literally.
       const like = `%${input.query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;

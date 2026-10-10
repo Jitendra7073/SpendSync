@@ -1,4 +1,5 @@
 import { eq, and, sql, gte, lt } from 'drizzle-orm';
+import { liveTx } from '../lib/live';
 import { db } from '../db/index';
 import { transactions, budgets } from '../db/schema/index';
 
@@ -29,6 +30,7 @@ export class DashboardService {
       .where(
         and(
           eq(transactions.userId, userId),
+          liveTx,
           gte(transactions.createdAt, startDate),
           lt(transactions.createdAt, endDate)
         )
@@ -95,6 +97,7 @@ export class DashboardService {
       .where(
         and(
           eq(transactions.userId, userId),
+          liveTx,
           gte(transactions.createdAt, sql`NOW() - INTERVAL '1 month' * ${months}`)
         )
       )
@@ -121,7 +124,7 @@ export class DashboardService {
         count: sql<number>`COUNT(*)`,
       })
       .from(transactions)
-      .where(and(eq(transactions.userId, userId), eq(transactions.type, 'debit')))
+      .where(and(eq(transactions.userId, userId), liveTx, eq(transactions.type, 'debit')))
       .groupBy(transactions.merchant)
       .orderBy(sql`SUM(${transactions.amount}::numeric) DESC`)
       .limit(limit);
