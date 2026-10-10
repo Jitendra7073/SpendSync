@@ -30,4 +30,12 @@ class BillQueueRulesTest {
         val f = BillQueueRules.failed(base, "nope")
         assertEquals(QueuedBill.State.Failed, f.state); assertEquals("nope", f.error); assertEquals("/x", f.localPath)
     }
+
+    @Test fun anExpiredReservationIsReservedAgain() {
+        val signed = base.copy(billId = "b", params = mapOf("a" to "1"), uploadUrl = "u", signedAt = 5, state = QueuedBill.State.Failed, error = "x")
+        val reset = BillQueueRules.afterSignGone(signed)
+        assertNull(reset.billId); assertNull(reset.params); assertNull(reset.uploadUrl)
+        assertEquals(QueuedBill.State.Waiting, reset.state)
+        assertTrue(BillQueueRules.needsSign(reset, now = 6))
+    }
 }

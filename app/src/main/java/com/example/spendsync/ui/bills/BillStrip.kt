@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
@@ -66,7 +67,7 @@ fun BillStrip(
             AppTooltip(tr(R.string.bills_page, index + 1, total)) {
                 when (t) {
                     is BillTile.Remote -> RemoteTile(t, masked, index, onOpen = { onOpen(tiles.filterIsInstance<BillTile.Remote>().indexOf(t)) }, onRetry, onRemove, Modifier.animateItem())
-                    is BillTile.Local -> LocalTile(t.item, t.progress, index, onRetry, onRemove, Modifier.animateItem())
+                    is BillTile.Local -> LocalTile(t.item, t.progress, index, masked, onRetry, onRemove, Modifier.animateItem())
                 }
             }
         }
@@ -91,19 +92,23 @@ private fun RemoteTile(t: BillTile.Remote, masked: Boolean, index: Int, onOpen: 
 }
 
 @Composable
-private fun LocalTile(item: QueuedBill, progress: Float?, index: Int, onRetry: (QueuedBill) -> Unit, onRemove: (QueuedBill) -> Unit, modifier: Modifier) {
+private fun LocalTile(item: QueuedBill, progress: Float?, index: Int, masked: Boolean, onRetry: (QueuedBill) -> Unit, onRemove: (QueuedBill) -> Unit, modifier: Modifier) {
     val status = when (item.state) {
         QueuedBill.State.Failed -> tr(R.string.bills_failed)
         QueuedBill.State.Uploading -> tr(R.string.bills_uploading, ((progress ?: 0f) * 100).toInt())
         else -> tr(R.string.bills_waiting)
     }
     Box(modifier.size(TILE).clip(SHAPE).semantics { contentDescription = tr(R.string.bills_cd_tile, index + 1, status) }) {
-        if (item.mime == "application/pdf") {
+        val preview = localPreview(masked, Build.VERSION.SDK_INT)
+        if (item.mime == "application/pdf" || preview == LocalPreview.Placeholder) {
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.PictureAsPdf, null, tint = MaterialTheme.colorScheme.primary)
+                Icon(if (item.mime == "application/pdf") Icons.Default.PictureAsPdf else Icons.Default.Receipt, null, tint = MaterialTheme.colorScheme.primary)
             }
         } else {
-            AsyncImage(model = File(item.localPath), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            AsyncImage(
+                model = File(item.localPath), contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().then(if (preview == LocalPreview.DeviceBlur) Modifier.blur(16.dp) else Modifier),
+            )
         }
         StateOverlay(item, progress, onRetry, onRemove)
     }

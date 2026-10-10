@@ -23,4 +23,10 @@ class BillTilesTest {
         assertEquals("thumb-a", billImageUrl(b, masked = true, sdk = 31, thumb = true)) // blurred on the device
         assertEquals("full-a", billImageUrl(b, masked = false, sdk = 30, thumb = false))
     }
+
+    @Test fun maskedLocalPagesAreNeverDrawnClear() {
+        assertEquals(LocalPreview.Clear, localPreview(masked = false, sdk = 30))
+        assertEquals(LocalPreview.DeviceBlur, localPreview(masked = true, sdk = 31))
+        assertEquals(LocalPreview.Placeholder, localPreview(masked = true, sdk = 30))
+    }
 }

@@ -27,6 +27,13 @@ object BillImages {
         return (w * s).roundToInt().coerceAtLeast(1) to (h * s).roundToInt().coerceAtLeast(1)
     }
 
+    /** Power-of-two step for BitmapFactory so a huge photo is never decoded at full size (old Android). */
+    fun sampleSize(w: Int, h: Int, max: Int = MAX_SIDE): Int {
+        var s = 1
+        while (maxOf(w, h) / s > max) s *= 2
+        return s
+    }
+
     /**
      * Copies [uri] into private storage. Photos are re-encoded as JPEG q85 (longest side 2400 px), which drops EXIF
      * (GPS, device) — after applying the EXIF rotation so the bill isn't sideways. PDFs are copied as they are.
@@ -58,7 +65,11 @@ object BillImages {
                 decoder.setTargetSize(w, h)
             }
         } else {
-            val bmp = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } ?: return null
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight) }
+            val bmp = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) } ?: return null
             val rotation = context.contentResolver.openInputStream(uri)?.use {
                 when (android.media.ExifInterface(it).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1)) {
                     android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f

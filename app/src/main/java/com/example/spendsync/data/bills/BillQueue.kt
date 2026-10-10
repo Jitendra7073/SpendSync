@@ -56,6 +56,10 @@ object BillQueueRules {
     fun afterUpload(item: QueuedBill, u: Uploaded): QueuedBill = item.copy(uploaded = u, state = QueuedBill.State.Confirming, error = null)
 
     fun failed(item: QueuedBill, message: String): QueuedBill = item.copy(state = QueuedBill.State.Failed, error = message)
+
+    /** The server no longer knows the reservation (expired after 24 h): start over with a new one. */
+    fun afterSignGone(item: QueuedBill): QueuedBill =
+        item.copy(billId = null, uploadUrl = null, params = null, signedAt = 0, state = QueuedBill.State.Waiting, error = null)
 }
 
 /** Persisted queue (a small JSON file next to the copies). Survives app restarts; cleared on sign-out. */

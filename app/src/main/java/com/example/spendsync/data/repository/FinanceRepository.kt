@@ -554,7 +554,7 @@ class FinanceRepository(
         val r = block()
         val data = r.body()?.data
         if (r.isSuccessful && data != null) BillCall.Ok(data)
-        else BillCall.Fail(parseErrorMessage(r.errorBody()?.string()), BillCall.isPermanent(r.code()))
+        else BillCall.Fail(parseErrorMessage(r.errorBody()?.string()), BillCall.isPermanent(r.code()), r.code())
     } catch (e: Exception) {
         BillCall.Fail(e.toUserMessage(), permanent = false)
     }

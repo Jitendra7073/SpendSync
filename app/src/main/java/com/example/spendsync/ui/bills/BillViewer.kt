@@ -75,10 +75,11 @@ fun BillViewer(bills: List<BillDto>, start: Int, masked: Boolean, onUnlock: () -
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 AppIconButton(Icons.Default.Close, tr(R.string.close), onClick = onDismiss)
                 Text(tr(R.string.bills_page, pager.currentPage + 1, pages.size), style = MaterialTheme.typography.titleMedium, color = scheme.onBackground, modifier = Modifier.weight(1f))
-                if (current?.original != null) AppIconButton(Icons.AutoMirrored.Filled.OpenInNew, tr(R.string.bills_open_pdf), onClick = {
+                // While amounts are hidden: no clear PDF handed to another app, no edits.
+                if (!masked && current?.original != null) AppIconButton(Icons.AutoMirrored.Filled.OpenInNew, tr(R.string.bills_open_pdf), onClick = {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(current.original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 })
-                if (current != null) {
+                if (!masked && current != null) {
                     AppIconButton(Icons.Default.FindReplace, tr(R.string.bills_replace), onClick = { onReplace(current) })
                     AppIconButton(Icons.Default.Delete, tr(R.string.bills_delete), onClick = { onDelete(current) })
                 }

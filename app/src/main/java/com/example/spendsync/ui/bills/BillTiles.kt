@@ -20,6 +20,15 @@ fun mergeTiles(server: List<BillDto>, queued: List<QueuedBill>, progress: Map<St
     return (remote + local).sortedBy { it.position }
 }
 
+enum class LocalPreview { Clear, DeviceBlur, Placeholder }
+
+/** A queued page is the user's own photo on the phone: blur it when masked, or hide it where blur is impossible. */
+fun localPreview(masked: Boolean, sdk: Int): LocalPreview = when {
+    !masked -> LocalPreview.Clear
+    sdk >= 31 -> LocalPreview.DeviceBlur
+    else -> LocalPreview.Placeholder
+}
+
 /** Below Android 12 the phone can't blur, so a masked bill only ever loads the server-blurred image. */
 fun billImageUrl(bill: BillDto, masked: Boolean, sdk: Int, thumb: Boolean): String = when {
     masked && sdk < 31 -> bill.blurred

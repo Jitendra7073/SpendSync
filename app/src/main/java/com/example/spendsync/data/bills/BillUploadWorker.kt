@@ -45,7 +45,11 @@ class BillUploadWorker(context: Context, params: WorkerParameters) : CoroutineWo
                             ?: run { BillQueue.remove(ctx, start.clientKey); BillEvents.emit(start.txId); return true }
                         BillQueue.update(ctx, item)
                     }
-                    is BillCall.Fail -> { if (r.permanent) BillQueue.update(ctx, BillQueueRules.failed(item, r.message)); return r.permanent }
+                    is BillCall.Fail -> {
+                        if (item.billId != null && r.code == 404) { BillQueue.update(ctx, BillQueueRules.afterSignGone(item)); return false }
+                        if (r.permanent) BillQueue.update(ctx, BillQueueRules.failed(item, r.message))
+                        return r.permanent
+                    }
                 }
             }
             if (item.uploaded == null) {
