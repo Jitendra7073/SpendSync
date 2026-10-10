@@ -58,6 +58,7 @@ describe('trash input', () => {
   });
   it('accepts only known kinds and uuids', () => {
     expect(trashTargetSchema.safeParse({ kind: 'transaction', id: id(1) }).success).toBe(true);
+    expect(trashTargetSchema.safeParse({ kind: 'bill', id: id(1) }).success).toBe(true);
     expect(trashTargetSchema.safeParse({ kind: 'user', id: id(1) }).success).toBe(false);
     expect(trashTargetSchema.safeParse({ kind: 'hold', id: '1 OR 1=1' }).success).toBe(false);
   });

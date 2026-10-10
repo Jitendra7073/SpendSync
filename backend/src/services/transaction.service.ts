@@ -1,7 +1,7 @@
 import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index';
-import { holds, transactions } from '../db/schema/index';
-import { liveHold, liveTx } from '../lib/live';
+import { bills, holds, transactions } from '../db/schema/index';
+import { liveBill, liveHold, liveTx } from '../lib/live';
 import type { CreateTransactionInput, UpdateTransactionInput, TransactionQuery } from '../types/transaction.types';
 import { NotFoundError } from '../utils/errors';
 
@@ -144,6 +144,7 @@ export class TransactionService {
         .set({ deletedAt: now })
         .where(and(eq(holds.transactionId, transactionId), eq(holds.userId, userId), liveHold))
         .returning({ id: holds.id });
+      await tx.update(bills).set({ deletedAt: now }).where(and(eq(bills.transactionId, transactionId), eq(bills.userId, userId), liveBill));
       return { holdIds: moved.map((h) => h.id) };
     });
   }
@@ -169,6 +170,10 @@ export class TransactionService {
           ),
         )
         .returning();
+      await tx
+        .update(bills)
+        .set({ deletedAt: null })
+        .where(and(eq(bills.transactionId, transactionId), eq(bills.userId, userId), sql`${bills.deletedAt} = (SELECT deleted_at FROM transactions WHERE id = ${transactionId})`));
       const [transaction] = await tx.update(transactions).set({ deletedAt: null, updatedAt: new Date() }).where(mine).returning();
       return { transaction, holds: restoredHolds };
     });
