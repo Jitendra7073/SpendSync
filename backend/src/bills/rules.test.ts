@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { confirmBillSchema, reserveBillSchema } from '../types/bill.types';
-import { checkDaily, checkQuota, confirmDecision, firstFreePosition, newPublicId, purgeBackoffMs, restorePosition, userPrefix, utcDay } from './rules';
+import { INLINE_PURGES, checkDaily, checkQuota, confirmDecision, firstFreePosition, newPublicId, purgeBackoffMs, restorePosition, userPrefix, utcDay } from './rules';
 
 const MB = 1024 * 1024;
 const q = { livePages: 0, replacing: false, bytesUsed: 0, bytes: MB, maxBytes: 500 * MB };
@@ -10,6 +10,9 @@ describe('quota', () => {
   it('caps a transaction at 5 pages, except when replacing one', () => {
     expect(() => checkQuota({ ...q, livePages: 5 })).toThrow(expect.objectContaining({ statusCode: 409, code: 'BILL_LIMIT' }));
     expect(() => checkQuota({ ...q, livePages: 5, replacing: true })).not.toThrow();
+  });
+  it('refuses a second replacement of the same page while one is uploading', () => {
+    expect(() => checkQuota({ ...q, livePages: 5, replacing: true, replacePending: true })).toThrow(expect.objectContaining({ statusCode: 409, code: 'REPLACE_PENDING' }));
   });
   it('refuses when storage would overflow', () => {
     expect(() => checkQuota({ ...q, bytesUsed: 500 * MB - 10, bytes: 11 })).toThrow(expect.objectContaining({ statusCode: 409, code: 'STORAGE_FULL' }));
@@ -51,6 +54,13 @@ describe('confirm', () => {
     expect(confirmDecision(pending, 'p', 10 * MB + 1)).toBe('too_large');
     expect(confirmDecision(pending, 'p', 10 * MB)).toBe('ready');
   });
+
+  it("lets Cloudinary's webhook correct what the phone reported", () => {
+    const ready = { status: 'ready' as const, publicId: 'p' };
+    expect(confirmDecision(ready, 'p', 5, true)).toBe('refresh');
+    expect(confirmDecision(ready, 'p', 10 * MB + 1, true)).toBe('too_large');
+    expect(confirmDecision(ready, 'p', 10 * MB + 1, false)).toBe('replay');
+  });
 });
 
 describe('ids', () => {
@@ -72,5 +82,11 @@ describe('bill input', () => {
   it("confirm needs Cloudinary's signature fields", () => {
     expect(confirmBillSchema.safeParse({ public_id: 'p', version: 1, signature: 'abcdefabcdef', format: 'jpg', bytes: 5 }).success).toBe(true);
     expect(confirmBillSchema.safeParse({ public_id: 'p', version: 1, format: 'jpg', bytes: 5 }).success).toBe(false);
+  });
+});
+
+describe('inline purges', () => {
+  it('only a few run inside the request; the cron takes the rest', () => {
+    expect(INLINE_PURGES).toBeLessThanOrEqual(10);
   });
 });

@@ -3,7 +3,7 @@ import { db } from '@/db/index';
 import { user } from '@/db/schema/index';
 import { withApi, corsPreflight } from '@/lib/api-handler';
 import { success } from '@/lib/response';
-import { enqueuePurges, runPurges } from '@/bills/purge';
+import { enqueuePurges, runPurgesInline } from '@/bills/purge';
 import { userPrefix } from '@/bills/rules';
 
 /**
@@ -19,7 +19,7 @@ export const DELETE = withApi(
       await tx.delete(user).where(eq(user.id, userId));
       return ids;
     });
-    await runPurges({ ids: purgeIds }); // never throws; the cron retries
+    await runPurgesInline(purgeIds); // never throws; the cron retries
     return success({ deleted: true });
   },
   { auth: 'required' }

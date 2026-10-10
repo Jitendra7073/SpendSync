@@ -3,7 +3,7 @@ import { db } from '../db/index';
 import { bills, holds, transactions, type Hold, type Transaction } from '../db/schema/index';
 import { config } from '../config/env';
 import { toView, type BillView } from '../bills/service';
-import { enqueuePurges, runPurges } from '../bills/purge';
+import { enqueuePurges, runPurgesInline } from '../bills/purge';
 import type { TrashKind } from '../types/trash.types';
 import { assertInTrash, decodeCursor, mergePage, type TrashCursor } from './rules';
 
@@ -109,7 +109,7 @@ export const trashService = {
         return ids;
       });
     }
-    await runPurges({ ids: purgeIds });
+    await runPurgesInline(purgeIds);
   },
 
   async empty(userId: string) {
@@ -126,7 +126,7 @@ export const trashService = {
       const t = await tx.delete(transactions).where(and(eq(transactions.userId, userId), isNotNull(transactions.deletedAt))).returning({ id: transactions.id });
       return { deleted: b.length + h.length + t.length, purgeIds };
     });
-    await runPurges({ ids: purgeIds });
+    await runPurgesInline(purgeIds);
     return { deleted };
   },
 };

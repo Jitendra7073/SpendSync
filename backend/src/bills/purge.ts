@@ -4,7 +4,7 @@ import { billPurges } from '../db/schema/index';
 import { config } from '../config/env';
 import { logger } from '../utils/logger';
 import { destroyAsset, destroyPrefix } from './cloudinary';
-import { purgeBackoffMs } from './rules';
+import { INLINE_PURGES, purgeBackoffMs } from './rules';
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -13,6 +13,11 @@ export async function enqueuePurges(tx: Tx, targets: string[], kind: 'asset' | '
   if (targets.length === 0) return [];
   const rows = await tx.insert(billPurges).values(targets.map((target) => ({ target, kind }))).returning({ id: billPurges.id });
   return rows.map((r) => r.id);
+}
+
+/** Inside a user request: try only the first few now, so Empty Trash never waits on hundreds of deletions. */
+export function runPurgesInline(ids: string[]) {
+  return runPurges({ ids: ids.slice(0, INLINE_PURGES) });
 }
 
 /** Tries the given purges (or every due one). Success deletes the row; failure backs off. Never throws. */

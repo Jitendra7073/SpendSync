@@ -23,7 +23,8 @@ let configuredFor = '';
 export function configureCloudinary(c: CloudinaryCreds) {
   const key = `${c.cloudName}:${c.apiKey}`;
   if (configuredFor === key) return;
-  cloudinary.config({ cloud_name: c.cloudName, api_key: c.apiKey, api_secret: c.apiSecret, secure: true });
+  // timeout: a hanging Cloudinary must not hold a user request; failed purges are retried by the cron.
+  cloudinary.config({ cloud_name: c.cloudName, api_key: c.apiKey, api_secret: c.apiSecret, secure: true, timeout: 10_000 });
   configuredFor = key;
 }
 

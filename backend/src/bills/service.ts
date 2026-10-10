@@ -9,7 +9,7 @@ import { assertParentLive } from '../trash/rules';
 import type { ReserveBillInput, UploadResult } from '../types/bill.types';
 import { ApiError, BadRequestError, NotFoundError } from '../utils/errors';
 import { deliveryUrls, uploadParams, verifyUploadResponse, type BillUrls, type CloudinaryCreds } from './cloudinary';
-import { enqueuePurges, runPurges } from './purge';
+import { enqueuePurges, runPurgesInline } from './purge';
 import { checkDaily, checkQuota, confirmDecision, firstFreePosition, newPublicId, restorePosition, utcDay } from './rules';
 
 export type BillView = Pick<Bill, 'id' | 'transactionId' | 'position' | 'status' | 'format' | 'pages' | 'bytes'> & BillUrls;
@@ -53,10 +53,13 @@ export const billService = {
       const live = await tx.select({ id: bills.id, position: bills.position }).from(bills).where(and(eq(bills.transactionId, txId), eq(bills.userId, userId), liveBill));
       const replacing = input.replaces ? live.find((b) => b.id === input.replaces) : undefined;
       if (input.replaces && !replacing) throw new NotFoundError('Bill to replace not found');
+      const replacePending = replacing
+        ? (await tx.select({ id: bills.id }).from(bills).where(and(eq(bills.replacesId, replacing.id), eq(bills.status, 'pending'), liveBill)).limit(1)).length > 0
+        : false;
 
       // trash-aware: bills in the Trash still use Cloudinary space
       const [{ used }] = await tx.select({ used: sql<string>`COALESCE(SUM(${bills.bytes}), 0)` }).from(bills).where(eq(bills.userId, userId));
-      checkQuota({ livePages: live.length, replacing: Boolean(replacing), bytesUsed: Number(used), bytes: input.bytes, maxBytes: config.bills.maxBytes });
+      checkQuota({ livePages: live.length, replacing: Boolean(replacing), replacePending, bytesUsed: Number(used), bytes: input.bytes, maxBytes: config.bills.maxBytes });
 
       const [{ count }] = await tx
         .insert(billUploadCounts)
@@ -98,10 +101,19 @@ export const billService = {
       const where = 'publicId' in lookup ? eq(bills.publicId, lookup.publicId) : and(eq(bills.id, lookup.billId), eq(bills.userId, lookup.userId));
       // trash-aware: an upload finishing after its transaction went to the Trash still completes (it stays in the Trash)
       const [row] = await tx.select().from(bills).where(where).for('update');
-      const decision = confirmDecision(row, resp.public_id, resp.bytes);
+      const decision = confirmDecision(row, resp.public_id, resp.bytes, verified);
       if (decision === 'unknown') return null;
       if (decision === 'mismatch') throw new BadRequestError('Upload does not belong to this bill', 'PUBLIC_ID_MISMATCH');
       if (decision === 'replay') return row;
+      if (decision === 'refresh') {
+        // Cloudinary's own numbers replace whatever the phone reported.
+        const [fixed] = await tx
+          .update(bills)
+          .set({ format: resp.format, bytes: resp.bytes, width: resp.width ?? null, height: resp.height ?? null, pages: resp.pages ?? null, updatedAt: new Date() })
+          .where(eq(bills.id, row.id))
+          .returning();
+        return fixed;
+      }
       if (decision === 'too_large') {
         purgeIds = await enqueuePurges(tx, [row.publicId]);
         await tx.delete(bills).where(eq(bills.id, row.id));
@@ -116,7 +128,7 @@ export const billService = {
       return ready;
     });
     if (result === 'too_large') {
-      await runPurges({ ids: purgeIds });
+      await runPurgesInline(purgeIds);
       throw new ApiError(422, 'This file is larger than 10 MB', 'TOO_LARGE');
     }
     return result ? toView(result) : null;
