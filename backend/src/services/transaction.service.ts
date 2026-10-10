@@ -1,4 +1,4 @@
-import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, desc, getTableColumns, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index';
 import { bills, holds, transactions } from '../db/schema/index';
 import { liveBill, liveHold, liveTx } from '../lib/live';
@@ -59,7 +59,11 @@ export class TransactionService {
 
     // Get transactions
     const results = await db
-      .select()
+      .select({
+        ...getTableColumns(transactions),
+        // Paperclip on list rows. Correlated count is cheap: bills_transaction_idx, at most 5 rows.
+        billCount: sql<number>`(SELECT COUNT(*)::int FROM bills b WHERE b.transaction_id = ${transactions.id} AND b.deleted_at IS NULL AND b.status = 'ready')`,
+      })
       .from(transactions)
       .where(and(...conditions))
       .orderBy(desc(transactions.createdAt))

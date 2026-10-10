@@ -98,7 +98,7 @@ export async function destroyPrefix(c: CloudinaryCreds, prefix: string): Promise
   return { partial: Boolean(r?.partial) };
 }
 
-export async function listAssets(c: CloudinaryCreds, prefix: string, cursor?: string) {
+export async function listAssets(c: CloudinaryCreds, prefix: string, cursor?: string): Promise<{ items: { publicId: string; bytes: number }[]; next?: string }> {
   configureCloudinary(c);
   const r = await cloudinary.api.resources({ type: 'authenticated', resource_type: 'image', prefix, max_results: 500, ...(cursor ? { next_cursor: cursor } : {}) });
   return {
