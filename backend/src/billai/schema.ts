@@ -23,7 +23,11 @@ export const billReadSchema = z.object({
   tax: money,
   discount: money,
   fees: money,
-  items: z.array(z.object({ name: text(120), qty: money, unitPrice: money, amount: money })).max(200).default([]),
+  // A long supermarket bill must not fail every model: extra items are cut, not rejected.
+  items: z.preprocess(
+    (v) => (Array.isArray(v) ? v.slice(0, 200) : v),
+    z.array(z.object({ name: text(120), qty: money, unitPrice: money, amount: money })).default([]),
+  ),
   paymentMethod: text(40),
   billNumber: text(60),
   category: z.preprocess((v) => ((BILL_CATEGORIES as readonly unknown[]).includes(v) ? v : null), z.enum(BILL_CATEGORIES).nullable()),

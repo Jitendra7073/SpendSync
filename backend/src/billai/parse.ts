@@ -15,7 +15,7 @@ export function extractJson(raw: string): string | null {
   return a === -1 || b <= a ? null : s.slice(a, b + 1);
 }
 
-/** Notes may mention money only through placeholders; any other run of 2+ digits is a made-up number. */
+/** Notes may mention money only through placeholders; any other digit is a made-up number. */
 export function validNote(note: string, itemCount: number): boolean {
   let ok = true;
   const rest = note.replace(PLACEHOLDER, (_m, _k, n) => {
@@ -23,7 +23,8 @@ export function validNote(note: string, itemCount: number): boolean {
     return '';
   });
   if (/\{[^}]*\}/.test(rest)) return false; // unknown placeholder
-  return ok && !/\d{2,}/.test(rest);
+  // Any digit, in any script (४९ too), outside a placeholder is a number the app did not supply.
+  return ok && !/\p{Nd}/u.test(rest);
 }
 
 const clamp = (n: number | null) => (n === null ? null : Math.round(Math.min(MAX_MONEY, Math.max(0, n)) * 100) / 100);

@@ -52,3 +52,16 @@ describe('prompt', () => {
     expect(p).toContain('{total}');
   });
 });
+
+describe('review fixes', () => {
+  it('notes may not carry any digits in other scripts or after a currency sign', () => {
+    expect(validNote('डिलीवरी ₹४९ है', 2)).toBe(false);
+    expect(validNote('Delivery was ₹5', 2)).toBe(false);
+    expect(validNote('Item {item:12} twice', 20)).toBe(true);
+  });
+  it('a long supermarket bill still parses (items are cut, not rejected)', () => {
+    const items = Array.from({ length: 250 }, (_, i) => ({ name: `Item ${i}`, amount: 1 }));
+    const r = parseBillRead(JSON.stringify({ ...good, items }));
+    expect(r.items).toHaveLength(100);
+  });
+});

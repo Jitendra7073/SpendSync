@@ -58,6 +58,6 @@ export async function runBillsCron(now = new Date()) {
   const { done } = await runPurges({ limit: 500 });
   await db.delete(billUploadCounts).where(lt(billUploadCounts.day, utcDay(new Date(now.getTime() - 7 * DAY))));
   // 5. Bill reads that failed earlier (models out of quota etc.).
-  const reads = await billReadService.retryQueued(50);
+  const reads = await billReadService.retryQueued();
   return { expired, purged: done, reconciled, orphans, oversized, reads };
 }

@@ -26,3 +26,21 @@ describe('validating', () => {
     expect(LlmError).toBeDefined();
   });
 });
+
+import { ProviderRouter } from './router';
+import { askWith } from './vision';
+
+describe('askWith deadline', () => {
+  it('gives up within the deadline when a model hangs', async () => {
+    const hanging: LlmProvider = {
+      id: 'h:m', label: 'H', provider: 'h', model: 'm', paid: false,
+      async *stream(req): AsyncGenerator<LlmChunk> {
+        await new Promise((_, reject) => req.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
+        yield { type: 'end', reason: 'stop' }; // never reached: the wait above only ends by abort
+      },
+    };
+    const t0 = Date.now();
+    await expect(askWith(new ProviderRouter([hanging], { firstTokenMs: 60_000, idleMs: 60_000 }), 's', 't', [], 100, 80)).rejects.toThrow();
+    expect(Date.now() - t0).toBeLessThan(2_000);
+  });
+});

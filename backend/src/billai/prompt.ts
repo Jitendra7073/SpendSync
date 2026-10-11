@@ -16,6 +16,7 @@ Answer with only one JSON object, no other text:
  "confidence": 0..1, "summary": string, "notes": [string]}
 
 Rules:
+- List at most 40 items; put the rest together as one item named "Other items".
 - Numbers are plain numbers (2150.5), never text. Use null for anything you cannot read. Never guess a total.
 - "fees" = delivery, packing, service or convenience charges together. "tax" = GST/VAT/CGST+SGST together.
 - "confidence" = how sure you are the total and merchant are right (0 = unreadable, 1 = certain).

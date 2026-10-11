@@ -12,6 +12,7 @@ import { requireCloudinary } from '../bills/service';
 import { checkDaily, utcDay } from '../bills/rules';
 import { transactionService } from '../services/transaction.service';
 import { logger } from '../utils/logger';
+import { NotFoundError } from '../utils/errors';
 import { parseBillRead, type BillRead } from './parse';
 import { buildBillPrompt, BILL_USER_TEXT } from './prompt';
 import { pagePlan, pagesKey, readImageUrl } from './pages';
@@ -26,7 +27,7 @@ let router: ProviderRouter | null = null;
 function visionRouter() {
   return (router ??= new ProviderRouter(
     buildVisionProviders().map((p) => validating(p, (t) => void parseBillRead(t))),
-    { firstTokenMs: 40_000, idleMs: 40_000 },
+    { firstTokenMs: 20_000, idleMs: 20_000 },
   ));
 }
 
@@ -49,19 +50,21 @@ async function livePages(userId: string, txId: string) {
 
 async function fetchImages(pages: Awaited<ReturnType<typeof livePages>>): Promise<LlmImage[]> {
   const c = requireCloudinary();
-  const out: LlmImage[] = [];
-  for (const p of pagePlan(pages)) {
-    const r = await fetch(readImageUrl(c, p.publicId, p.version, p.page), { signal: AbortSignal.timeout(10_000) });
-    if (!r.ok) throw new Error(`page fetch ${r.status}`);
-    const buf = Buffer.from(await r.arrayBuffer());
-    if (buf.length > 2 * 1024 * 1024) throw new Error('page image too large');
-    out.push({ mime: 'image/jpeg', base64: buf.toString('base64') });
-  }
-  return out;
+  // In parallel: the whole read must fit in the function's 60 s.
+  return Promise.all(
+    pagePlan(pages).map(async (p): Promise<LlmImage> => {
+      const r = await fetch(readImageUrl(c, p.publicId, p.version, p.page), { signal: AbortSignal.timeout(8_000) });
+      if (!r.ok) throw new Error(`page fetch ${r.status}`);
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > 2 * 1024 * 1024) throw new Error('page image too large');
+      return { mime: 'image/jpeg', base64: buf.toString('base64') };
+    }),
+  );
 }
 
 async function ask(images: LlmImage[], prefs: BillAiPrefs) {
-  const { text, model } = await askWith(visionRouter(), buildBillPrompt(prefs), BILL_USER_TEXT, images);
+  // 4000 tokens: long bills; 40 s: leaves time inside the 60 s function to record a failure.
+  const { text, model } = await askWith(visionRouter(), buildBillPrompt(prefs), BILL_USER_TEXT, images, 4000, 40_000);
   return { data: parseBillRead(text), model };
 }
 
@@ -113,14 +116,37 @@ export const billReadService = {
     return ask(images, prefs);
   },
 
-  /** Cron: queued rows (only ever created by a consenting request), oldest first. */
-  async retryQueued(limit = 50): Promise<number> {
+  /**
+   * Cron: queued rows (only ever created by a consenting request), oldest first. A few per run: one read can
+   * take ~20 s and the cron has 60 s. Each row moves to the back first, so rows that can't finish never block.
+   */
+  async retryQueued(limit = 3): Promise<number> {
     const rows = await db.select({ txId: billReads.transactionId, userId: billReads.userId })
       .from(billReads).where(and(eq(billReads.status, 'queued'), lt(billReads.attempts, MAX_ATTEMPTS)))
       .orderBy(asc(billReads.updatedAt)).limit(limit);
     for (const r of rows) {
-      await this.run(r.userId, r.txId, { consent: true }).catch((e) => logger.warn('Bill read retry failed', { txId: r.txId, message: String(e).slice(0, 200) }));
+      const mine = and(eq(billReads.transactionId, r.txId), eq(billReads.userId, r.userId));
+      await db.update(billReads).set({ updatedAt: new Date() }).where(mine);
+      try {
+        const res = await this.run(r.userId, r.txId, { consent: true });
+        // No pages any more: nothing left to read.
+        if (res.status === 'none') await db.update(billReads).set({ status: 'failed', error: 'no pages' }).where(mine);
+      } catch (e) {
+        // Transaction gone (or in the Trash): stop retrying. Daily cap etc.: stays queued for a later run.
+        if (e instanceof NotFoundError) await db.update(billReads).set({ status: 'failed', error: 'transaction gone' }).where(mine);
+        else logger.warn('Bill read retry failed', { txId: r.txId, message: String(e).slice(0, 200) });
+      }
     }
+    return rows.length;
+  },
+
+  /** AI switched off on the phone: queued reads must not run any more. */
+  async stopQueued(userId: string): Promise<number> {
+    const rows = await db
+      .update(billReads)
+      .set({ status: 'no_consent', updatedAt: new Date() })
+      .where(and(eq(billReads.userId, userId), eq(billReads.status, 'queued')))
+      .returning({ id: billReads.transactionId });
     return rows.length;
   },
 };
