@@ -46,7 +46,7 @@ private data class Row(val tx: TransactionDto, val bills: List<BillDto>, val rea
 
 /** Matches from find_bills: thumb, shop, date · category, amount, AI line; Open / Explain / Attach; Email to me / Share. */
 @Composable
-internal fun BillResultsCard(transactionIds: List<String>, financeRepository: FinanceRepository, sessionDataStore: SessionDataStore, vis: AmountVisibilityState) {
+internal fun BillResultsCard(transactionIds: List<String>, key: String, financeRepository: FinanceRepository, sessionDataStore: SessionDataStore, vis: AmountVisibilityState) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -101,11 +101,12 @@ internal fun BillResultsCard(transactionIds: List<String>, financeRepository: Fi
             AppButton(tr(R.string.abl_email_me), variant = ButtonVariant.Tonal, size = ButtonSize.Small, onClick = {
                 if (masked) { vis.requestUnlock(); return@AppButton }
                 scope.launch {
+                    com.example.spendsync.data.assistant.EmailCardMemory.reset("$key:email")
                     val email = sessionDataStore.userEmail.first().orEmpty()
                     emailing = EmailBillsProposal(withBills.map { it.tx.id }.take(10), null, null, email.replace(Regex("^(.).*(@.*)$"), "$1***$2"))
                 }
             })
-            AppButton(tr(R.string.abl_share), variant = ButtonVariant.Text, size = ButtonSize.Small, onClick = {
+            AppButton(tr(R.string.abl_share), variant = ButtonVariant.Text, size = ButtonSize.Small, enabled = sharing != tr(R.string.abl_preparing), onClick = {
                 if (masked) { vis.requestUnlock(); return@AppButton }
                 sharing = tr(R.string.abl_preparing)
                 scope.launch {
@@ -118,8 +119,8 @@ internal fun BillResultsCard(transactionIds: List<String>, financeRepository: Fi
         sharing?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant) }
     }
 
-    emailing?.let { EmailBillsCard(it, financeRepository, vis) }
-    viewing?.let { r -> BillViewer(bills = r.bills, start = 0, masked = masked, onUnlock = { vis.requestUnlock() }, onDismiss = { viewing = null }, onReplace = {}, onDelete = {}) }
+    emailing?.let { EmailBillsCard(it, "$key:email", financeRepository, vis, onDismiss = { emailing = null }) }
+    viewing?.let { r -> BillViewer(bills = r.bills, start = 0, masked = masked, onUnlock = { vis.requestUnlock() }, onDismiss = { viewing = null }, onReplace = null, onDelete = null) }
     explaining?.let { s -> BillExplainSheet(s, masked, onReadAgain = { explaining = null }, onDismiss = { explaining = null }) }
     attaching?.let { tx ->
         AppSheet(onDismiss = { attaching = null; scope.launch { load() } }, title = tr(R.string.bills_title)) {
@@ -130,13 +131,14 @@ internal fun BillResultsCard(transactionIds: List<String>, financeRepository: Fi
 
 /** "Email n bills to j***@…?" → Send → Sent / error / cooldown. */
 @Composable
-internal fun EmailBillsCard(p: EmailBillsProposal, financeRepository: FinanceRepository, vis: AmountVisibilityState) {
+internal fun EmailBillsCard(p: EmailBillsProposal, key: String, financeRepository: FinanceRepository, vis: AmountVisibilityState, onDismiss: () -> Unit = {}) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var state by remember(p) { mutableStateOf<EmailCardState>(EmailCardState.Idle) }
-    var dismissed by remember(p) { mutableStateOf(false) }
-    if (dismissed) return
+    // Kept outside the list so scrolling away never re-enables Send on a card that already sent.
+    val memory = com.example.spendsync.data.assistant.EmailCardMemory
+    val state = memory.state(key)
+    if (memory.dismissed(key)) return
     Column(Modifier.fillMaxWidth().glassCard(16).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(tr(R.string.abl_email_title, p.transactionIds.size, p.to), style = MaterialTheme.typography.titleSmall, color = scheme.onSurface)
         if (p.files != null && p.approxBytes != null) Text(tr(R.string.abl_email_size, p.files, android.text.format.Formatter.formatShortFileSize(context, p.approxBytes)), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
@@ -155,11 +157,11 @@ internal fun EmailBillsCard(p: EmailBillsProposal, financeRepository: FinanceRep
                         loading = s is EmailCardState.Sending, enabled = s !is EmailCardState.Sending, size = ButtonSize.Small,
                         onClick = {
                             if (vis.isMaskingEnabled && !vis.isVisible) { vis.requestUnlock(); return@AppButton }
-                            state = EmailCardState.Sending
-                            scope.launch { state = EmailCard.from(financeRepository.emailBills(p.transactionIds)) }
+                            memory.set(key, EmailCardState.Sending)
+                            scope.launch { memory.set(key, EmailCard.from(financeRepository.emailBills(p.transactionIds))) }
                         },
                     )
-                    AppButton(tr(R.string.abl_cancel), onClick = { dismissed = true }, variant = ButtonVariant.Text, size = ButtonSize.Small, enabled = s !is EmailCardState.Sending)
+                    AppButton(tr(R.string.abl_cancel), onClick = { memory.dismiss(key); onDismiss() }, variant = ButtonVariant.Text, size = ButtonSize.Small, enabled = s !is EmailCardState.Sending)
                 }
             }
         }

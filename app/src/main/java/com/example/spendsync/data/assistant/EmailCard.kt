@@ -16,3 +16,19 @@ object EmailCard {
         is BillCall.Fail -> EmailCardState.Failed(r.message, cooldown = r.code == 429)
     }
 }
+
+/**
+ * Email card state kept outside the chat list, keyed by "<message id>:email:<n>": a LazyColumn forgets
+ * `remember` state when a card scrolls away, which would re-enable Send on a card that already sent.
+ */
+object EmailCardMemory {
+    private val states = androidx.compose.runtime.mutableStateMapOf<String, EmailCardState>()
+    private val closed = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
+
+    fun state(key: String): EmailCardState = states[key] ?: EmailCardState.Idle
+    fun set(key: String, s: EmailCardState) { states[key] = s }
+    fun dismissed(key: String): Boolean = closed[key] == true
+    fun dismiss(key: String) { closed[key] = true }
+    /** A new card for the same key (the user asked again). */
+    fun reset(key: String) { states.remove(key); closed.remove(key) }
+}

@@ -37,7 +37,7 @@ import com.example.spendsync.ui.i18n.tr
 
 /** Full-screen pages of one transaction's bills: swipe, pinch/double-tap zoom, replace, delete, open PDF. */
 @Composable
-fun BillViewer(bills: List<BillDto>, start: Int, masked: Boolean, onUnlock: () -> Unit, onDismiss: () -> Unit, onReplace: (BillDto) -> Unit, onDelete: (BillDto) -> Unit, onExplain: (() -> Unit)? = null) {
+fun BillViewer(bills: List<BillDto>, start: Int, masked: Boolean, onUnlock: () -> Unit, onDismiss: () -> Unit, onReplace: ((BillDto) -> Unit)?, onDelete: ((BillDto) -> Unit)?, onExplain: (() -> Unit)? = null) {
     // Each PDF contributes one page per rendered page.
     val pages = remember(bills) { bills.flatMap { b -> b.pageUrls.mapIndexed { i, url -> Triple(b, url, i) } } }
     val first = remember(bills, start) { pages.indexOfFirst { it.first.id == bills.getOrNull(start)?.id }.coerceAtLeast(0) }
@@ -82,8 +82,9 @@ fun BillViewer(bills: List<BillDto>, start: Int, masked: Boolean, onUnlock: () -
                 })
                 if (!masked && current != null) {
                     onExplain?.let { AppIconButton(Icons.Default.AutoAwesome, tr(R.string.bai_explain), onClick = it) }
-                    AppIconButton(Icons.Default.FindReplace, tr(R.string.bills_replace), onClick = { onReplace(current) })
-                    AppIconButton(Icons.Default.Delete, tr(R.string.bills_delete), onClick = { onDelete(current) })
+                    // Read-only viewers (e.g. from the assistant) pass null: no buttons that do nothing.
+                    onReplace?.let { AppIconButton(Icons.Default.FindReplace, tr(R.string.bills_replace), onClick = { it(current) }) }
+                    onDelete?.let { AppIconButton(Icons.Default.Delete, tr(R.string.bills_delete), onClick = { it(current) }) }
                 }
             }
         }

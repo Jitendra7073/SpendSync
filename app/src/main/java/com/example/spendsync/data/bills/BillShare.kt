@@ -28,7 +28,8 @@ object BillShare {
                 runCatching {
                     val (url, ext) = fileFor(b)
                     val f = File(dir(context), "bill-${tx.take(8)}-${i + 1}.$ext")
-                    URL(url).openStream().use { input -> f.outputStream().use { input.copyTo(it) } }
+                    val conn = (URL(url).openConnection() as java.net.HttpURLConnection).apply { connectTimeout = 10_000; readTimeout = 20_000 }
+                    try { conn.inputStream.use { input -> f.outputStream().use { input.copyTo(it) } } } finally { conn.disconnect() }
                     out += FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
                 }
             }

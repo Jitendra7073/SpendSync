@@ -33,4 +33,16 @@ class BillCardsTest {
         assertEquals("full-url" to "jpg", com.example.spendsync.data.bills.BillShare.fileFor(img))
         assertEquals("pdf-url" to "pdf", com.example.spendsync.data.bills.BillShare.fileFor(pdf))
     }
+
+    @Test fun emailCardStateSurvivesTheListForgettingTheCard() {
+        val key = "m1:email:0"
+        EmailCardMemory.reset(key)
+        assertEquals(EmailCardState.Idle, EmailCardMemory.state(key))
+        EmailCardMemory.set(key, EmailCardState.Sent("j***@x.com", 1, 0, 0))
+        assertEquals(EmailCardState.Sent("j***@x.com", 1, 0, 0), EmailCardMemory.state(key)) // scrolled away and back
+        EmailCardMemory.dismiss(key)
+        assertTrue(EmailCardMemory.dismissed(key))
+        EmailCardMemory.reset(key) // "Email to me" tapped again: a fresh card
+        assertFalse(EmailCardMemory.dismissed(key)); assertEquals(EmailCardState.Idle, EmailCardMemory.state(key))
+    }
 }
