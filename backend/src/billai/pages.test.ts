@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readImagesSchema, runReadSchema } from '../types/billai.types';
 import { pagePlan, pagesKey, readImageUrl, sniffMime } from './pages';
 
 const b = (id: string, format = 'jpg', pages: number | null = null, version = 1) => ({ id, publicId: `p/${id}`, version, format, pages });
@@ -28,5 +29,21 @@ describe('pages', () => {
     expect(sniffMime(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString('base64'))).toBe('image/png');
     expect(sniffMime(Buffer.from('RIFF\0\0\0\0WEBPVP8 ').toString('base64'))).toBe('image/webp');
     expect(sniffMime(Buffer.from('%PDF-1.7').toString('base64'))).toBeNull();
+  });
+});
+
+
+describe('read requests', () => {
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]).toString('base64');
+  it('pre-fill needs consent and 1–3 real images', () => {
+    expect(readImagesSchema.safeParse({ aiConsent: true, images: [{ mime: 'image/jpeg', base64: jpeg }] }).success).toBe(true);
+    expect(readImagesSchema.safeParse({ aiConsent: false, images: [{ mime: 'image/jpeg', base64: jpeg }] }).success).toBe(false);
+    expect(readImagesSchema.safeParse({ aiConsent: true, images: [] }).success).toBe(false);
+    expect(readImagesSchema.safeParse({ aiConsent: true, images: [{ mime: 'image/png', base64: jpeg }] }).success).toBe(false); // type lie
+    const big = Buffer.alloc(1_048_577, 0xff); big[1] = 0xd8;
+    expect(readImagesSchema.safeParse({ aiConsent: true, images: [{ mime: 'image/jpeg', base64: big.toString('base64') }] }).success).toBe(false);
+  });
+  it('run defaults force=false and prefs', () => {
+    expect(runReadSchema.parse({ aiConsent: true })).toMatchObject({ force: false, prefs: { language: 'English' } });
   });
 });

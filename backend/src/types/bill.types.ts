@@ -22,7 +22,7 @@ const uploadResult = {
   pages: z.number().int().positive().optional(),
 };
 /** What the phone forwards from Cloudinary's upload response. */
-export const confirmBillSchema = z.object({ ...uploadResult, signature: z.string().min(10).max(128) });
+export const confirmBillSchema = z.object({ ...uploadResult, signature: z.string().min(10).max(128), aiConsent: z.boolean().default(false) });
 /** Cloudinary's upload webhook body (already verified by header signature). Unknown fields ignored. */
 export const webhookUploadSchema = z.object(uploadResult);
 export type UploadResult = z.infer<typeof webhookUploadSchema>;
