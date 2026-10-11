@@ -35,6 +35,15 @@ const PAID_CHAIN: ChainEntry[] = [
   { provider: 'anthropic', model: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 · Anthropic (paid)' },
 ];
 
+/** Models that can read images (bills). Same syntax/override style: BILL_AI_CHAIN="gemini:gemini-2.5-flash-lite,...". */
+export const DEFAULT_VISION_CHAIN: ChainEntry[] = [
+  { provider: 'gemini', model: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite · Google' },
+  { provider: 'gemini', model: 'gemma-4-31b-it', label: 'Gemma 4 31B · Google' },
+  { provider: 'openrouter', model: 'google/gemma-4-26b-a4b-it:free', label: 'Gemma 4 26B · OpenRouter' },
+  { provider: 'mistral', model: 'mistral-small-latest', label: 'Mistral Small · Mistral' },
+  { provider: 'groq', model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout · Groq' },
+];
+
 const PROVIDER_NAMES: Record<string, string> = {
   gemini: 'Google',
   groq: 'Groq',
@@ -72,7 +81,7 @@ export function parseChain(spec: string | undefined): ChainEntry[] {
     const provider = item.slice(0, at) as ChainEntry['provider'];
     const model = item.slice(at + 1).trim();
     if (!(provider in PROVIDER_NAMES) || !model) continue;
-    const known = [...DEFAULT_CHAIN, ...PAID_CHAIN].find((e) => e.provider === provider && e.model === model);
+    const known = [...DEFAULT_CHAIN, ...DEFAULT_VISION_CHAIN, ...PAID_CHAIN].find((e) => e.provider === provider && e.model === model);
     out.push(known ?? { provider, model, label: `${model} · ${PROVIDER_NAMES[provider]}` });
   }
   return out.length ? out : DEFAULT_CHAIN;
@@ -113,4 +122,9 @@ export function buildProviders(env: Env = process.env, fetchFn?: typeof fetch): 
     }
   }
   return out;
+}
+
+export function buildVisionProviders(env: Env = process.env, fetchFn?: typeof fetch): LlmProvider[] {
+  const spec = env.BILL_AI_CHAIN?.trim() || DEFAULT_VISION_CHAIN.map((e) => `${e.provider}:${e.model}`).join(',');
+  return buildProviders({ ...env, ASSISTANT_CHAIN: spec }, fetchFn);
 }
