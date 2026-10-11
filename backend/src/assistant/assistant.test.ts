@@ -8,6 +8,7 @@ vi.mock('../db/index', () => ({ db: {} }));
 import { BLOCKED_ACTIONS, canRun, looksBlocked } from './permissions';
 import { FollowupFilter } from './followups';
 import { HELP_ENTRIES, searchHelp } from './knowledge';
+import { findTool } from './tools';
 import { checkAssistantLimit, resetAssistantLimits } from './limiter';
 import { SYSTEM_PROMPT, contextBlock } from './prompt';
 import { chatRequestSchema, todayIn } from './request';
@@ -30,6 +31,7 @@ describe('help search (RAG)', () => {
     ['auto capture is not working', 'troubleshooting_capture'],
     ['what is the dark theme setting', 'theme_accent'],
     ['how do I attach a bill to an expense', 'bills'],
+    ['find my bill for the shopping', 'find_bills'],
     ['can the app read my bill and explain it', 'bill_ai'],
   ])('"%s" finds %s', (q, id) => {
     expect(top(q)).toBe(id);
@@ -207,5 +209,18 @@ describe('rate limit', () => {
     expect(() => checkAssistantLimit('u1', now + 25)).toThrow();
     expect(() => checkAssistantLimit('u2', now + 25)).not.toThrow();
     expect(() => checkAssistantLimit('u1', now + 61_000)).not.toThrow();
+  });
+});
+
+
+describe('bill tools', () => {
+  it('find_bills reads, email_bills only proposes', () => {
+    expect(findTool('find_bills')?.tier).toBe('read');
+    expect(findTool('email_bills')?.tier).toBe('propose');
+  });
+  it('email_bills has no recipient field anywhere', () => {
+    const t = findTool('email_bills')!;
+    expect(Object.keys(t.jsonSchema.properties ?? {})).toEqual(['transaction_ids']);
+    expect(JSON.stringify(t.jsonSchema)).not.toMatch(/email_address|recipient|"to"/);
   });
 });

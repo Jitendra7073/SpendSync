@@ -19,6 +19,10 @@ sealed interface AssistantEvent {
     data class FollowUpStarted(val followUp: FollowUpProposal) : AssistantEvent
     /** A message the assistant prepared for WhatsApp, SMS or email. The user checks it and taps Send. */
     data class ComposeStarted(val compose: ComposeProposal) : AssistantEvent
+    /** find_bills matched these transactions: the phone shows them as a bill card. */
+    data class BillsFound(val transactionIds: List<String>) : AssistantEvent
+    /** email_bills prepared an email of bills to the user's own address. Nothing is sent until they tap Send. */
+    data class EmailBillsStarted(val email: EmailBillsProposal) : AssistantEvent
     data object Done : AssistantEvent
     data class Failure(val kind: FailureKind) : AssistantEvent
 }
@@ -45,6 +49,8 @@ data class FollowUpProposal(
     val tone: String?,
     val context: String?,
 )
+
+data class EmailBillsProposal(val transactionIds: List<String>, val files: Int?, val approxBytes: Long?, val to: String)
 
 data class ComposeProposal(val message: String, val channel: String, val toName: String?, val subject: String?)
 
@@ -93,6 +99,15 @@ object AssistantEventParser {
                                 f.get("overdueDays")?.takeIf { it.isJsonPrimitive }?.asInt ?: 0,
                                 f.str("channel"), f.str("tone"), f.str("context"),
                             ),
+                        )
+                    }
+                    "bills" -> a.getAsJsonArray("transactionIds")?.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString }
+                        ?.take(5)?.takeIf { it.isNotEmpty() }?.let { AssistantEvent.BillsFound(it) }
+                    "email_bills" -> a.getAsJsonObject("email")?.let { m ->
+                        val ids = m.getAsJsonArray("transactionIds")?.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString }?.take(10).orEmpty()
+                        val to = m.str("to") ?: return@let null
+                        if (ids.isEmpty()) null else AssistantEvent.EmailBillsStarted(
+                            EmailBillsProposal(ids, m.get("files")?.takeIf { it.isJsonPrimitive }?.asInt, m.get("approxBytes")?.takeIf { it.isJsonPrimitive }?.asLong, to),
                         )
                     }
                     else -> null

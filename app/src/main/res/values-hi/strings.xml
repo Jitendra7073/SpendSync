@@ -786,4 +786,21 @@
     <string name="bai_bad_maths">कुल जोड़ मेल नहीं खाता — बिल जाँचें</string>
     <string name="bai_read_by">%1$s द्वारा पढ़ा गया · गलतियाँ हो सकती हैं</string>
     <string name="bai_read_again">फिर से पढ़ें</string>
+    <string name="abl_open">खोलें</string>
+    <string name="abl_no_bill">कोई बिल नहीं जुड़ा</string>
+    <string name="abl_pages">%1$d पेज</string>
+    <string name="abl_email_me">मुझे ईमेल करें</string>
+    <string name="abl_share">शेयर करें</string>
+    <string name="abl_preparing">फ़ाइलें तैयार हो रही हैं…</string>
+    <string name="abl_share_failed">बिल फ़ाइलें नहीं मिल सकीं</string>
+    <string name="abl_email_title">%2$s पर %1$d बिल ईमेल करें?</string>
+    <string name="abl_email_size">%1$d फ़ाइलें · लगभग %2$s</string>
+    <string name="abl_email_note">केवल आपके अपने ईमेल पर। ईमेल में पूरी राशि दिखेगी।</string>
+    <string name="abl_send">भेजें</string>
+    <string name="abl_cancel">रद्द करें</string>
+    <string name="abl_sent">%1$s पर भेजा गया</string>
+    <string name="abl_sent_partial">%1$d फ़ाइल नहीं जुड़ी — देखने के लिए SpendSync खोलें</string>
+    <string name="abl_skipped">%1$d बिल अब उपलब्ध नहीं थे</string>
+    <string name="abl_try_again">फिर कोशिश करें</string>
+    <string name="abl_cd_row">%2$s, %1$s का बिल</string>
 </resources>

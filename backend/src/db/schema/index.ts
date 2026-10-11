@@ -9,3 +9,4 @@ export * from './assistant.schema';
 export * from './password-reset.schema';
 export * from './bills.schema';
 export * from './billai.schema';
+export * from './billmail.schema';

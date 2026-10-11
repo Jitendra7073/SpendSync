@@ -435,6 +435,8 @@ private fun MessageBubble(
             msg.composeCards.forEach { c ->
                 ComposeCard(c, sessionDataStore, onAsk = onAsk)
             }
+            msg.billCards.forEachIndexed { i, ids -> BillResultsCard(ids, "${msg.id}:bills:$i", financeRepository, sessionDataStore, vis) }
+            msg.emailCards.forEachIndexed { i, e -> EmailBillsCard(e, "${msg.id}:email:$i", financeRepository, vis) }
             if (msg.fast == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AnswerActions(msg.feedback, onCopy = { onCopy(full) }, onUp = { onUp(msg) }, onDown = { onDown(msg) }, onShare = { onShare(full) }, onReply = { onReply(full) })

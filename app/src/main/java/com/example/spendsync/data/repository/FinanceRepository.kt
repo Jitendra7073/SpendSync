@@ -599,6 +599,9 @@ class FinanceRepository(
     /** AI switched off: the server stops bill reads still waiting in its queue. Best effort. */
     suspend fun stopBillReads() { runCatching { api.stopBillReads(getAuthHeader()) } }
 
+    /** Bills to the user's own account email (the user tapped Send on the email card). */
+    suspend fun emailBills(ids: List<String>) = billCall { api.emailBills(getAuthHeader(), EmailBillsRequest(ids)) }
+
     suspend fun readBillImages(req: ReadBillImagesRequest): AuthResult<BillImagesReadDto> = when (val r = billCall { api.readBillImages(getAuthHeader(), req) }) {
         is BillCall.Ok -> AuthResult.Success(r.data); is BillCall.Fail -> AuthResult.Error(r.message)
     }

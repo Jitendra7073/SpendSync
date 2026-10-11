@@ -107,3 +107,16 @@ export async function listAssets(c: CloudinaryCreds, prefix: string, cursor?: st
     next: r.next_cursor as string | undefined,
   };
 }
+
+/** Signed URL of the file to attach to an email: photos as a ≤ 2000 px JPEG (q80), PDFs as they are. */
+export function emailFileUrl(c: CloudinaryCreds, b: { publicId: string; version: number | null; format: string | null }) {
+  configureCloudinary(c);
+  const base = { type: 'authenticated', sign_url: true, secure: true, resource_type: 'image', ...(b.version ? { version: b.version } : {}) };
+  const name = b.publicId.split('/').pop() ?? 'bill';
+  if (b.format === 'pdf') return { url: cloudinary.url(b.publicId, { ...base, format: 'pdf' }), filename: `${name}.pdf`, contentType: 'application/pdf' };
+  return {
+    url: cloudinary.url(b.publicId, { ...base, format: 'jpg', transformation: [{ crop: 'limit', width: 2000, height: 2000 }, { quality: 80 }] }),
+    filename: `${name}.jpg`,
+    contentType: 'image/jpeg',
+  };
+}

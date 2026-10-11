@@ -501,4 +501,21 @@
     <string name="bai_bad_maths">Totals don\'t add up — check the bill</string>
     <string name="bai_read_by">Read by %1$s · may contain mistakes</string>
     <string name="bai_read_again">Read again</string>
+    <string name="abl_open">Open</string>
+    <string name="abl_no_bill">No bill attached</string>
+    <string name="abl_pages">%1$d pages</string>
+    <string name="abl_email_me">Email to me</string>
+    <string name="abl_share">Share</string>
+    <string name="abl_preparing">Preparing files…</string>
+    <string name="abl_share_failed">Couldn\'t get the bill files</string>
+    <string name="abl_email_title">Email %1$d bills to %2$s?</string>
+    <string name="abl_email_size">%1$d files · about %2$s</string>
+    <string name="abl_email_note">Only to your own email. The email shows full amounts.</string>
+    <string name="abl_send">Send</string>
+    <string name="abl_cancel">Cancel</string>
+    <string name="abl_sent">Sent to %1$s</string>
+    <string name="abl_sent_partial">%1$d file(s) not attached — open SpendSync to view them</string>
+    <string name="abl_skipped">%1$d bill(s) were no longer available</string>
+    <string name="abl_try_again">Try again</string>
+    <string name="abl_cd_row">Bill from %1$s, %2$s</string>
 </resources>

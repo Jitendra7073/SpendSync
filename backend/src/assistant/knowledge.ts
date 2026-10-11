@@ -45,6 +45,12 @@ export const HELP_ENTRIES: HelpEntry[] = [
       'When AI is on (Settings → Assistant), SpendSync reads each bill you attach: shop, date, items, tax, fees and total. Open a transaction to see a short summary and tap Explain for the item list, totals and tips. If the bill total differs from the amount you recorded, tap Update amount (you can Undo). While adding an expense, scan the bill first and tap Use these to fill the amount, shop, date and category. Reading uses free AI models and may make mistakes; it never changes anything unless you tap.',
   },
   {
+    id: 'find_bills',
+    title: 'Find and email bills',
+    text:
+      'Ask the assistant things like "do I have a bill for the 2000 shopping?" or "show my Zara bill". It shows the matching transactions with their bill pictures: tap Open to view, Explain for the AI summary, or Attach bill when one is missing. Tap Email to me (or ask "email it to me") to get the bills in your inbox — you confirm first and it only goes to your own account email. Tap Share to send them to anyone through WhatsApp, Gmail and other apps on your phone.',
+  },
+  {
     id: 'trash',
     title: 'Deleted items and the Trash',
     screen: 'profile',

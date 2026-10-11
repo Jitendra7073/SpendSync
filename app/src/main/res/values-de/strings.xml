@@ -786,4 +786,21 @@
     <string name="bai_bad_maths">Summen stimmen nicht – prüfe den Beleg</string>
     <string name="bai_read_by">Gelesen von %1$s · kann Fehler enthalten</string>
     <string name="bai_read_again">Erneut lesen</string>
+    <string name="abl_open">Öffnen</string>
+    <string name="abl_no_bill">Kein Beleg angehängt</string>
+    <string name="abl_pages">%1$d Seiten</string>
+    <string name="abl_email_me">An mich mailen</string>
+    <string name="abl_share">Teilen</string>
+    <string name="abl_preparing">Dateien werden vorbereitet…</string>
+    <string name="abl_share_failed">Belegdateien nicht verfügbar</string>
+    <string name="abl_email_title">%1$d Belege an %2$s senden?</string>
+    <string name="abl_email_size">%1$d Dateien · etwa %2$s</string>
+    <string name="abl_email_note">Nur an deine eigene E-Mail. Die E-Mail zeigt volle Beträge.</string>
+    <string name="abl_send">Senden</string>
+    <string name="abl_cancel">Abbrechen</string>
+    <string name="abl_sent">An %1$s gesendet</string>
+    <string name="abl_sent_partial">%1$d Datei(en) nicht angehängt – in SpendSync ansehen</string>
+    <string name="abl_skipped">%1$d Beleg(e) nicht mehr verfügbar</string>
+    <string name="abl_try_again">Erneut versuchen</string>
+    <string name="abl_cd_row">Beleg von %1$s, %2$s</string>
 </resources>
