@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.automirrored.filled.Reply
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -161,9 +162,24 @@ internal fun UserMessageActions(onEdit: () -> Unit, onCopy: () -> Unit, enabled:
 }
 
 @Composable
-internal fun AnswerActions(feedback: String, onCopy: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onShare: () -> Unit = {}, onReply: () -> Unit = {}) {
+internal fun AnswerActions(
+    feedback: String,
+    reading: Boolean = false,
+    onReadAloud: () -> Unit = {},
+    onCopy: () -> Unit,
+    onUp: () -> Unit,
+    onDown: () -> Unit,
+    onShare: () -> Unit = {},
+    onReply: () -> Unit = {},
+) {
     val scheme = MaterialTheme.colorScheme
     Row(Modifier.padding(start = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        MiniAction(
+            Icons.AutoMirrored.Filled.VolumeUp,
+            tr(if (reading) R.string.voice_stop_reading else R.string.voice_read_aloud),
+            onReadAloud,
+            tint = if (reading) scheme.primary else null,
+        )
         MiniAction(Icons.Default.ContentCopy, tr(R.string.asst_copy), onCopy)
         MiniAction(Icons.AutoMirrored.Filled.Reply, tr(R.string.asst_reply), onReply)
         MiniAction(Icons.Default.Share, tr(R.string.asst_share), onShare)

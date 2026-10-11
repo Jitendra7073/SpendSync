@@ -125,6 +125,10 @@ class SessionDataStore(private val context: Context) {
         private val KEY_ANIM_SKELETON = booleanPreferencesKey("anim_skeleton")
         private val KEY_ANIM_PRESS = booleanPreferencesKey("anim_press")
         private val KEY_ANIM_CHARTS = booleanPreferencesKey("anim_charts")
+        private val KEY_VOICE_LANGUAGE = stringPreferencesKey("voice_language")
+        private val KEY_VOICE_NAME = stringPreferencesKey("voice_name")
+        private val KEY_VOICE_SPEED = intPreferencesKey("voice_speed")
+        private val KEY_VOICE_KEEP_LISTENING = booleanPreferencesKey("voice_keep_listening")
         private val KEY_PLANIFY_ALERTS = booleanPreferencesKey("planify_alerts")
         private val KEY_PLANIFY_DAILY = booleanPreferencesKey("planify_daily")
         private val KEY_PLANIFY_SALARY_MIN = intPreferencesKey("planify_salary_min")
@@ -434,6 +438,22 @@ class SessionDataStore(private val context: Context) {
             p[KEY_ANIM_ALL] = m.all; p[KEY_ANIM_COUNTS] = m.counts; p[KEY_ANIM_ENTRANCE] = m.entrance
             p[KEY_ANIM_TRANSITIONS] = m.transitions; p[KEY_ANIM_TYPING] = m.typing
             p[KEY_ANIM_SKELETON] = m.skeleton; p[KEY_ANIM_PRESS] = m.press; p[KEY_ANIM_CHARTS] = m.charts
+        }
+    }
+
+    // ── Voice (this phone only) ──────────────────────────────────────────────
+
+    val voicePrefs: Flow<com.example.spendsync.voice.VoicePrefs> = context.dataStore.data.map { p ->
+        com.example.spendsync.voice.VoicePrefs(
+            language = p[KEY_VOICE_LANGUAGE].orEmpty(), voice = p[KEY_VOICE_NAME].orEmpty(),
+            speed = p[KEY_VOICE_SPEED] ?: 100, keepListening = p[KEY_VOICE_KEEP_LISTENING] ?: true,
+        )
+    }
+
+    suspend fun updateVoicePrefs(v: com.example.spendsync.voice.VoicePrefs) {
+        context.dataStore.edit { p ->
+            p[KEY_VOICE_LANGUAGE] = v.language; p[KEY_VOICE_NAME] = v.voice
+            p[KEY_VOICE_SPEED] = v.speed; p[KEY_VOICE_KEEP_LISTENING] = v.keepListening
         }
     }
 

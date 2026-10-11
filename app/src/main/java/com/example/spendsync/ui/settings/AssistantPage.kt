@@ -21,10 +21,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import android.content.Intent
+import android.provider.Settings
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Hearing
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.spendsync.R
+import com.example.spendsync.voice.SpeechOutput
+import com.example.spendsync.voice.VOICE_LANGUAGES
+import com.example.spendsync.voice.VOICE_SPEEDS
 import com.example.spendsync.data.assistant.ASSISTANT_LOCKED_ACTIONS
 import com.example.spendsync.data.assistant.AssistantPrefs
 import com.example.spendsync.data.assistant.AssistantToolInfo
@@ -99,8 +112,33 @@ fun assistantSummary(m: SettingsModel): String =
 @Composable
 internal fun AssistantPage(m: SettingsModel, a: SettingsActions) {
     val p = m.assistant
+    val v = m.voicePrefs
+    val context = LocalContext.current
     var pickModel by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
+    var pickVoiceLang by remember { mutableStateOf(false) }
+    var pickVoiceName by remember { mutableStateOf(false) }
+    var pickVoiceSpeed by remember { mutableStateOf(false) }
+
+    var ttsReady by remember { mutableStateOf(false) }
+    val tts = remember(context) { SpeechOutput(context) { ttsReady = it } }
+    DisposableEffect(tts) { onDispose { tts.release() } }
+    // Each tap restarts the sample instead of queueing another one behind it.
+    fun sample(p: com.example.spendsync.voice.VoicePrefs) {
+        tts.stop()
+        tts.speak(tr(R.string.voice_sample), p.listenLocale(m.language), p)
+    }
+
+    val listenLocale = remember(v.language, m.language) { v.listenLocale(m.language) }
+    val voiceLangLabel = if (v.language.isBlank()) tr(R.string.voice_language_app) else VOICE_LANGUAGES.firstOrNull { it.first == v.language }?.second ?: v.language
+    val availableVoices = remember(listenLocale, ttsReady) { tts.voices(listenLocale.language) }
+    val voiceNameLabel = when {
+        v.voice.isBlank() -> tr(R.string.voice_voice_default)
+        else -> {
+            val idx = availableVoices.indexOfFirst { it.name == v.voice }
+            if (idx >= 0) tr(R.string.voice_voice_item, idx + 1) else tr(R.string.voice_voice_default)
+        }
+    }
     LaunchedEffect(Unit) { a.refreshAssistantStatus() }
 
     val autoLabel = tr(R.string.asst_model_auto)
@@ -173,8 +211,71 @@ internal fun AssistantPage(m: SettingsModel, a: SettingsActions) {
         ScopeTag(synced = true)
     }
 
+    SettingsGroupLabel(tr(R.string.voice_group))
+    SettingsGroup(Modifier.cascadeIn(7), footer = tr(R.string.voice_footer)) {
+        SettingsNavRow(
+            icon = Icons.Default.Language,
+            title = tr(R.string.voice_language),
+            value = voiceLangLabel,
+            enabled = m.assistantEnabled,
+            onClick = { pickVoiceLang = true },
+        )
+        SettingsDivider()
+        SettingsNavRow(
+            icon = Icons.Default.RecordVoiceOver,
+            title = tr(R.string.voice_voice),
+            value = voiceNameLabel,
+            enabled = m.assistantEnabled,
+            onClick = { pickVoiceName = true },
+        )
+        SettingsDivider()
+        SettingsNavRow(
+            icon = Icons.AutoMirrored.Filled.VolumeUp,
+            title = tr(R.string.voice_preview),
+            subtitle = tr(R.string.voice_sample),
+            chevron = false,
+            enabled = m.assistantEnabled,
+            onClick = { sample(v) },
+        )
+        SettingsDivider()
+        SettingsNavRow(
+            icon = Icons.Default.Speed,
+            title = tr(R.string.voice_speed),
+            value = "${v.speed}%",
+            enabled = m.assistantEnabled,
+            onClick = { pickVoiceSpeed = true },
+        )
+        SettingsDivider()
+        SettingsToggleRow(
+            icon = Icons.Default.Hearing,
+            title = tr(R.string.voice_keep),
+            subtitle = tr(R.string.voice_keep_sub),
+            checked = v.keepListening,
+            enabled = m.assistantEnabled,
+            onCheckedChange = { a.setVoicePrefs(v.copy(keepListening = it)) },
+        )
+        SettingsDivider()
+        SettingsNavRow(
+            icon = Icons.AutoMirrored.Filled.OpenInNew,
+            title = tr(R.string.voice_more_voices),
+            subtitle = tr(R.string.voice_more_voices_sub),
+            chevron = true,
+            enabled = true,
+            onClick = {
+                try {
+                    context.startActivity(Intent("com.android.settings.TTS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (_: Exception) {
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (_: Exception) {}
+                }
+            },
+        )
+        ScopeTag(synced = false)
+    }
+
     SettingsGroupLabel(tr(R.string.asst_group_history))
-    SettingsGroup(Modifier.cascadeIn(7)) {
+    SettingsGroup(Modifier.cascadeIn(8)) {
         SettingsNavRow(
             Icons.Default.DeleteSweep, tr(R.string.asst_clear_history), tr(R.string.asst_clear_history_sub),
             destructive = true, onClick = { confirmClear = true },
@@ -194,6 +295,59 @@ internal fun AssistantPage(m: SettingsModel, a: SettingsActions) {
             selectedKey = p.model,
             onSelect = { a.setAssistantPrefs(p.copy(model = it)); pickModel = false },
             onDismiss = { pickModel = false },
+            cancelLabel = tr(R.string.cancel),
+        )
+    }
+    if (pickVoiceLang) {
+        val options = buildList {
+            add(DialogOption("", tr(R.string.voice_language_app)))
+            VOICE_LANGUAGES.forEach { (tag, label) -> add(DialogOption(tag, label)) }
+        }
+        AppOptionDialog(
+            title = tr(R.string.voice_language),
+            options = options,
+            selectedKey = v.language,
+            onSelect = { a.setVoicePrefs(v.copy(language = it, voice = "")); pickVoiceLang = false },
+            onDismiss = { pickVoiceLang = false },
+            cancelLabel = tr(R.string.cancel),
+        )
+    }
+    if (pickVoiceName) {
+        val options = buildList {
+            add(DialogOption("", tr(R.string.voice_voice_default)))
+            availableVoices.forEachIndexed { i, voice ->
+                val isOffline = android.speech.tts.TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in voice.features && !voice.isNetworkConnectionRequired
+                val sub = tr(if (isOffline) R.string.voice_voice_offline else R.string.voice_voice_online)
+                add(DialogOption(voice.name, tr(R.string.voice_voice_item, i + 1), sub))
+            }
+        }
+        AppOptionDialog(
+            title = tr(R.string.voice_voice),
+            message = if (availableVoices.isEmpty()) tr(R.string.voice_voice_none) else null,
+            options = options,
+            selectedKey = v.voice,
+            onSelect = {
+                a.setVoicePrefs(v.copy(voice = it))
+                sample(v.copy(voice = it))
+                pickVoiceName = false
+            },
+            onDismiss = { pickVoiceName = false },
+            cancelLabel = tr(R.string.cancel),
+        )
+    }
+    if (pickVoiceSpeed) {
+        val options = VOICE_SPEEDS.map { speed -> DialogOption(speed.toString(), "${speed}%") }
+        AppOptionDialog(
+            title = tr(R.string.voice_speed),
+            options = options,
+            selectedKey = v.speed.toString(),
+            onSelect = {
+                val sp = it.toIntOrNull() ?: 100
+                a.setVoicePrefs(v.copy(speed = sp))
+                sample(v.copy(speed = sp))
+                pickVoiceSpeed = false
+            },
+            onDismiss = { pickVoiceSpeed = false },
             cancelLabel = tr(R.string.cancel),
         )
     }
