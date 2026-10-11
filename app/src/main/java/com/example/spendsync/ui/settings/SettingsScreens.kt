@@ -116,6 +116,7 @@ data class SettingsModel(
     val assistant: com.example.spendsync.data.assistant.AssistantPrefs,
     /** Models the server reports; null while loading or if it could not be reached. */
     val assistantModels: List<AssistantModelInfo>?,
+    val voicePrefs: com.example.spendsync.voice.VoicePrefs = com.example.spendsync.voice.VoicePrefs(),
     val planify: com.example.spendsync.data.local.PlanifySettings = com.example.spendsync.data.local.PlanifySettings(),
     val motion: com.example.spendsync.ui.theme.MotionPrefs = com.example.spendsync.ui.theme.MotionPrefs(),
     val exportOnLogin: Boolean = false,
@@ -150,6 +151,7 @@ class SettingsActions(
     val loadBillUsage: suspend () -> com.example.spendsync.data.remote.model.BillUsageDto?,
     val amountVisibility: com.example.spendsync.ui.shared.AmountVisibilityState,
     val setAssistantPrefs: (com.example.spendsync.data.assistant.AssistantPrefs) -> Unit,
+    val setVoicePrefs: (com.example.spendsync.voice.VoicePrefs) -> Unit,
     val refreshAssistantStatus: () -> Unit,
     val clearAssistantHistory: () -> Unit,
     val changePin: () -> Unit,
@@ -216,6 +218,7 @@ private fun searchIndex(): List<Pair<String, SettingsPage>> = listOf(
     tr(R.string.asst_group_use) to SettingsPage.Assistant,
     tr(R.string.asst_model_row) to SettingsPage.Assistant,
     tr(R.string.asst_group_instructions) to SettingsPage.Assistant,
+    tr(R.string.voice_group) to SettingsPage.Assistant,
     tr(R.string.auto_detect_capture_transactions_notificatio) to SettingsPage.AutoCapture,
     tr(R.string.google_pay_phonepe_paytm_messages_apps) to SettingsPage.AutoCapture,
     tr(R.string.auto_backup_cloud) to SettingsPage.Data,

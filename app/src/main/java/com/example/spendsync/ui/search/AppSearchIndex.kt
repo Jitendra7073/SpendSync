@@ -70,6 +70,7 @@ fun appSearchEntries(): List<AppSearchEntry> {
     setting(SettingsPage.Assistant, R.string.asst_group_style, "short", "detailed", "length")
     setting(SettingsPage.Assistant, R.string.asst_group_tone, "friendly", "professional", "simple")
     setting(SettingsPage.Assistant, R.string.asst_group_instructions, "custom", "prompt")
+    setting(SettingsPage.Assistant, R.string.voice_group, "voice", "mic", "speech", "listen", "talk", "read aloud", "tts")
     setting(SettingsPage.Assistant, R.string.asst_group_history, "clear chat", "delete chat")
     setting(SettingsPage.Appearance, R.string.cc_title, "custom", "colors", "colours", "background", "icons", "palette")
     setting(SettingsPage.Reports, R.string.rp_title, "support", "ticket", "problem", "report")

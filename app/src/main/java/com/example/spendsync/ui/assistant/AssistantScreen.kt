@@ -40,6 +40,8 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Stop
@@ -119,6 +121,8 @@ fun AssistantScreen(
     val consent by sessionDataStore.assistantConsent.collectAsState(initial = null)
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    val voice = rememberVoiceController(viewModel, sessionDataStore, amountVisibility, currentScreen)
+    val micGate = rememberMicGate()
     var input by rememberSaveable { mutableStateOf("") }
     // An earlier answer chosen with "Use as reference": the next message is a reply to it.
     var replyTo by rememberSaveable { mutableStateOf<String?>(null) }
@@ -208,6 +212,8 @@ fun AssistantScreen(
                             onRetry = viewModel::retryProposal,
                             onDismiss = viewModel::dismissProposal,
                             onProgress = { scope.launch { listState.scrollBy(10_000f) } },
+                            reading = voice.reading == msg.key,
+                            onReadAloud = { text -> voice.readAloud(msg.key, text) },
                         )
                     }
                     state.failure?.let { failure ->
@@ -251,14 +257,30 @@ fun AssistantScreen(
                     onQuick = { prompt -> submit(prompt) },
                 )
             }
-            InputBar(
-                hint = if (replyTo != null) tr(R.string.asst_ref_hint) else tr(R.string.assistant_input_hint),
-                value = input,
-                onValueChange = { input = it },
-                busy = state.busy,
-                onSend = { submit(input) },
-                onStop = viewModel::stop,
-            )
+            if (voice.active) {
+                VoicePanel(voice)
+            } else {
+                InputBar(
+                    hint = if (replyTo != null) tr(R.string.asst_ref_hint) else tr(R.string.assistant_input_hint),
+                    value = input,
+                    onValueChange = { input = it },
+                    busy = state.busy,
+                    canListen = voice.canListen,
+                    dictating = voice.dictating,
+                    onSend = { submit(input) },
+                    onStop = viewModel::stop,
+                    onDictate = {
+                        micGate {
+                            voice.dictate(input) { input = it }
+                        }
+                    },
+                    onVoiceMode = {
+                        micGate {
+                            voice.open()
+                        }
+                    },
+                )
+            }
         }
     }
 
@@ -391,6 +413,8 @@ private fun MessageBubble(
     onRetry: (String) -> Unit,
     onDismiss: (String) -> Unit,
     onProgress: () -> Unit,
+    reading: Boolean = false,
+    onReadAloud: (String) -> Unit = {},
 ) {
     val full = msg.fast?.let { fastText(it) } ?: msg.text
     if (msg.fromUser) {
@@ -439,7 +463,16 @@ private fun MessageBubble(
             msg.emailCards.forEachIndexed { i, e -> EmailBillsCard(e, "${msg.id}:email:$i", financeRepository, vis) }
             if (msg.fast == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    AnswerActions(msg.feedback, onCopy = { onCopy(full) }, onUp = { onUp(msg) }, onDown = { onDown(msg) }, onShare = { onShare(full) }, onReply = { onReply(full) })
+                    AnswerActions(
+                        feedback = msg.feedback,
+                        reading = reading,
+                        onReadAloud = { onReadAloud(full) },
+                        onCopy = { onCopy(full) },
+                        onUp = { onUp(msg) },
+                        onDown = { onDown(msg) },
+                        onShare = { onShare(full) },
+                        onReply = { onReply(full) },
+                    )
                     if (msg.steps.size > 1) {
                         Text(
                             tr(if (showSteps) R.string.asst_steps_hide else R.string.asst_steps_show),
@@ -667,8 +700,12 @@ private fun InputBar(
     value: String,
     onValueChange: (String) -> Unit,
     busy: Boolean,
+    canListen: Boolean,
+    dictating: Boolean,
     onSend: () -> Unit,
     onStop: () -> Unit,
+    onDictate: () -> Unit,
+    onVoiceMode: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     Row(
@@ -701,15 +738,22 @@ private fun InputBar(
         // The same 48dp height as the text field, so the row reads as one bar.
         if (busy) {
             RoundAction(Icons.Default.Stop, tr(R.string.assistant_stop), filled = false, enabled = true, onClick = onStop)
+        } else if (dictating) {
+            RoundAction(Icons.Default.Mic, tr(R.string.voice_mic), filled = true, enabled = true, onClick = onDictate)
+        } else if (value.isNotBlank()) {
+            RoundAction(Icons.AutoMirrored.Filled.Send, tr(R.string.assistant_send), filled = true, enabled = true, onClick = onSend)
+        } else if (canListen) {
+            RoundAction(Icons.Default.Mic, tr(R.string.voice_mic), filled = false, enabled = true, onClick = onDictate)
+            RoundAction(Icons.Default.Headset, tr(R.string.voice_mode), filled = false, enabled = true, onClick = onVoiceMode)
         } else {
-            RoundAction(Icons.AutoMirrored.Filled.Send, tr(R.string.assistant_send), filled = true, enabled = value.isNotBlank(), onClick = onSend)
+            RoundAction(Icons.AutoMirrored.Filled.Send, tr(R.string.assistant_send), filled = true, enabled = false, onClick = onSend)
         }
     }
 }
 
 // ── Label lookups (read at draw time so they follow the app language) ────────
 
-private fun fastText(reply: FastReply): String = when (reply) {
+internal fun fastText(reply: FastReply): String = when (reply) {
     FastReply.Greeting -> tr(R.string.assistant_fast_greeting)
     FastReply.Thanks -> tr(R.string.assistant_fast_thanks)
     FastReply.Capabilities -> tr(R.string.assistant_fast_capabilities)
@@ -791,7 +835,7 @@ private fun FollowUpCard(
 }
 
 @Composable
-private fun RoundAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, filled: Boolean, enabled: Boolean, onClick: () -> Unit) {
+internal fun RoundAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, filled: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val bg = when { !enabled -> scheme.onSurface.copy(alpha = 0.12f); filled -> scheme.primary; else -> scheme.primary.copy(alpha = 0.14f) }
     val fg = when { !enabled -> scheme.onSurface.copy(alpha = 0.38f); filled -> scheme.onPrimary; else -> scheme.primary }

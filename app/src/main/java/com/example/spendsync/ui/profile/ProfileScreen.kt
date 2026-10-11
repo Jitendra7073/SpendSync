@@ -190,6 +190,7 @@ fun ProfileScreen(
     val exportOnLogin by sessionDataStore.exportOnLogin.collectAsState(initial = false)
     val customColors by sessionDataStore.customColors.collectAsState(initial = com.example.spendsync.ui.theme.CustomColors())
     val assistantPrefs by sessionDataStore.assistantPrefs.collectAsState(initial = com.example.spendsync.data.assistant.AssistantPrefs())
+    val voicePrefs by sessionDataStore.voicePrefs.collectAsState(initial = com.example.spendsync.voice.VoicePrefs())
     var assistantModels by remember { mutableStateOf<List<com.example.spendsync.ui.settings.AssistantModelInfo>?>(null) }
     val assistantRepository = remember { com.example.spendsync.data.assistant.AssistantRepository(sessionDataStore) }
     val chatStore = remember { com.example.spendsync.data.assistant.ChatStore(context.applicationContext) }
@@ -311,6 +312,7 @@ fun ProfileScreen(
         assistantEnabled = assistantConsent,
         assistant = assistantPrefs,
         assistantModels = assistantModels,
+        voicePrefs = voicePrefs,
         planify = planifySettings,
         motion = motionPrefs,
         colors = customColors,
@@ -385,6 +387,7 @@ fun ProfileScreen(
             if (p.daily || p.alerts) askNotificationPermissionIfNeeded()
         },
         setAssistantPrefs = { p -> commit(SettingField.Assistant) { sessionDataStore.updateAssistantPrefs(p) } },
+        setVoicePrefs = { v -> scope.launch { sessionDataStore.updateVoicePrefs(v) } },
         refreshAssistantStatus = { scope.launch { assistantModels = assistantRepository.models() } },
         clearAssistantHistory = { scope.launch { chatStore.clear(sessionDataStore.userId.first().orEmpty()) } },
         changePin = { showChangePinDialog = true },
