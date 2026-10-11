@@ -392,3 +392,16 @@ export const billReadCounts = pgTable(
   },
   (t) => ({ pk: primaryKey({ columns: [t.userId, t.day] }) }),
 );
+
+// Bill emails — keep identical to schema/billmail.schema.ts
+/** Bill emails sent per user per UTC day; last_at drives the once-a-minute limit. */
+export const billEmailCounts = pgTable(
+  'bill_email_counts',
+  {
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    day: date('day', { mode: 'string' }).notNull(),
+    count: integer('count').notNull().default(0),
+    lastAt: timestamp('last_at').notNull().defaultNow(),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.userId, t.day] }) }),
+);

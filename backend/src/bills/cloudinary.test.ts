@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { v2 as cloudinary } from 'cloudinary';
 import { describe, expect, it } from 'vitest';
+import { emailFileUrl } from './cloudinary';
 import { deliveryUrls, uploadParams, verifyUploadResponse, verifyWebhook } from './cloudinary';
 
 const c = { cloudName: 'demo', apiKey: '1234', apiSecret: 'abcd' };
@@ -68,5 +69,19 @@ describe('delivery URLs', () => {
     expect(u.pageUrls).toHaveLength(3);
     expect(u.pageUrls[2]).toContain('pg_3');
     expect(u.original).toMatch(/\.pdf(\?|$)/);
+  });
+});
+
+
+describe('email file URLs', () => {
+  it('images as a compressed JPEG, PDFs as the original', () => {
+    const img = emailFileUrl(c, { publicId: 'spendsync/bills/u1/a', version: 5, format: 'png' });
+    expect(img.url).toContain('/image/authenticated/s--');
+    expect(img.url).toContain('c_limit,h_2000,w_2000');
+    expect(img.url).toContain('q_80');
+    expect(img).toMatchObject({ filename: 'a.jpg', contentType: 'image/jpeg' });
+    const pdf = emailFileUrl(c, { publicId: 'spendsync/bills/u1/b', version: 5, format: 'pdf' });
+    expect(pdf.url).toMatch(/\.pdf(\?|$)/);
+    expect(pdf).toMatchObject({ filename: 'b.pdf', contentType: 'application/pdf' });
   });
 });
