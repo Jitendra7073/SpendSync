@@ -341,7 +341,12 @@ fun ProfileScreen(
             if (turningOn) showPinSetupDialog = true
             else commit(SettingField.Masking) { sessionDataStore.updateAmountMaskingEnabled(false) }
         },
-        setAssistant = { v -> scope.launch { sessionDataStore.updateAssistantConsent(v) } },
+        setAssistant = { v ->
+            scope.launch {
+                sessionDataStore.updateAssistantConsent(v)
+                if (!v) financeRepository.stopBillReads() // queued bill reads must not run after consent is withdrawn
+            }
+        },
         setMotion = { m -> scope.launch { sessionDataStore.updateAnimationPrefs(m) } },
         setExportOnLogin = { v -> scope.launch { sessionDataStore.updateExportOnLogin(v) } },
         setColors = { c -> scope.launch { sessionDataStore.updateCustomColors(c) } },

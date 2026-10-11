@@ -38,14 +38,33 @@ fun BillReadCard(
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     var state by remember(txId) { mutableStateOf<BillReadStatusDto?>(null) }
+    var error by remember(txId) { mutableStateOf<String?>(null) }
+    var waitedTooLong by remember(txId) { mutableStateOf(false) }
     val masked = amountVisibility.isMaskingEnabled && !amountVisibility.isVisible
 
     suspend fun run(force: Boolean) {
         val consent = sessionDataStore.assistantConsent.first()
         val p = sessionDataStore.assistantPrefs.first()
         val prefs = BillAi.prefs(com.example.spendsync.ui.i18n.LanguageManager.current.storedName, p.style, p.tone)
+        error = null
         state = state?.copy(status = "queued")
-        (financeRepository.runBillRead(txId, RunBillReadRequest(consent, force, prefs)) as? AuthResult.Success)?.data?.let { state = it }
+        when (val r = financeRepository.runBillRead(txId, RunBillReadRequest(consent, force, prefs))) {
+            is AuthResult.Success -> state = r.data
+            // e.g. daily limit or a timeout: say so instead of "Reading…" forever.
+            is AuthResult.Error -> { error = r.message; state = (financeRepository.billRead(txId) as? AuthResult.Success)?.data ?: state }
+        }
+    }
+
+    // A read started elsewhere (after upload, or the cron) finishes on the server: check again for up to a minute.
+    LaunchedEffect(state?.status) {
+        waitedTooLong = false
+        if (state?.status != "queued") return@LaunchedEffect
+        repeat(20) {
+            kotlinx.coroutines.delay(3_000)
+            val now = (financeRepository.billRead(txId) as? AuthResult.Success)?.data
+            if (now != null && now.status != "queued") { state = now; return@LaunchedEffect }
+        }
+        waitedTooLong = true
     }
 
     LaunchedEffect(state) { onState(state) }
@@ -62,14 +81,17 @@ fun BillReadCard(
     if (s.status == "none") return
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         when (s.status) {
-            "queued" -> Skeleton(loading = true) { Text(tr(R.string.bai_reading), style = MaterialTheme.typography.bodySmall) }
+            "queued" -> if (waitedTooLong || error != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(error ?: tr(R.string.bai_reading), style = MaterialTheme.typography.bodySmall, color = if (error != null) scheme.error else scheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                AppButton(tr(R.string.bai_try_again), onClick = { scope.launch { run(force = true) } }, variant = ButtonVariant.Text, size = ButtonSize.Small)
+            } else Skeleton(loading = true) { Text(tr(R.string.bai_reading), style = MaterialTheme.typography.bodySmall) }
             "no_consent" -> Text(tr(R.string.bai_no_consent), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
             "failed" -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(tr(R.string.bai_failed), style = MaterialTheme.typography.bodySmall, color = scheme.error, modifier = Modifier.weight(1f))
                 AppButton(tr(R.string.bai_try_again), onClick = { scope.launch { run(force = true) } }, variant = ButtonVariant.Text, size = ButtonSize.Small)
             }
             "done" -> s.data?.let { read ->
-                Text(read.summary, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface, maxLines = 2)
+                Text(BillAi.maskText(read.summary, masked), style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface, maxLines = 2)
                 AppButton(tr(R.string.bai_explain), onClick = { onExplain(s) }, variant = ButtonVariant.Tonal, size = ButtonSize.Small, leadingIcon = Icons.Default.AutoAwesome)
                 if (recordedAmount != null && BillAi.differs(recordedAmount, read.total)) {
                     Text(

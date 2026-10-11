@@ -21,6 +21,8 @@ object AiImages {
         val out = mutableListOf<BillImageDto>()
         for (p in picked) {
             if (out.size >= 3) break
+            // A locked or broken PDF (or a revoked photo) just isn't read; pre-fill is optional.
+            runCatching {
             if (p.mime == "application/pdf") {
                 context.contentResolver.openFileDescriptor(p.uri, "r")?.use { fd ->
                     PdfRenderer(fd).use { pdf ->
@@ -41,6 +43,7 @@ object AiImages {
                         jpeg(if (w == bmp.width) bmp else Bitmap.createScaledBitmap(bmp, w, h, true))?.let { out += it }
                     }
                 }
+            }
             }
         }
         out

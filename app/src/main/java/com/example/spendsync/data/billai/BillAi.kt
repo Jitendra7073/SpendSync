@@ -36,4 +36,9 @@ object BillAi {
     }
 
     fun prefs(language: String, style: String, tone: String) = BillAiPrefsDto(language, style, tone)
+
+    private val anyNumber = Regex("""(?:[₹$€£]\s?)?\p{Nd}[\p{Nd},.]*""")
+
+    /** Model-written text (summary, item names) may contain amounts: while masked, every number is hidden. */
+    fun maskText(text: String, masked: Boolean): String = if (!masked) text else anyNumber.replace(text, MASK)
 }

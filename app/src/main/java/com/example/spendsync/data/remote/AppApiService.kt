@@ -305,6 +305,9 @@ interface AppApiService {
     @POST("api/transactions/{id}/bills/read")
     suspend fun runBillRead(@Header("Authorization") token: String, @Path("id") txId: String, @Body body: RunBillReadRequest): Response<SuccessResponse<BillReadStatusDto>>
 
+    @POST("api/bills/read/stop")
+    suspend fun stopBillReads(@Header("Authorization") token: String): Response<Unit>
+
     @POST("api/bills/read")
     suspend fun readBillImages(@Header("Authorization") token: String, @Body body: ReadBillImagesRequest): Response<SuccessResponse<BillImagesReadDto>>
 }

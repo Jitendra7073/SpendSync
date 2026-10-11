@@ -32,4 +32,10 @@ class BillAiTest {
         assertEquals("Item 1 cost ₹1,200.00", BillAi.fillNote("Item 1 cost {item:1}", read(), masked = false))
         assertEquals("— here", BillAi.fillNote("{item:7} here", read(), masked = false))
     }
+
+    @Test fun maskedBillTextHidesEveryNumber() {
+        assertEquals("★★★★★ at Zara, ★★★★★ items", BillAi.maskText("₹2,150 at Zara, 3 items", masked = true))
+        assertEquals("★★★★★ बिल", BillAi.maskText("४९ बिल", masked = true))
+        assertEquals("₹2,150 at Zara", BillAi.maskText("₹2,150 at Zara", masked = false))
+    }
 }

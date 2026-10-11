@@ -21,16 +21,16 @@ fun BillExplainSheet(state: BillReadStatusDto, masked: Boolean, onReadAgain: () 
     val read = state.data ?: return
     val scheme = MaterialTheme.colorScheme
     val money = { v: Double? -> when { v == null -> "—"; masked -> "★★★★★"; else -> formatInr(v) } }
-    AppSheet(onDismiss = onDismiss, title = tr(R.string.bai_explain_title), subtitle = read.merchant) {
+    AppSheet(onDismiss = onDismiss, title = tr(R.string.bai_explain_title), subtitle = read.merchant?.let { BillAi.maskText(it, masked) }) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (read.confidence < BillAi.MIN_CONFIDENCE) Text(tr(R.string.bai_low_confidence), style = MaterialTheme.typography.bodySmall, color = scheme.error)
             if (read.checks?.itemsMatchSubtotal == false || read.checks?.totalsAddUp == false) Text(tr(R.string.bai_bad_maths), style = MaterialTheme.typography.bodySmall, color = scheme.error)
-            Text(read.summary, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface)
+            Text(BillAi.maskText(read.summary, masked), style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface)
             if (read.items.isNotEmpty()) {
                 Text(tr(R.string.bai_items), style = MaterialTheme.typography.titleSmall, color = scheme.onSurface)
                 read.items.forEach { i ->
                     Row(Modifier.fillMaxWidth()) {
-                        Text(listOfNotNull(i.name, i.qty?.let { q -> "× ${if (q % 1.0 == 0.0) q.toInt() else q}" }).joinToString(" "), style = MaterialTheme.typography.bodySmall, color = scheme.onSurface, modifier = Modifier.weight(1f))
+                        Text(BillAi.maskText(listOfNotNull(i.name, i.qty?.let { q -> "× ${if (q % 1.0 == 0.0) q.toInt() else q}" }).joinToString(" "), masked), style = MaterialTheme.typography.bodySmall, color = scheme.onSurface, modifier = Modifier.weight(1f))
                         Text(money(i.amount), style = MaterialTheme.typography.bodySmall, color = scheme.onSurface, textAlign = TextAlign.End)
                     }
                 }

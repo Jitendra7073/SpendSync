@@ -596,6 +596,9 @@ class FinanceRepository(
     suspend fun runBillRead(txId: String, req: RunBillReadRequest): AuthResult<BillReadStatusDto> = when (val r = billCall { api.runBillRead(getAuthHeader(), txId, req) }) {
         is BillCall.Ok -> AuthResult.Success(r.data); is BillCall.Fail -> AuthResult.Error(r.message)
     }
+    /** AI switched off: the server stops bill reads still waiting in its queue. Best effort. */
+    suspend fun stopBillReads() { runCatching { api.stopBillReads(getAuthHeader()) } }
+
     suspend fun readBillImages(req: ReadBillImagesRequest): AuthResult<BillImagesReadDto> = when (val r = billCall { api.readBillImages(getAuthHeader(), req) }) {
         is BillCall.Ok -> AuthResult.Success(r.data); is BillCall.Fail -> AuthResult.Error(r.message)
     }
