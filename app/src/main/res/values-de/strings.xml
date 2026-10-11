@@ -525,7 +525,7 @@
     <string name="assistant_err_signin">Melde dich an, um mit dem Assistenten zu chatten.</string>
     <string name="assistant_retry">Erneut versuchen</string>
     <string name="assistant_consent_title">Bevor wir starten</string>
-    <string name="assistant_consent_body">Um zu antworten, sendet der Assistent deine Frage und die zugehörigen Summen aus deinen SpendSync-Daten (zum Beispiel, wie viel du ausgegeben hast) an unseren Server und einen KI-Dienst. Deine PIN sieht er nie. Du kannst das jederzeit unter Einstellungen → Datenschutz &amp; Sicherheit ausschalten.</string>
+    <string name="assistant_consent_body">Um zu antworten, sendet der Assistent deine Frage und die zugehörigen Summen aus deinen SpendSync-Daten (zum Beispiel, wie viel du ausgegeben hast) an unseren Server und einen KI-Dienst. Deine PIN sieht er nie. Du kannst das jederzeit unter Einstellungen → Datenschutz &amp; Sicherheit ausschalten. Angehängte Belege werden von denselben KI-Modellen gelesen.</string>
     <string name="assistant_consent_agree">Zustimmen und weiter</string>
     <string name="assistant_consent_decline">Jetzt nicht</string>
     <string name="assistant_fast_greeting">Hallo! Frag mich zu deinen Ausgaben, Budgets oder Rückforderungen – oder wie etwas in SpendSync geht.</string>

@@ -525,7 +525,7 @@
     <string name="assistant_err_signin">Connectez-vous pour discuter avec l\'assistant.</string>
     <string name="assistant_retry">Réessayer</string>
     <string name="assistant_consent_title">Avant de commencer</string>
-    <string name="assistant_consent_body">Pour répondre, l\'assistant envoie votre question et les totaux concernés de vos données SpendSync (par exemple ce que vous avez dépensé) à notre serveur et à un service d\'IA. Il ne voit jamais votre PIN. Vous pouvez le désactiver à tout moment dans Réglages → Confidentialité et sécurité.</string>
+    <string name="assistant_consent_body">Pour répondre, l\'assistant envoie votre question et les totaux concernés de vos données SpendSync (par exemple ce que vous avez dépensé) à notre serveur et à un service d\'IA. Il ne voit jamais votre PIN. Vous pouvez le désactiver à tout moment dans Réglages → Confidentialité et sécurité. Les factures jointes sont lues par les mêmes modèles d\'IA.</string>
     <string name="assistant_consent_agree">Accepter et continuer</string>
     <string name="assistant_consent_decline">Pas maintenant</string>
     <string name="assistant_fast_greeting">Bonjour ! Posez-moi des questions sur vos dépenses, budgets ou retenues, ou sur la façon de faire quelque chose dans SpendSync.</string>

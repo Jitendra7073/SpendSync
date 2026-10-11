@@ -525,7 +525,7 @@
     <string name="assistant_err_signin">सहायक से चैट करने के लिए साइन इन करें।</string>
     <string name="assistant_retry">फिर कोशिश करें</string>
     <string name="assistant_consent_title">शुरू करने से पहले</string>
-    <string name="assistant_consent_body">जवाब देने के लिए सहायक आपका सवाल और आपके SpendSync डेटा से जुड़े कुल आँकड़े (जैसे आपने कितना खर्च किया) हमारे सर्वर और एक AI सेवा को भेजता है। वह आपका PIN कभी नहीं देखता। आप इसे कभी भी सेटिंग्स → गोपनीयता और सुरक्षा में बंद कर सकते हैं।</string>
+    <string name="assistant_consent_body">जवाब देने के लिए सहायक आपका सवाल और आपके SpendSync डेटा से जुड़े कुल आँकड़े (जैसे आपने कितना खर्च किया) हमारे सर्वर और एक AI सेवा को भेजता है। वह आपका PIN कभी नहीं देखता। आप इसे कभी भी सेटिंग्स → गोपनीयता और सुरक्षा में बंद कर सकते हैं। आपके जोड़े गए बिल भी इन्हीं AI मॉडल से पढ़े जाते हैं।</string>
     <string name="assistant_consent_agree">सहमत हूँ, आगे बढ़ें</string>
     <string name="assistant_consent_decline">अभी नहीं</string>
     <string name="assistant_fast_greeting">नमस्ते! मुझसे अपने खर्च, बजट या होल्ड के बारे में पूछें — या SpendSync में कुछ करने का तरीका जानें।</string>

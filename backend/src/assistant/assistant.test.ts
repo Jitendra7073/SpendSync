@@ -30,6 +30,7 @@ describe('help search (RAG)', () => {
     ['auto capture is not working', 'troubleshooting_capture'],
     ['what is the dark theme setting', 'theme_accent'],
     ['how do I attach a bill to an expense', 'bills'],
+    ['can the app read my bill and explain it', 'bill_ai'],
   ])('"%s" finds %s', (q, id) => {
     expect(top(q)).toBe(id);
   });

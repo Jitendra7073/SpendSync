@@ -525,7 +525,7 @@
     <string name="assistant_err_signin">Inicia sesión para chatear con el asistente.</string>
     <string name="assistant_retry">Reintentar</string>
     <string name="assistant_consent_title">Antes de empezar</string>
-    <string name="assistant_consent_body">Para responder, el asistente envía tu pregunta y los totales relacionados de tus datos de SpendSync (como cuánto gastaste) a nuestro servidor y a un servicio de IA. Nunca ve tu PIN. Puedes desactivarlo cuando quieras en Ajustes → Privacidad y seguridad.</string>
+    <string name="assistant_consent_body">Para responder, el asistente envía tu pregunta y los totales relacionados de tus datos de SpendSync (como cuánto gastaste) a nuestro servidor y a un servicio de IA. Nunca ve tu PIN. Puedes desactivarlo cuando quieras en Ajustes → Privacidad y seguridad. Las facturas que adjuntas las leen los mismos modelos de IA.</string>
     <string name="assistant_consent_agree">Aceptar y continuar</string>
     <string name="assistant_consent_decline">Ahora no</string>
     <string name="assistant_fast_greeting">¡Hola! Pregúntame por tus gastos, presupuestos o retenciones, o cómo hacer algo en SpendSync.</string>
