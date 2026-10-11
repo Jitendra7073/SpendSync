@@ -3,7 +3,7 @@ import { readSse, retryAfterMs } from './sse';
 
 interface OaiMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content?: string | null;
+  content?: string | null | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>;
   tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
   tool_call_id?: string;
 }
@@ -11,7 +11,14 @@ interface OaiMessage {
 export function toOpenAiMessages(req: LlmRequest): OaiMessage[] {
   const out: OaiMessage[] = [{ role: 'system', content: req.system }];
   for (const m of req.messages as LlmMessage[]) {
-    if (m.role === 'user') out.push({ role: 'user', content: m.text });
+    if (m.role === 'user') {
+      out.push({
+        role: 'user',
+        content: m.images?.length
+          ? [{ type: 'text', text: m.text }, ...m.images.map((i) => ({ type: 'image_url' as const, image_url: { url: `data:${i.mime};base64,${i.base64}` } }))]
+          : m.text,
+      });
+    }
     else if (m.role === 'assistant') {
       out.push({
         role: 'assistant',

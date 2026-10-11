@@ -525,7 +525,7 @@
     <string name="assistant_err_signin">Inicia sesión para chatear con el asistente.</string>
     <string name="assistant_retry">Reintentar</string>
     <string name="assistant_consent_title">Antes de empezar</string>
-    <string name="assistant_consent_body">Para responder, el asistente envía tu pregunta y los totales relacionados de tus datos de SpendSync (como cuánto gastaste) a nuestro servidor y a un servicio de IA. Nunca ve tu PIN. Puedes desactivarlo cuando quieras en Ajustes → Privacidad y seguridad.</string>
+    <string name="assistant_consent_body">Para responder, el asistente envía tu pregunta y los totales relacionados de tus datos de SpendSync (como cuánto gastaste) a nuestro servidor y a un servicio de IA. Nunca ve tu PIN. Puedes desactivarlo cuando quieras en Ajustes → Privacidad y seguridad. Las facturas que adjuntas las leen los mismos modelos de IA.</string>
     <string name="assistant_consent_agree">Aceptar y continuar</string>
     <string name="assistant_consent_decline">Ahora no</string>
     <string name="assistant_fast_greeting">¡Hola! Pregúntame por tus gastos, presupuestos o retenciones, o cómo hacer algo en SpendSync.</string>
@@ -763,4 +763,27 @@
     <string name="bills_trash_label">Factura · %1$s</string>
     <string name="bills_in_trash_with">Incluye %1$d páginas de factura</string>
     <string name="bills_scanner_unavailable">Escáner no disponible en este teléfono: elige una foto</string>
+    <string name="bai_reading">Leyendo la factura…</string>
+    <string name="bai_bill_says">Según tu factura</string>
+    <string name="bai_use_these">Usar estos</string>
+    <string name="bai_ignore">Ignorar</string>
+    <string name="bai_explain">Explicar</string>
+    <string name="bai_explain_title">Sobre esta factura</string>
+    <string name="bai_failed">No se pudo leer esta factura</string>
+    <string name="bai_try_again">Reintentar</string>
+    <string name="bai_no_consent">Activa la IA en Ajustes → Asistente para leer facturas</string>
+    <string name="bai_mismatch">Total de la factura %1$s · registrado %2$s</string>
+    <string name="bai_mismatch_masked">La factura y el importe no coinciden</string>
+    <string name="bai_update_amount">Actualizar importe</string>
+    <string name="bai_amount_updated">Importe actualizado</string>
+    <string name="bai_items">Artículos</string>
+    <string name="bai_subtotal">Subtotal</string>
+    <string name="bai_tax">Impuestos</string>
+    <string name="bai_discount">Descuento</string>
+    <string name="bai_fees">Cargos</string>
+    <string name="bai_total">Total</string>
+    <string name="bai_low_confidence">Difícil de leer: revisa la foto</string>
+    <string name="bai_bad_maths">Los totales no cuadran: revisa la factura</string>
+    <string name="bai_read_by">Leído por %1$s · puede contener errores</string>
+    <string name="bai_read_again">Volver a leer</string>
 </resources>

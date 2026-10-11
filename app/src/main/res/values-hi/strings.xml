@@ -525,7 +525,7 @@
     <string name="assistant_err_signin">सहायक से चैट करने के लिए साइन इन करें।</string>
     <string name="assistant_retry">फिर कोशिश करें</string>
     <string name="assistant_consent_title">शुरू करने से पहले</string>
-    <string name="assistant_consent_body">जवाब देने के लिए सहायक आपका सवाल और आपके SpendSync डेटा से जुड़े कुल आँकड़े (जैसे आपने कितना खर्च किया) हमारे सर्वर और एक AI सेवा को भेजता है। वह आपका PIN कभी नहीं देखता। आप इसे कभी भी सेटिंग्स → गोपनीयता और सुरक्षा में बंद कर सकते हैं।</string>
+    <string name="assistant_consent_body">जवाब देने के लिए सहायक आपका सवाल और आपके SpendSync डेटा से जुड़े कुल आँकड़े (जैसे आपने कितना खर्च किया) हमारे सर्वर और एक AI सेवा को भेजता है। वह आपका PIN कभी नहीं देखता। आप इसे कभी भी सेटिंग्स → गोपनीयता और सुरक्षा में बंद कर सकते हैं। आपके जोड़े गए बिल भी इन्हीं AI मॉडल से पढ़े जाते हैं।</string>
     <string name="assistant_consent_agree">सहमत हूँ, आगे बढ़ें</string>
     <string name="assistant_consent_decline">अभी नहीं</string>
     <string name="assistant_fast_greeting">नमस्ते! मुझसे अपने खर्च, बजट या होल्ड के बारे में पूछें — या SpendSync में कुछ करने का तरीका जानें।</string>
@@ -763,4 +763,27 @@
     <string name="bills_trash_label">बिल · %1$s</string>
     <string name="bills_in_trash_with">%1$d बिल पेज शामिल</string>
     <string name="bills_scanner_unavailable">इस फ़ोन पर स्कैनर उपलब्ध नहीं — फ़ोटो चुनें</string>
+    <string name="bai_reading">बिल पढ़ा जा रहा है…</string>
+    <string name="bai_bill_says">आपके बिल से</string>
+    <string name="bai_use_these">इन्हें लगाएँ</string>
+    <string name="bai_ignore">छोड़ें</string>
+    <string name="bai_explain">समझाएँ</string>
+    <string name="bai_explain_title">इस बिल के बारे में</string>
+    <string name="bai_failed">यह बिल पढ़ा नहीं जा सका</string>
+    <string name="bai_try_again">फिर कोशिश करें</string>
+    <string name="bai_no_consent">बिल पढ़ने के लिए Settings → Assistant में AI चालू करें</string>
+    <string name="bai_mismatch">बिल कुल %1$s · दर्ज %2$s</string>
+    <string name="bai_mismatch_masked">बिल और राशि अलग हैं</string>
+    <string name="bai_update_amount">राशि अपडेट करें</string>
+    <string name="bai_amount_updated">राशि अपडेट हो गई</string>
+    <string name="bai_items">आइटम</string>
+    <string name="bai_subtotal">उप-योग</string>
+    <string name="bai_tax">टैक्स</string>
+    <string name="bai_discount">छूट</string>
+    <string name="bai_fees">शुल्क</string>
+    <string name="bai_total">कुल</string>
+    <string name="bai_low_confidence">पढ़ना मुश्किल — फ़ोटो जाँचें</string>
+    <string name="bai_bad_maths">कुल जोड़ मेल नहीं खाता — बिल जाँचें</string>
+    <string name="bai_read_by">%1$s द्वारा पढ़ा गया · गलतियाँ हो सकती हैं</string>
+    <string name="bai_read_again">फिर से पढ़ें</string>
 </resources>

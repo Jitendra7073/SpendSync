@@ -40,6 +40,7 @@ const envSchema = z.object({
   CRON_SECRET: z.string().optional(),
   BILLS_MAX_BYTES_PER_USER: z.string().default('524288000'),
   BILLS_MAX_UPLOADS_PER_DAY: z.string().default('50'),
+  BILL_AI_MAX_PER_DAY: z.string().default('60'),
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
@@ -94,6 +95,10 @@ export const config = {
     maxUploadsPerDay: parseInt(env.BILLS_MAX_UPLOADS_PER_DAY, 10),
     cronSecret: env.CRON_SECRET,
     notificationUrl: `${env.API_URL.replace(/\/$/, '')}/api/bills/webhook`,
+  },
+
+  billAi: {
+    maxPerDay: parseInt(env.BILL_AI_MAX_PER_DAY, 10),
   },
 
   cors: {

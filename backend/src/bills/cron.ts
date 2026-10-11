@@ -5,13 +5,14 @@ import { config } from '../config/env';
 import { MAX_BILL_BYTES, listAssets } from './cloudinary';
 import { enqueuePurges, runPurges } from './purge';
 import { BILLS_ROOT, utcDay } from './rules';
+import { billReadService } from '../billai/service';
 
 const DAY = 86_400_000;
 const MAX_PAGES_PER_RUN = 10; // 10 × 500 assets reconciled per run
 
 export async function runBillsCron(now = new Date()) {
   const c = config.bills.cloudinary;
-  if (!c) return { expired: 0, purged: 0, reconciled: 0, orphans: 0, oversized: 0 };
+  if (!c) return { expired: 0, purged: 0, reconciled: 0, orphans: 0, oversized: 0, reads: 0 };
 
   // 1. Reservations nobody confirmed within a day.
   const expired = await db.transaction(async (tx) => {
@@ -56,5 +57,7 @@ export async function runBillsCron(now = new Date()) {
   // 3. Drain the outbox; 4. drop old daily counters.
   const { done } = await runPurges({ limit: 500 });
   await db.delete(billUploadCounts).where(lt(billUploadCounts.day, utcDay(new Date(now.getTime() - 7 * DAY))));
-  return { expired, purged: done, reconciled, orphans, oversized };
+  // 5. Bill reads that failed earlier (models out of quota etc.).
+  const reads = await billReadService.retryQueued();
+  return { expired, purged: done, reconciled, orphans, oversized, reads };
 }

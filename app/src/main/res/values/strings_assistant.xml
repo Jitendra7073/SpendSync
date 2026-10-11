@@ -35,7 +35,7 @@
     <string name="assistant_err_signin">Sign in to chat with the assistant.</string>
     <string name="assistant_retry">Try again</string>
     <string name="assistant_consent_title">Before we start</string>
-    <string name="assistant_consent_body">To answer, the assistant sends your question and the related totals from your SpendSync data (like how much you spent) to our server and an AI service. It never sees your PIN. You can turn this off any time in Settings → Privacy &amp; Security.</string>
+    <string name="assistant_consent_body">To answer, the assistant sends your question and the related totals from your SpendSync data (like how much you spent) to our server and an AI service. It never sees your PIN. You can turn this off any time in Settings → Privacy &amp; Security. Bills you attach are read by the same AI models.</string>
     <string name="assistant_consent_agree">Agree and continue</string>
     <string name="assistant_consent_decline">Not now</string>
     <string name="assistant_fast_greeting">Hi! Ask me about your spending, budgets or holds — or how to do something in SpendSync.</string>

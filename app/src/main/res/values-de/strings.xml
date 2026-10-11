@@ -525,7 +525,7 @@
     <string name="assistant_err_signin">Melde dich an, um mit dem Assistenten zu chatten.</string>
     <string name="assistant_retry">Erneut versuchen</string>
     <string name="assistant_consent_title">Bevor wir starten</string>
-    <string name="assistant_consent_body">Um zu antworten, sendet der Assistent deine Frage und die zugehörigen Summen aus deinen SpendSync-Daten (zum Beispiel, wie viel du ausgegeben hast) an unseren Server und einen KI-Dienst. Deine PIN sieht er nie. Du kannst das jederzeit unter Einstellungen → Datenschutz &amp; Sicherheit ausschalten.</string>
+    <string name="assistant_consent_body">Um zu antworten, sendet der Assistent deine Frage und die zugehörigen Summen aus deinen SpendSync-Daten (zum Beispiel, wie viel du ausgegeben hast) an unseren Server und einen KI-Dienst. Deine PIN sieht er nie. Du kannst das jederzeit unter Einstellungen → Datenschutz &amp; Sicherheit ausschalten. Angehängte Belege werden von denselben KI-Modellen gelesen.</string>
     <string name="assistant_consent_agree">Zustimmen und weiter</string>
     <string name="assistant_consent_decline">Jetzt nicht</string>
     <string name="assistant_fast_greeting">Hallo! Frag mich zu deinen Ausgaben, Budgets oder Rückforderungen – oder wie etwas in SpendSync geht.</string>
@@ -763,4 +763,27 @@
     <string name="bills_trash_label">Beleg · %1$s</string>
     <string name="bills_in_trash_with">Enthält %1$d Belegseiten</string>
     <string name="bills_scanner_unavailable">Scanner auf diesem Handy nicht verfügbar – wähle ein Foto</string>
+    <string name="bai_reading">Beleg wird gelesen…</string>
+    <string name="bai_bill_says">Laut deinem Beleg</string>
+    <string name="bai_use_these">Übernehmen</string>
+    <string name="bai_ignore">Ignorieren</string>
+    <string name="bai_explain">Erklären</string>
+    <string name="bai_explain_title">Über diesen Beleg</string>
+    <string name="bai_failed">Beleg konnte nicht gelesen werden</string>
+    <string name="bai_try_again">Erneut versuchen</string>
+    <string name="bai_no_consent">Aktiviere KI unter Einstellungen → Assistent, um Belege zu lesen</string>
+    <string name="bai_mismatch">Belegsumme %1$s · erfasst %2$s</string>
+    <string name="bai_mismatch_masked">Beleg und Betrag weichen ab</string>
+    <string name="bai_update_amount">Betrag aktualisieren</string>
+    <string name="bai_amount_updated">Betrag aktualisiert</string>
+    <string name="bai_items">Positionen</string>
+    <string name="bai_subtotal">Zwischensumme</string>
+    <string name="bai_tax">Steuer</string>
+    <string name="bai_discount">Rabatt</string>
+    <string name="bai_fees">Gebühren</string>
+    <string name="bai_total">Gesamt</string>
+    <string name="bai_low_confidence">Schwer lesbar – prüfe das Foto</string>
+    <string name="bai_bad_maths">Summen stimmen nicht – prüfe den Beleg</string>
+    <string name="bai_read_by">Gelesen von %1$s · kann Fehler enthalten</string>
+    <string name="bai_read_again">Erneut lesen</string>
 </resources>

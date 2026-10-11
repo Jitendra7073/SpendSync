@@ -525,7 +525,7 @@
     <string name="assistant_err_signin">Connectez-vous pour discuter avec l\'assistant.</string>
     <string name="assistant_retry">Réessayer</string>
     <string name="assistant_consent_title">Avant de commencer</string>
-    <string name="assistant_consent_body">Pour répondre, l\'assistant envoie votre question et les totaux concernés de vos données SpendSync (par exemple ce que vous avez dépensé) à notre serveur et à un service d\'IA. Il ne voit jamais votre PIN. Vous pouvez le désactiver à tout moment dans Réglages → Confidentialité et sécurité.</string>
+    <string name="assistant_consent_body">Pour répondre, l\'assistant envoie votre question et les totaux concernés de vos données SpendSync (par exemple ce que vous avez dépensé) à notre serveur et à un service d\'IA. Il ne voit jamais votre PIN. Vous pouvez le désactiver à tout moment dans Réglages → Confidentialité et sécurité. Les factures jointes sont lues par les mêmes modèles d\'IA.</string>
     <string name="assistant_consent_agree">Accepter et continuer</string>
     <string name="assistant_consent_decline">Pas maintenant</string>
     <string name="assistant_fast_greeting">Bonjour ! Posez-moi des questions sur vos dépenses, budgets ou retenues, ou sur la façon de faire quelque chose dans SpendSync.</string>
@@ -763,4 +763,27 @@
     <string name="bills_trash_label">Facture · %1$s</string>
     <string name="bills_in_trash_with">Inclut %1$d pages de facture</string>
     <string name="bills_scanner_unavailable">Scanner indisponible sur ce téléphone : choisissez une photo</string>
+    <string name="bai_reading">Lecture de la facture…</string>
+    <string name="bai_bill_says">D\'après votre facture</string>
+    <string name="bai_use_these">Utiliser</string>
+    <string name="bai_ignore">Ignorer</string>
+    <string name="bai_explain">Expliquer</string>
+    <string name="bai_explain_title">À propos de cette facture</string>
+    <string name="bai_failed">Impossible de lire cette facture</string>
+    <string name="bai_try_again">Réessayer</string>
+    <string name="bai_no_consent">Activez l\'IA dans Réglages → Assistant pour lire les factures</string>
+    <string name="bai_mismatch">Total facture %1$s · enregistré %2$s</string>
+    <string name="bai_mismatch_masked">La facture et le montant diffèrent</string>
+    <string name="bai_update_amount">Mettre à jour le montant</string>
+    <string name="bai_amount_updated">Montant mis à jour</string>
+    <string name="bai_items">Articles</string>
+    <string name="bai_subtotal">Sous-total</string>
+    <string name="bai_tax">Taxes</string>
+    <string name="bai_discount">Remise</string>
+    <string name="bai_fees">Frais</string>
+    <string name="bai_total">Total</string>
+    <string name="bai_low_confidence">Difficile à lire — vérifiez la photo</string>
+    <string name="bai_bad_maths">Les totaux ne concordent pas — vérifiez la facture</string>
+    <string name="bai_read_by">Lu par %1$s · peut contenir des erreurs</string>
+    <string name="bai_read_again">Relire</string>
 </resources>

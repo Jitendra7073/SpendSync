@@ -14,6 +14,7 @@ import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.remote.model.ConfirmBillRequest
 import com.example.spendsync.data.remote.model.ReserveBillRequest
 import com.example.spendsync.data.repository.FinanceRepository
+import kotlinx.coroutines.flow.first
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -62,7 +63,9 @@ class BillUploadWorker(context: Context, params: WorkerParameters) : CoroutineWo
                 }
             }
             val u = item.uploaded!!
-            return when (val c = repo.confirmBill(item.billId!!, ConfirmBillRequest(u.publicId, u.version, u.signature, u.format, u.bytes, u.width, u.height, u.pages))) {
+            // The phone's AI switch decides whether the server may read this bill.
+            val consent = SessionDataStore(ctx).assistantConsent.first()
+            return when (val c = repo.confirmBill(item.billId!!, ConfirmBillRequest(u.publicId, u.version, u.signature, u.format, u.bytes, u.width, u.height, u.pages, aiConsent = consent))) {
                 is BillCall.Ok -> { BillQueue.remove(ctx, item.clientKey); BillEvents.emit(item.txId); true }
                 is BillCall.Fail -> { if (c.permanent) BillQueue.update(ctx, BillQueueRules.failed(item, c.message)); c.permanent }
             }

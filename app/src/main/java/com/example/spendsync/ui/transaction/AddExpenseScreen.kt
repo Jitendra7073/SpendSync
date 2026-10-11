@@ -271,6 +271,9 @@ fun AddExpenseScreen(
     // Bill pages picked before the transaction exists; queued for upload right after it is saved.
     var draftBills by remember { mutableStateOf<List<com.example.spendsync.ui.bills.Picked>>(emptyList()) }
     var pickingBills by remember { mutableStateOf(false) }
+    var prefill by remember { mutableStateOf<com.example.spendsync.ui.billai.PrefillState>(com.example.spendsync.ui.billai.PrefillState.Hidden) }
+    val aiConsent by sessionDataStore.assistantConsent.collectAsState(initial = false)
+    val assistantPrefs by sessionDataStore.assistantPrefs.collectAsState(initial = com.example.spendsync.data.assistant.AssistantPrefs())
     var holdPersonName by remember { mutableStateOf("") }
     // Picking from contacts fills the name and keeps the number on this phone (for follow-up messages later).
     val holdContactPicker = com.example.spendsync.ui.contacts.rememberContactPicker { picked ->
@@ -359,6 +362,19 @@ fun AddExpenseScreen(
             byLabel.putIfAbsent(editTransaction.category, Category(editTransaction.category, Icons.Default.Star))
         }
         byLabel.values.toList()
+    }
+
+    // Scanned a bill for a new expense: offer its amount, shop, date and category (never applied by itself).
+    LaunchedEffect(draftBills, aiConsent) {
+        if (isEditing || draftBills.isEmpty() || !aiConsent) { prefill = com.example.spendsync.ui.billai.PrefillState.Hidden; return@LaunchedEffect }
+        prefill = com.example.spendsync.ui.billai.PrefillState.Reading
+        val images = com.example.spendsync.data.billai.AiImages.prepare(context, draftBills)
+        if (images.isEmpty()) { prefill = com.example.spendsync.ui.billai.PrefillState.Hidden; return@LaunchedEffect }
+        val prefs = com.example.spendsync.data.billai.BillAi.prefs(com.example.spendsync.ui.i18n.LanguageManager.current.storedName, assistantPrefs.style, assistantPrefs.tone)
+        val r = financeRepository.readBillImages(com.example.spendsync.data.remote.model.ReadBillImagesRequest(images = images, prefs = prefs))
+        val read = (r as? AuthResult.Success)?.data
+        val p = read?.let { com.example.spendsync.data.billai.BillAi.prefill(it.data, today, poolExpenseCategories.map { c -> c.label }) }
+        prefill = if (read != null && p != null) com.example.spendsync.ui.billai.PrefillState.Ready(p, read.data, read.model) else com.example.spendsync.ui.billai.PrefillState.Hidden
     }
 
     val categoryPool = if (type == TransactionType.INCOME) poolIncomeCategories else poolExpenseCategories
@@ -634,7 +650,12 @@ fun AddExpenseScreen(
                         DateSelectorRow(label = tr(R.string.date), date = transactionDate, accentColor = accentColor, onClick = { showDatePicker = true })
                         Spacer(Modifier.height(12.dp))
                         if (isEditing) {
-                            com.example.spendsync.ui.bills.BillsSection(editTransaction!!.id, financeRepository, amountVisibility)
+                            com.example.spendsync.ui.bills.BillsSection(
+                                editTransaction!!.id, financeRepository, amountVisibility,
+                                transaction = editTransaction, sessionDataStore = sessionDataStore,
+                                // On the edit form it only fills the field; Save stores it.
+                                onAmountUpdated = { amount = "%.2f".format(java.util.Locale.US, it) },
+                            )
                         } else {
                             Text(tr(R.string.bills_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(Modifier.height(8.dp))
@@ -647,6 +668,19 @@ fun AddExpenseScreen(
                                     localPreview = draftBills,
                                 )
                             }
+                            Spacer(Modifier.height(8.dp))
+                            com.example.spendsync.ui.billai.PrefillCard(
+                                state = prefill,
+                                masked = amountVisibility.isMaskingEnabled && !amountVisibility.isVisible,
+                                onUse = { p ->
+                                    p.amount?.let { amount = "%.2f".format(java.util.Locale.US, it).trimEnd('0').trimEnd('.') }
+                                    p.note?.let { note = it }
+                                    p.date?.let { transactionDate = it }
+                                    p.category?.let { selectedCat = it }
+                                    prefill = com.example.spendsync.ui.billai.PrefillState.Hidden
+                                },
+                                onIgnore = { prefill = com.example.spendsync.ui.billai.PrefillState.Hidden },
+                            )
                         }
 
                         // A hold can only be attached to a NEW transaction.

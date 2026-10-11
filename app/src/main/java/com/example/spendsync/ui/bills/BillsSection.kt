@@ -23,11 +23,25 @@ import com.example.spendsync.ui.shared.AmountVisibilityState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.withContext
 
 /** "Bills" section for a saved transaction: strip, add (scan/photos/PDF), viewer with replace/delete. */
 @Composable
-fun BillsSection(txId: String, financeRepository: FinanceRepository, amountVisibility: AmountVisibilityState, autoScan: Boolean = false, onChanged: () -> Unit = {}) {
+fun BillsSection(
+    txId: String,
+    financeRepository: FinanceRepository,
+    amountVisibility: AmountVisibilityState,
+    autoScan: Boolean = false,
+    onChanged: () -> Unit = {},
+    transaction: com.example.spendsync.data.remote.model.TransactionDto? = null,
+    sessionDataStore: com.example.spendsync.data.local.SessionDataStore? = null,
+    onAmountUpdated: (Double) -> Unit = {},
+) {
+    var readState by remember(txId) { mutableStateOf<com.example.spendsync.data.remote.model.BillReadStatusDto?>(null) }
+    var explaining by remember { mutableStateOf(false) }
+    var readAgain by remember { mutableIntStateOf(0) }
+
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var server by remember(txId) { mutableStateOf<List<BillDto>?>(null) }
@@ -68,6 +82,14 @@ fun BillsSection(txId: String, financeRepository: FinanceRepository, amountVisib
             )
         }
         error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+        if (sessionDataStore != null && server.orEmpty().isNotEmpty()) {
+            com.example.spendsync.ui.billai.BillReadCard(
+                txId = txId, recordedAmount = transaction?.amount?.toDoubleOrNull(), financeRepository = financeRepository,
+                sessionDataStore = sessionDataStore, amountVisibility = amountVisibility,
+                pagesVersion = server.orEmpty().map { it.id }.hashCode(), readAgainRequest = readAgain,
+                onState = { readState = it }, onExplain = { explaining = true }, onUpdateAmount = onAmountUpdated,
+            )
+        }
     }
 
     if (picking || replacing != null) {
@@ -84,6 +106,7 @@ fun BillsSection(txId: String, financeRepository: FinanceRepository, amountVisib
             onUnlock = { amountVisibility.requestUnlock() },
             onDismiss = { viewing = null },
             onReplace = { b -> viewing = null; replacing = b },
+            onExplain = if (readState?.status == "done") ({ viewing = null; explaining = true }) else null,
             onDelete = { b ->
                 viewing = null
                 scope.launch {
@@ -91,5 +114,8 @@ fun BillsSection(txId: String, financeRepository: FinanceRepository, amountVisib
                 }
             },
         )
+    }
+    if (explaining) readState?.let { s ->
+        com.example.spendsync.ui.billai.BillExplainSheet(s, masked, onReadAgain = { explaining = false; readAgain++ }, onDismiss = { explaining = false })
     }
 }

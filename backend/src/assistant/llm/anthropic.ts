@@ -4,7 +4,14 @@ import { LlmError, type LlmChunk, type LlmProvider, type LlmRequest, type ToolCa
 function toAnthropicMessages(req: LlmRequest): Anthropic.MessageParam[] {
   const out: Anthropic.MessageParam[] = [];
   for (const m of req.messages) {
-    if (m.role === 'user') out.push({ role: 'user', content: m.text });
+    if (m.role === 'user') {
+      out.push({
+        role: 'user',
+        content: m.images?.length
+          ? [{ type: 'text', text: m.text }, ...m.images.map((i) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: i.mime, data: i.base64 } }))]
+          : m.text,
+      });
+    }
     else if (m.role === 'assistant') {
       const blocks: Anthropic.ContentBlockParam[] = [];
       if (m.text) blocks.push({ type: 'text', text: m.text });

@@ -585,6 +585,28 @@ fun HomeScreen(
             amountVisibility = amountVisibility,
             onDismiss = { transactionToView = null },
             financeRepository = financeRepository,
+            sessionDataStore = sessionDataStore,
+            onAmountUpdated = { total ->
+                scope.launch {
+                    val before = tx.amount.toDoubleOrNull() ?: return@launch
+                    when (val r = financeRepository.updateTransaction(id = tx.id, amount = total)) {
+                        is AuthResult.Success -> {
+                            monthlyTransactions = monthlyTransactions.map { if (it.id == tx.id) r.data else it }
+                            transactionToView = r.data
+                            balanceRefreshKey++
+                            toast = ToastMessage(tr(R.string.bai_amount_updated), isError = false, actionLabel = tr(R.string.trash_undo), onAction = {
+                                scope.launch {
+                                    (financeRepository.updateTransaction(id = tx.id, amount = before) as? AuthResult.Success)?.let { u ->
+                                        monthlyTransactions = monthlyTransactions.map { if (it.id == tx.id) u.data else it }
+                                        balanceRefreshKey++
+                                    }
+                                }
+                            })
+                        }
+                        is AuthResult.Error -> toast = ToastMessage(r.message, isError = true)
+                    }
+                }
+            },
         )
     }
 

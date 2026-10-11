@@ -26,9 +26,15 @@ export interface ToolOutcome {
 }
 
 export type LlmMessage =
-  | { role: 'user'; text: string }
+  | { role: 'user'; text: string; images?: LlmImage[] }
   | { role: 'assistant'; text: string; toolCalls: ToolCall[] }
   | { role: 'tool'; results: ToolOutcome[] };
+
+/** An image sent with a user message (bills). Base64 without a data: prefix. */
+export interface LlmImage {
+  mime: 'image/jpeg' | 'image/png' | 'image/webp';
+  base64: string;
+}
 
 export interface LlmRequest {
   system: string;
