@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// billsearch.ts also holds the DB query; these tests only use its pure helpers.
+vi.stubEnv('DATABASE_URL', 'postgres://user:pass@localhost:5432/test');
+vi.stubEnv('AUTH_SECRET', 'x'.repeat(40));
+vi.mock('../db/index', () => ({ db: {} }));
+import { emailBillsSchema, findBillsSchema, sendBillsSchema } from '../types/billmail.types';
 import { amountWindow, fenceBill, rankMatches, type MatchRow } from '../assistant/billsearch';
 import { composeBillsEmail, emailCooldown, maskEmail, packAttachments, type MailFile } from './billmail';
 
@@ -55,5 +61,22 @@ describe('email helpers', () => {
     expect(emailCooldown({ count: 3, lastAt: new Date(now.getTime() - 20_000) }, now)).toEqual({ ok: false, reason: 'minute', waitSec: 40 });
     expect(emailCooldown({ count: 20, lastAt: new Date(now.getTime() - 3_600_000) }, now)).toMatchObject({ ok: false, reason: 'day' });
     expect(emailCooldown({ count: 19, lastAt: new Date(now.getTime() - 61_000) }, now)).toEqual({ ok: true });
+  });
+});
+
+
+describe('inputs', () => {
+  const id = '00000000-0000-4000-8000-000000000001';
+  it('email_bills takes only transaction ids, 1–10, and no recipient', () => {
+    expect(emailBillsSchema.safeParse({ transaction_ids: [id] }).success).toBe(true);
+    expect(emailBillsSchema.safeParse({ transaction_ids: [] }).success).toBe(false);
+    expect(emailBillsSchema.safeParse({ transaction_ids: Array(11).fill(id) }).success).toBe(false);
+    expect(emailBillsSchema.parse({ transaction_ids: [id], to: 'x@evil.com' })).not.toHaveProperty('to');
+    expect(sendBillsSchema.safeParse({ transactionIds: ['nope'] }).success).toBe(false);
+  });
+  it('find_bills bounds its filters', () => {
+    expect(findBillsSchema.parse({})).toMatchObject({ has_bill: 'any', limit: 5 });
+    expect(findBillsSchema.safeParse({ limit: 9 }).success).toBe(false);
+    expect(findBillsSchema.safeParse({ start_date: '9 Oct' }).success).toBe(false);
   });
 });
