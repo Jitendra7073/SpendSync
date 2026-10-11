@@ -43,6 +43,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        // Copies made for the share sheet are only needed while sharing.
+        com.example.spendsync.data.bills.BillShare.clear(this)
 
         enableEdgeToEdge()
 

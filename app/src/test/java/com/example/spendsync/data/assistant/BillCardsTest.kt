@@ -27,4 +27,10 @@ class BillCardsTest {
         assertEquals(EmailCardState.Failed("Please wait 40 s", cooldown = true), EmailCard.from(BillCall.Fail("Please wait 40 s", permanent = false, code = 429)))
         assertEquals(EmailCardState.Failed("boom", cooldown = false), EmailCard.from(BillCall.Fail("boom", permanent = false, code = 502)))
     }
+    @Test fun shareUsesTheOriginalPdfAndTheFullImage() {
+        val img = com.example.spendsync.data.remote.model.BillDto("i", "t", 0, "ready", "jpg", null, "th", "full-url", "bl", listOf("full-url"), null)
+        val pdf = img.copy(id = "p", format = "pdf", original = "pdf-url")
+        assertEquals("full-url" to "jpg", com.example.spendsync.data.bills.BillShare.fileFor(img))
+        assertEquals("pdf-url" to "pdf", com.example.spendsync.data.bills.BillShare.fileFor(pdf))
+    }
 }

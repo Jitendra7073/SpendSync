@@ -786,4 +786,21 @@
     <string name="bai_bad_maths">Les totaux ne concordent pas — vérifiez la facture</string>
     <string name="bai_read_by">Lu par %1$s · peut contenir des erreurs</string>
     <string name="bai_read_again">Relire</string>
+    <string name="abl_open">Ouvrir</string>
+    <string name="abl_no_bill">Aucune facture jointe</string>
+    <string name="abl_pages">%1$d pages</string>
+    <string name="abl_email_me">M\'envoyer par e-mail</string>
+    <string name="abl_share">Partager</string>
+    <string name="abl_preparing">Préparation des fichiers…</string>
+    <string name="abl_share_failed">Impossible de récupérer les fichiers</string>
+    <string name="abl_email_title">Envoyer %1$d factures à %2$s ?</string>
+    <string name="abl_email_size">%1$d fichiers · environ %2$s</string>
+    <string name="abl_email_note">Uniquement à votre propre e-mail. L\'e-mail affiche les montants complets.</string>
+    <string name="abl_send">Envoyer</string>
+    <string name="abl_cancel">Annuler</string>
+    <string name="abl_sent">Envoyé à %1$s</string>
+    <string name="abl_sent_partial">%1$d fichier(s) non joint(s) — ouvrez SpendSync pour les voir</string>
+    <string name="abl_skipped">%1$d facture(s) n\'étai(en)t plus disponible(s)</string>
+    <string name="abl_try_again">Réessayer</string>
+    <string name="abl_cd_row">Facture de %1$s, %2$s</string>
 </resources>

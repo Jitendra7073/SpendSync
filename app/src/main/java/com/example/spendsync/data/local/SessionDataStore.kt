@@ -298,6 +298,7 @@ class SessionDataStore(private val context: Context) {
         // Bills queued by the previous account must not upload under the next one.
         com.example.spendsync.data.bills.BillUploadWorker.cancel(context)
         com.example.spendsync.data.bills.BillQueue.clear(context)
+        com.example.spendsync.data.bills.BillShare.clear(context)
     }
 
     // Update settings functions
