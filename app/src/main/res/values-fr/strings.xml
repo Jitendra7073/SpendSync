@@ -763,4 +763,8 @@
     <string name="bills_trash_label">Facture · %1$s</string>
     <string name="bills_in_trash_with">Inclut %1$d pages de facture</string>
     <string name="bills_scanner_unavailable">Scanner indisponible sur ce téléphone : choisissez une photo</string>
+    <string name="bai_reading">Lecture de la facture…</string>
+    <string name="bai_bill_says">D\'après votre facture</string>
+    <string name="bai_use_these">Utiliser</string>
+    <string name="bai_ignore">Ignorer</string>
 </resources>

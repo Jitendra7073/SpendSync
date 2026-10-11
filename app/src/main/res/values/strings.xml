@@ -478,4 +478,8 @@
     <string name="bills_trash_label">Bill · %1$s</string>
     <string name="bills_in_trash_with">Includes %1$d bill pages</string>
     <string name="bills_scanner_unavailable">Scanner not available on this phone — choose a photo instead</string>
+    <string name="bai_reading">Reading bill…</string>
+    <string name="bai_bill_says">From your bill</string>
+    <string name="bai_use_these">Use these</string>
+    <string name="bai_ignore">Ignore</string>
 </resources>

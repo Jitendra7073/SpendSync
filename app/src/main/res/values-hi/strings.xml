@@ -763,4 +763,8 @@
     <string name="bills_trash_label">बिल · %1$s</string>
     <string name="bills_in_trash_with">%1$d बिल पेज शामिल</string>
     <string name="bills_scanner_unavailable">इस फ़ोन पर स्कैनर उपलब्ध नहीं — फ़ोटो चुनें</string>
+    <string name="bai_reading">बिल पढ़ा जा रहा है…</string>
+    <string name="bai_bill_says">आपके बिल से</string>
+    <string name="bai_use_these">इन्हें लगाएँ</string>
+    <string name="bai_ignore">छोड़ें</string>
 </resources>

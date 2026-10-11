@@ -763,4 +763,8 @@
     <string name="bills_trash_label">Beleg · %1$s</string>
     <string name="bills_in_trash_with">Enthält %1$d Belegseiten</string>
     <string name="bills_scanner_unavailable">Scanner auf diesem Handy nicht verfügbar – wähle ein Foto</string>
+    <string name="bai_reading">Beleg wird gelesen…</string>
+    <string name="bai_bill_says">Laut deinem Beleg</string>
+    <string name="bai_use_these">Übernehmen</string>
+    <string name="bai_ignore">Ignorieren</string>
 </resources>
