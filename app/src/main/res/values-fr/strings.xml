@@ -767,4 +767,23 @@
     <string name="bai_bill_says">D\'après votre facture</string>
     <string name="bai_use_these">Utiliser</string>
     <string name="bai_ignore">Ignorer</string>
+    <string name="bai_explain">Expliquer</string>
+    <string name="bai_explain_title">À propos de cette facture</string>
+    <string name="bai_failed">Impossible de lire cette facture</string>
+    <string name="bai_try_again">Réessayer</string>
+    <string name="bai_no_consent">Activez l\'IA dans Réglages → Assistant pour lire les factures</string>
+    <string name="bai_mismatch">Total facture %1$s · enregistré %2$s</string>
+    <string name="bai_mismatch_masked">La facture et le montant diffèrent</string>
+    <string name="bai_update_amount">Mettre à jour le montant</string>
+    <string name="bai_amount_updated">Montant mis à jour</string>
+    <string name="bai_items">Articles</string>
+    <string name="bai_subtotal">Sous-total</string>
+    <string name="bai_tax">Taxes</string>
+    <string name="bai_discount">Remise</string>
+    <string name="bai_fees">Frais</string>
+    <string name="bai_total">Total</string>
+    <string name="bai_low_confidence">Difficile à lire — vérifiez la photo</string>
+    <string name="bai_bad_maths">Les totaux ne concordent pas — vérifiez la facture</string>
+    <string name="bai_read_by">Lu par %1$s · peut contenir des erreurs</string>
+    <string name="bai_read_again">Relire</string>
 </resources>

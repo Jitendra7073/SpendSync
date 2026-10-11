@@ -767,4 +767,23 @@
     <string name="bai_bill_says">आपके बिल से</string>
     <string name="bai_use_these">इन्हें लगाएँ</string>
     <string name="bai_ignore">छोड़ें</string>
+    <string name="bai_explain">समझाएँ</string>
+    <string name="bai_explain_title">इस बिल के बारे में</string>
+    <string name="bai_failed">यह बिल पढ़ा नहीं जा सका</string>
+    <string name="bai_try_again">फिर कोशिश करें</string>
+    <string name="bai_no_consent">बिल पढ़ने के लिए Settings → Assistant में AI चालू करें</string>
+    <string name="bai_mismatch">बिल कुल %1$s · दर्ज %2$s</string>
+    <string name="bai_mismatch_masked">बिल और राशि अलग हैं</string>
+    <string name="bai_update_amount">राशि अपडेट करें</string>
+    <string name="bai_amount_updated">राशि अपडेट हो गई</string>
+    <string name="bai_items">आइटम</string>
+    <string name="bai_subtotal">उप-योग</string>
+    <string name="bai_tax">टैक्स</string>
+    <string name="bai_discount">छूट</string>
+    <string name="bai_fees">शुल्क</string>
+    <string name="bai_total">कुल</string>
+    <string name="bai_low_confidence">पढ़ना मुश्किल — फ़ोटो जाँचें</string>
+    <string name="bai_bad_maths">कुल जोड़ मेल नहीं खाता — बिल जाँचें</string>
+    <string name="bai_read_by">%1$s द्वारा पढ़ा गया · गलतियाँ हो सकती हैं</string>
+    <string name="bai_read_again">फिर से पढ़ें</string>
 </resources>

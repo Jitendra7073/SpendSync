@@ -482,4 +482,23 @@
     <string name="bai_bill_says">From your bill</string>
     <string name="bai_use_these">Use these</string>
     <string name="bai_ignore">Ignore</string>
+    <string name="bai_explain">Explain</string>
+    <string name="bai_explain_title">About this bill</string>
+    <string name="bai_failed">Couldn\'t read this bill</string>
+    <string name="bai_try_again">Try again</string>
+    <string name="bai_no_consent">Turn on AI in Settings → Assistant to read bills</string>
+    <string name="bai_mismatch">Bill total %1$s · recorded %2$s</string>
+    <string name="bai_mismatch_masked">Bill and amount differ</string>
+    <string name="bai_update_amount">Update amount</string>
+    <string name="bai_amount_updated">Amount updated</string>
+    <string name="bai_items">Items</string>
+    <string name="bai_subtotal">Subtotal</string>
+    <string name="bai_tax">Tax</string>
+    <string name="bai_discount">Discount</string>
+    <string name="bai_fees">Fees</string>
+    <string name="bai_total">Total</string>
+    <string name="bai_low_confidence">Hard to read — check the photo</string>
+    <string name="bai_bad_maths">Totals don\'t add up — check the bill</string>
+    <string name="bai_read_by">Read by %1$s · may contain mistakes</string>
+    <string name="bai_read_again">Read again</string>
 </resources>

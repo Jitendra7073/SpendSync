@@ -41,6 +41,8 @@ internal fun TransactionInfoDialog(
     amountVisibility: AmountVisibilityState,
     onDismiss: () -> Unit,
     financeRepository: com.example.spendsync.data.repository.FinanceRepository? = null,
+    sessionDataStore: com.example.spendsync.data.local.SessionDataStore? = null,
+    onAmountUpdated: (Double) -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
     val amount = transaction.amount.toDoubleOrNull() ?: 0.0
@@ -81,7 +83,7 @@ internal fun TransactionInfoDialog(
             InfoRow(tr(R.string.date), created)
             if (financeRepository != null) {
                 Spacer(Modifier.heightIn(min = 12.dp))
-                com.example.spendsync.ui.bills.BillsSection(transaction.id, financeRepository, amountVisibility)
+                com.example.spendsync.ui.bills.BillsSection(transaction.id, financeRepository, amountVisibility, transaction = transaction, sessionDataStore = sessionDataStore, onAmountUpdated = onAmountUpdated)
             }
         }
     }

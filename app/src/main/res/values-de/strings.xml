@@ -767,4 +767,23 @@
     <string name="bai_bill_says">Laut deinem Beleg</string>
     <string name="bai_use_these">Übernehmen</string>
     <string name="bai_ignore">Ignorieren</string>
+    <string name="bai_explain">Erklären</string>
+    <string name="bai_explain_title">Über diesen Beleg</string>
+    <string name="bai_failed">Beleg konnte nicht gelesen werden</string>
+    <string name="bai_try_again">Erneut versuchen</string>
+    <string name="bai_no_consent">Aktiviere KI unter Einstellungen → Assistent, um Belege zu lesen</string>
+    <string name="bai_mismatch">Belegsumme %1$s · erfasst %2$s</string>
+    <string name="bai_mismatch_masked">Beleg und Betrag weichen ab</string>
+    <string name="bai_update_amount">Betrag aktualisieren</string>
+    <string name="bai_amount_updated">Betrag aktualisiert</string>
+    <string name="bai_items">Positionen</string>
+    <string name="bai_subtotal">Zwischensumme</string>
+    <string name="bai_tax">Steuer</string>
+    <string name="bai_discount">Rabatt</string>
+    <string name="bai_fees">Gebühren</string>
+    <string name="bai_total">Gesamt</string>
+    <string name="bai_low_confidence">Schwer lesbar – prüfe das Foto</string>
+    <string name="bai_bad_maths">Summen stimmen nicht – prüfe den Beleg</string>
+    <string name="bai_read_by">Gelesen von %1$s · kann Fehler enthalten</string>
+    <string name="bai_read_again">Erneut lesen</string>
 </resources>

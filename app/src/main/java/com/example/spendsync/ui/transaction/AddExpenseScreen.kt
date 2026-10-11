@@ -650,7 +650,12 @@ fun AddExpenseScreen(
                         DateSelectorRow(label = tr(R.string.date), date = transactionDate, accentColor = accentColor, onClick = { showDatePicker = true })
                         Spacer(Modifier.height(12.dp))
                         if (isEditing) {
-                            com.example.spendsync.ui.bills.BillsSection(editTransaction!!.id, financeRepository, amountVisibility)
+                            com.example.spendsync.ui.bills.BillsSection(
+                                editTransaction!!.id, financeRepository, amountVisibility,
+                                transaction = editTransaction, sessionDataStore = sessionDataStore,
+                                // On the edit form it only fills the field; Save stores it.
+                                onAmountUpdated = { amount = "%.2f".format(java.util.Locale.US, it) },
+                            )
                         } else {
                             Text(tr(R.string.bills_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(Modifier.height(8.dp))
