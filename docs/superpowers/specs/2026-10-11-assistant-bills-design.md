@@ -77,7 +77,7 @@ point to the card's Share. `HELP_ENTRIES`: "Find and email bills".
   one-line AI summary (`BillAi.maskText`); buttons **Open** (BillViewer), **Explain** (BillExplainSheet with the
   stored read), or **Attach bill** (BillsSection with `autoScan = true` in an `AppSheet`). Footer:
   **Email to me** (opens the email card locally) and **Share**.
-- `ui/assistant/EmailBillsCard`: "Email n bills (f files, ~x MB) to j***@…?" + list; **Send** → `POST
+- `ui/assistant/EmailBillsCard`: "Email n bills (f files, ~x MB) to j***@…?" + list (opened from the results card's **Email to me** it has no size yet: "Email n bills to j***@…?"; the masked address comes from `SessionDataStore.userEmail`); **Send** → `POST
   /api/bills/email`; states idle → sending → sent / error / cooldown (pure reducer `EmailCardState`).
 - Share: `data/bills/BillShare.kt` downloads files (signed URLs from `listBills`: images `full`, PDFs
   `original`) into `cacheDir/share/`, then `ACTION_SEND_MULTIPLE` via the existing FileProvider
