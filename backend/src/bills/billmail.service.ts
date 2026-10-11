@@ -26,9 +26,44 @@ export async function sendBillsEmail(userId: string, ids: string[]) {
   if (!u?.email) throw new ApiError(400, 'Your account has no email address', 'NO_EMAIL');
 
   const day = utcDay(new Date());
-  const [count] = await db.select().from(billEmailCounts).where(and(eq(billEmailCounts.userId, userId), eq(billEmailCounts.day, day)));
-  const gate = emailCooldown(count ? { count: count.count, lastAt: count.lastAt } : undefined, new Date());
-  if (!gate.ok) throw new ApiError(429, gate.reason === 'minute' ? `Please wait ${gate.waitSec} s before sending again` : 'Daily limit reached — try again tomorrow', 'EMAIL_COOLDOWN');
+  // Claim the slot BEFORE sending, in one statement: two requests at the same moment can't both pass.
+  if (!(await reserveSlot(userId, day))) {
+    const [count] = await db.select().from(billEmailCounts).where(and(eq(billEmailCounts.userId, userId), eq(billEmailCounts.day, day)));
+    const gate = emailCooldown(count ? { count: count.count, lastAt: count.lastAt } : undefined, new Date());
+    const wait = gate.ok ? 60 : gate.waitSec;
+    throw new ApiError(429, gate.ok || gate.reason === 'minute' ? `Please wait ${wait} s before sending again` : 'Daily limit reached — try again tomorrow', 'EMAIL_COOLDOWN');
+  }
+  try {
+    return await send(userId, ids, u.email, c);
+  } catch (e) {
+    await releaseSlot(userId, day); // nothing was sent: the user may try again right away
+    throw e;
+  }
+}
+
+/** Atomically: +1 for today unless the last send was < 60 s ago or 20 were sent today. False = refused. */
+async function reserveSlot(userId: string, day: string): Promise<boolean> {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 60_000);
+  const rows = await db.execute(sql`
+    INSERT INTO bill_email_counts (user_id, day, count, last_at)
+    VALUES (${userId}, ${day}, 1, ${now.toISOString()}::timestamp)
+    ON CONFLICT (user_id, day) DO UPDATE
+      SET count = bill_email_counts.count + 1, last_at = ${now.toISOString()}::timestamp
+      WHERE bill_email_counts.last_at < ${cutoff.toISOString()}::timestamp AND bill_email_counts.count < 20
+    RETURNING count`);
+  return (rows as unknown as unknown[]).length > 0;
+}
+
+/** Undo a reservation whose email never went out. */
+async function releaseSlot(userId: string, day: string) {
+  const earlier = new Date(Date.now() - 61_000);
+  await db.execute(sql`
+    UPDATE bill_email_counts SET count = GREATEST(count - 1, 0), last_at = ${earlier.toISOString()}::timestamp
+    WHERE user_id = ${userId} AND day = ${day}`);
+}
+
+async function send(userId: string, ids: string[], email: string, c: ReturnType<typeof requireCloudinary>) {
 
   const txs = await db
     .select({ id: transactions.id, date: transactions.createdAt, merchant: transactions.merchant, amount: transactions.amount })
@@ -65,14 +100,12 @@ export async function sendBillsEmail(userId: string, ids: string[]) {
     notAttached,
     skipped,
   );
-  const sent = await sendEmail({ to: u.email, ...mail, attachments: attached.map((f) => ({ filename: f.filename, content: f.bytes!, contentType: f.contentType })) });
+  const sent = await sendEmail({ to: email, ...mail, attachments: attached.map((f) => ({ filename: f.filename, content: f.bytes!, contentType: f.contentType })) });
   if (!sent.ok) {
     if (sent.reason === 'not_configured') throw new ApiError(503, 'Email is not set up on the server', 'EMAIL_NOT_CONFIGURED');
     throw new ApiError(502, "The email couldn't be sent, please try again", 'EMAIL_FAILED');
   }
-  await db.insert(billEmailCounts).values({ userId, day, count: 1, lastAt: new Date() })
-    .onConflictDoUpdate({ target: [billEmailCounts.userId, billEmailCounts.day], set: { count: sql`${billEmailCounts.count} + 1`, lastAt: new Date() } });
-  const sentTo = maskEmail(u.email);
+  const sentTo = maskEmail(email);
   logger.info('Bills emailed', { sentTo, attached: attached.length, notAttached: notAttached.length, skipped });
   return { sentTo, attached: attached.length, notAttached: notAttached.length, skipped };
 }
