@@ -14,6 +14,8 @@ data class ReplyState(
     val proposals: List<Proposal> = emptyList(),
     val followUpCards: List<FollowUpProposal> = emptyList(),
     val composeCards: List<ComposeProposal> = emptyList(),
+    val billCards: List<List<String>> = emptyList(),
+    val emailCards: List<EmailBillsProposal> = emptyList(),
     val followups: List<String> = emptyList(),
     /** Backend tool name currently running, for a "Checking your balance…" line. */
     val tool: String? = null,
@@ -69,6 +71,11 @@ fun reduceReply(s: ReplyState, e: AssistantEvent): ReplyState = when (e) {
     )
     is AssistantEvent.ComposeStarted -> s.copy(
         composeCards = (s.composeCards + e.compose).takeLast(2),
+        steps = if (s.steps.any { it.kind == StepKind.Prepare }) s.steps else s.steps + ActivityStep(StepKind.Prepare, "", StepState.Done),
+    )
+    is AssistantEvent.BillsFound -> s.copy(billCards = (s.billCards + listOf(e.transactionIds)).takeLast(2))
+    is AssistantEvent.EmailBillsStarted -> s.copy(
+        emailCards = (s.emailCards + e.email).takeLast(2),
         steps = if (s.steps.any { it.kind == StepKind.Prepare }) s.steps else s.steps + ActivityStep(StepKind.Prepare, "", StepState.Done),
     )
     is AssistantEvent.Followups -> s.copy(followups = e.items)

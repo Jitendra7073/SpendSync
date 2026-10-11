@@ -310,4 +310,7 @@ interface AppApiService {
 
     @POST("api/bills/read")
     suspend fun readBillImages(@Header("Authorization") token: String, @Body body: ReadBillImagesRequest): Response<SuccessResponse<BillImagesReadDto>>
+
+    @POST("api/bills/email")
+    suspend fun emailBills(@Header("Authorization") token: String, @Body body: EmailBillsRequest): Response<SuccessResponse<EmailBillsResultDto>>
 }

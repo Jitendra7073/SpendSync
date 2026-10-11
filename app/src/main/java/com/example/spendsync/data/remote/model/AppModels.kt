@@ -376,3 +376,11 @@ data class RunBillReadRequest(@SerializedName("aiConsent") val aiConsent: Boolea
 data class BillImageDto(@SerializedName("mime") val mime: String, @SerializedName("base64") val base64: String)
 data class ReadBillImagesRequest(@SerializedName("aiConsent") val aiConsent: Boolean = true, @SerializedName("images") val images: List<BillImageDto>, @SerializedName("prefs") val prefs: BillAiPrefsDto)
 data class BillImagesReadDto(@SerializedName("data") val data: BillReadDto, @SerializedName("model") val model: String)
+
+// ── Bills by email (assistant) ────────────────────────────────────────────────
+
+data class EmailBillsRequest(@SerializedName("transactionIds") val transactionIds: List<String>)
+data class EmailBillsResultDto(
+    @SerializedName("sentTo") val sentTo: String, @SerializedName("attached") val attached: Int,
+    @SerializedName("notAttached") val notAttached: Int, @SerializedName("skipped") val skipped: Int,
+)
