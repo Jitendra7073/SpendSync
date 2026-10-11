@@ -344,6 +344,7 @@ data class ConfirmBillRequest(
     @SerializedName("width")     val width: Int? = null,
     @SerializedName("height")    val height: Int? = null,
     @SerializedName("pages")     val pages: Int? = null,
+    @SerializedName("aiConsent") val aiConsent: Boolean = false,
 )
 
 data class BillUsageDto(
@@ -352,3 +353,26 @@ data class BillUsageDto(
     @SerializedName("uploadsToday")  val uploadsToday: Int,
     @SerializedName("uploadsPerDay") val uploadsPerDay: Int,
 )
+
+// ── Bill AI ───────────────────────────────────────────────────────────────────
+
+data class BillItemDto(
+    @SerializedName("name") val name: String?, @SerializedName("qty") val qty: Double?,
+    @SerializedName("unitPrice") val unitPrice: Double?, @SerializedName("amount") val amount: Double?,
+)
+data class BillChecksDto(@SerializedName("itemsMatchSubtotal") val itemsMatchSubtotal: Boolean?, @SerializedName("totalsAddUp") val totalsAddUp: Boolean?)
+data class BillReadDto(
+    @SerializedName("merchant") val merchant: String?, @SerializedName("date") val date: String?, @SerializedName("currency") val currency: String,
+    @SerializedName("total") val total: Double?, @SerializedName("subtotal") val subtotal: Double?, @SerializedName("tax") val tax: Double?,
+    @SerializedName("discount") val discount: Double?, @SerializedName("fees") val fees: Double?,
+    @SerializedName("items") val items: List<BillItemDto>, @SerializedName("paymentMethod") val paymentMethod: String?,
+    @SerializedName("billNumber") val billNumber: String?, @SerializedName("category") val category: String?,
+    @SerializedName("confidence") val confidence: Double, @SerializedName("summary") val summary: String,
+    @SerializedName("notes") val notes: List<String>, @SerializedName("checks") val checks: BillChecksDto?,
+)
+data class BillReadStatusDto(@SerializedName("status") val status: String, @SerializedName("data") val data: BillReadDto?, @SerializedName("model") val model: String?, @SerializedName("stale") val stale: Boolean)
+data class BillAiPrefsDto(@SerializedName("language") val language: String, @SerializedName("style") val style: String, @SerializedName("tone") val tone: String)
+data class RunBillReadRequest(@SerializedName("aiConsent") val aiConsent: Boolean, @SerializedName("force") val force: Boolean = false, @SerializedName("prefs") val prefs: BillAiPrefsDto)
+data class BillImageDto(@SerializedName("mime") val mime: String, @SerializedName("base64") val base64: String)
+data class ReadBillImagesRequest(@SerializedName("aiConsent") val aiConsent: Boolean = true, @SerializedName("images") val images: List<BillImageDto>, @SerializedName("prefs") val prefs: BillAiPrefsDto)
+data class BillImagesReadDto(@SerializedName("data") val data: BillReadDto, @SerializedName("model") val model: String)

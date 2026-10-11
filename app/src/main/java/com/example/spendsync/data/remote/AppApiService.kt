@@ -296,4 +296,15 @@ interface AppApiService {
 
     @GET("api/bills/usage")
     suspend fun billUsage(@Header("Authorization") token: String): Response<SuccessResponse<BillUsageDto>>
+
+    // ── Bill AI ───────────────────────────────────────────────────────────────
+
+    @GET("api/transactions/{id}/bills/read")
+    suspend fun getBillRead(@Header("Authorization") token: String, @Path("id") txId: String): Response<SuccessResponse<BillReadStatusDto>>
+
+    @POST("api/transactions/{id}/bills/read")
+    suspend fun runBillRead(@Header("Authorization") token: String, @Path("id") txId: String, @Body body: RunBillReadRequest): Response<SuccessResponse<BillReadStatusDto>>
+
+    @POST("api/bills/read")
+    suspend fun readBillImages(@Header("Authorization") token: String, @Body body: ReadBillImagesRequest): Response<SuccessResponse<BillImagesReadDto>>
 }

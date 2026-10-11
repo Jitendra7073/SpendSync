@@ -590,6 +590,16 @@ class FinanceRepository(
         is BillCall.Fail -> AuthResult.Error(r.message)
     }
 
+    suspend fun billRead(txId: String): AuthResult<BillReadStatusDto> = when (val r = billCall { api.getBillRead(getAuthHeader(), txId) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data); is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+    suspend fun runBillRead(txId: String, req: RunBillReadRequest): AuthResult<BillReadStatusDto> = when (val r = billCall { api.runBillRead(getAuthHeader(), txId, req) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data); is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+    suspend fun readBillImages(req: ReadBillImagesRequest): AuthResult<BillImagesReadDto> = when (val r = billCall { api.readBillImages(getAuthHeader(), req) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data); is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+
     private fun parseErrorMessage(errorBody: String?): String {
         if (errorBody.isNullOrBlank()) return tr(R.string.an_unexpected_error_occurred)
         return try {
