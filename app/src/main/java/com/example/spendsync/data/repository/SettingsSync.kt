@@ -4,8 +4,9 @@ import com.example.spendsync.data.assistant.AssistantPrefs
 import com.example.spendsync.data.assistant.parseToolSet
 import com.example.spendsync.data.assistant.serializeToolSet
 import com.example.spendsync.data.local.SessionDataStore
-import com.example.spendsync.data.local.parseAutoCapturePackages
-import com.example.spendsync.data.local.serializeAutoCapturePackages
+import com.example.spendsync.data.local.CaptureSettings
+import com.example.spendsync.data.local.csvSet
+import com.example.spendsync.data.local.lineSet
 import com.example.spendsync.data.remote.model.UpdateSettingsRequest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.coroutineScope
@@ -13,7 +14,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 /** One entry per user-changeable preference that lives on the account (the PIN itself never does). */
-enum class SettingField { Theme, Accent, Language, DateFormat, Push, Email, Backup, Masking, MaskingSeconds, AutoCapture, AutoCapturePackages, Assistant, Planify }
+enum class SettingField { Theme, Accent, Language, DateFormat, Push, Email, Backup, Masking, MaskingSeconds, AutoCapture, Capture, Assistant, Planify }
 
 /**
  * Keeps preferences identical across devices without ever losing an edit.
@@ -71,7 +72,19 @@ class SettingsSynchronizer(
         if (free(SettingField.Masking)) s.amountMaskingEnabled?.let { store.updateAmountMaskingEnabled(it) }
         if (free(SettingField.MaskingSeconds)) s.amountVisibilitySeconds?.let { store.updateAmountVisibilityDurationSeconds(it) }
         if (free(SettingField.AutoCapture)) s.autoCaptureEnabled?.let { store.updateAutoCaptureEnabled(it) }
-        if (free(SettingField.AutoCapturePackages)) s.autoCapturePackages?.let { store.updateAutoCapturePackages(parseAutoCapturePackages(it)) }
+        if (free(SettingField.Capture) && s.captureMode != null) {
+            val d = CaptureSettings()
+            store.updateCaptureSettings(
+                CaptureSettings(
+                    sources = s.captureSources?.let(::csvSet) ?: d.sources,
+                    mode = s.captureMode,
+                    duplicates = s.captureDuplicates ?: d.duplicates,
+                    keepMessages = s.captureKeepMessages ?: d.keepMessages,
+                    retentionDays = s.captureRetentionDays ?: d.retentionDays,
+                    blockedSenders = lineSet(s.captureBlockedSenders),
+                ),
+            )
+        }
         if (free(SettingField.Planify) && (s.planifyAlerts != null || s.planifyDaily != null || s.planifySalaryMin != null || s.planifyFundingSource != null || s.planifyCustomAmount != null)) {
             val cur = store.planifySettings.first()
             val merged = com.example.spendsync.data.local.PlanifySettings(
@@ -101,7 +114,14 @@ class SettingsSynchronizer(
         val theme = store.themeMode.first()
         val assistant = store.assistantPrefs.first().takeIf { SettingField.Assistant in fields }
         val planify = store.planifySettings.first().takeIf { SettingField.Planify in fields }
+        val capture = store.captureSettings.first().takeIf { SettingField.Capture in fields }
         return UpdateSettingsRequest(
+            captureSources = capture?.sources?.joinToString(","),
+            captureMode = capture?.mode,
+            captureDuplicates = capture?.duplicates,
+            captureKeepMessages = capture?.keepMessages,
+            captureRetentionDays = capture?.retentionDays,
+            captureBlockedSenders = capture?.blockedSenders?.joinToString("\n"),
             planifyAlerts = planify?.alerts,
             planifyDaily = planify?.daily,
             planifySalaryMin = planify?.salaryMin,
@@ -123,8 +143,6 @@ class SettingsSynchronizer(
             amountMaskingEnabled = store.amountMaskingEnabled.first().takeIf { SettingField.Masking in fields },
             amountVisibilitySeconds = store.amountVisibilityDurationSeconds.first().takeIf { SettingField.MaskingSeconds in fields },
             autoCaptureEnabled = store.autoCaptureEnabled.first().takeIf { SettingField.AutoCapture in fields },
-            autoCapturePackages = serializeAutoCapturePackages(store.autoCapturePackages.first())
-                .takeIf { SettingField.AutoCapturePackages in fields },
         )
     }
 }

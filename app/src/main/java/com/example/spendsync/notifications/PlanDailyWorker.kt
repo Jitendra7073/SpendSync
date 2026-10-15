@@ -39,7 +39,7 @@ class PlanDailyWorker(context: Context, params: WorkerParameters) : CoroutineWor
         val capRaw = store.planDailyCountRaw()
         if (PlanDailyCap.countFor(capRaw, todayKey) >= PlanDailyCap.LIMIT) return Result.success()
 
-        val finance = FinanceRepository(store)
+        val finance = FinanceRepository.shared(store)
         val plan = (finance.getPlan(PlanMath.monthKey(today), todayKey, forceRefresh = true) as? AuthResult.Success)?.data ?: return Result.retry()
         if (!plan.exists) return Result.success()
 

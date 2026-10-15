@@ -1,5 +1,6 @@
 package com.example.spendsync.ui.home
 
+import kotlinx.coroutines.flow.drop
 import com.example.spendsync.ui.i18n.LanguageManager
 import com.example.spendsync.ui.settings.SegmentOption
 import com.example.spendsync.R
@@ -266,6 +267,7 @@ fun HomeScreen(
 ) {
     val scope = rememberCoroutineScope()
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
+    var messagesForTransaction by remember { mutableStateOf<String?>(null) }
 
     val dateFormat by sessionDataStore.dateFormat.collectAsState(initial = "DD / MM / YYYY")
     val datePattern = remember(dateFormat) { LocalizationUtils.getDateFormatPattern(dateFormat) }
@@ -316,6 +318,11 @@ fun HomeScreen(
     var holdsOwedToMe by remember { mutableStateOf(0.0) }
     var holdsOwedByMe by remember { mutableStateOf(0.0) }
     val holdMoney = holdsOwedToMe - holdsOwedByMe
+
+    // New data anywhere (a capture, an outbox sync, another screen): reload without a pull.
+    LaunchedEffect(Unit) {
+        financeRepository.changes.drop(1).collect { loadTransactions(forceRefresh = false); balanceRefreshKey++ }
+    }
 
     LaunchedEffect(refreshKey, balanceRefreshKey) {
         isBalanceLoading = true
@@ -607,6 +614,16 @@ fun HomeScreen(
                     }
                 }
             },
+            onViewMessage = { transactionToView = null; messagesForTransaction = tx.id },
+        )
+    }
+    messagesForTransaction?.let { id ->
+        com.example.spendsync.ui.capture.CapturedMessagesSheet(
+            finance = financeRepository,
+            store = sessionDataStore,
+            amountVisibility = amountVisibility,
+            onDismiss = { messagesForTransaction = null },
+            transactionId = id,
         )
     }
 

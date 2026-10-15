@@ -83,6 +83,40 @@ interface AppApiService {
         @Header("Authorization") token: String
     ): Response<SuccessResponse<TrashEmptiedDto>>
 
+    // ── Smart capture ─────────────────────────────────────────────────────────
+
+    @POST("api/capture/messages")
+    suspend fun capture(
+        @Header("Authorization") token: String,
+        @Body body: CaptureRequest
+    ): Response<SuccessResponse<CaptureResultDto>>
+
+    @GET("api/capture/messages")
+    suspend fun getCapturedMessages(
+        @Header("Authorization") token: String,
+        @Query("status") status: String?,
+        @Query("transactionId") transactionId: String?,
+        @Query("page") page: Int?
+    ): Response<SuccessResponseList<CapturedMessageDto>>
+
+    @PATCH("api/capture/messages/{id}")
+    suspend fun actOnCapturedMessage(
+        @Header("Authorization") token: String,
+        @Path("id") id: String,
+        @Body body: CaptureActionRequest
+    ): Response<SuccessResponse<CaptureResultDto>>
+
+    @DELETE("api/capture/messages/{id}")
+    suspend fun deleteCapturedMessage(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<SuccessResponse<Map<String, Boolean>>>
+
+    @DELETE("api/capture/messages")
+    suspend fun deleteAllCapturedMessages(
+        @Header("Authorization") token: String
+    ): Response<SuccessResponse<Map<String, Int>>>
+
     // ── Holds ─────────────────────────────────────────────────────────────────
 
     @POST("api/holds")

@@ -24,7 +24,7 @@ class BillUploadWorker(context: Context, params: WorkerParameters) : CoroutineWo
     override suspend fun doWork(): Result {
         val ctx = applicationContext
         BillQueue.init(ctx)
-        val repo = FinanceRepository(SessionDataStore(ctx))
+        val repo = FinanceRepository.shared(SessionDataStore(ctx))
         var retry = false
         for (start in BillQueue.items.value.filter { it.state != QueuedBill.State.Failed }) {
             if (!File(start.localPath).exists()) { BillQueue.update(ctx, BillQueueRules.failed(start, "file missing")); continue }

@@ -84,9 +84,11 @@ fun appSearchEntries(): List<AppSearchEntry> {
     setting(SettingsPage.Animations, R.string.an_all, "motion", "reduce", "effects")
     listOf(R.string.an_counts, R.string.an_entrance, R.string.an_transitions, R.string.an_typing, R.string.an_skeleton, R.string.an_press, R.string.an_charts)
         .forEach { setting(SettingsPage.Animations, it, "animation", "motion") }
-    // Auto capture
-    setting(SettingsPage.AutoCapture, R.string.auto_capture, "notifications", "upi", "bank", "detect")
-    setting(SettingsPage.AutoCapture, R.string.apps_to_watch, "google pay", "phonepe", "paytm")
+    // Smart capture
+    setting(SettingsPage.AutoCapture, R.string.cap_title, "auto capture", "notifications", "upi", "bank", "detect", "sms", "email")
+    setting(SettingsPage.AutoCapture, R.string.cap_sources, "sms", "email", "gmail", "outlook", "google pay", "phonepe", "paytm", "bhim")
+    setting(SettingsPage.AutoCapture, R.string.cap_duplicates, "duplicate", "twice", "same payment")
+    setting(SettingsPage.AutoCapture, R.string.cap_messages, "history", "captured messages", "review", "blocked", "sender")
     // Data
     setting(SettingsPage.Data, R.string.auto_backup_2, "backup", "cloud")
     setting(SettingsPage.Data, R.string.export_data, "csv", "pdf", "download", "export")

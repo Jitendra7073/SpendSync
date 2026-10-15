@@ -40,6 +40,8 @@ internal fun TransactionInfoDialog(
     transaction: TransactionDto,
     amountVisibility: AmountVisibilityState,
     onDismiss: () -> Unit,
+    /** Shown for captured transactions: opens the bank message(s) behind it. */
+    onViewMessage: (() -> Unit)? = null,
     financeRepository: com.example.spendsync.data.repository.FinanceRepository? = null,
     sessionDataStore: com.example.spendsync.data.local.SessionDataStore? = null,
     onAmountUpdated: (Double) -> Unit = {},
@@ -64,6 +66,7 @@ internal fun TransactionInfoDialog(
         icon = Icons.Default.ReceiptLong,
         tone = if (isCredit) DialogTone.Success else DialogTone.Danger,
         primary = DialogAction(tr(R.string.close), onDismiss),
+        secondary = onViewMessage?.takeIf { !transaction.sourceApp.isNullOrBlank() }?.let { DialogAction(tr(R.string.cap_view_message), it) },
     ) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             MaskableAmountText(

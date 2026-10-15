@@ -92,6 +92,12 @@ export class SettingsService {
       planifySalaryMin?: number;
       planifyFundingSource?: string;
       planifyCustomAmount?: number;
+      captureSources?: string;
+      captureMode?: string;
+      captureDuplicates?: string;
+      captureKeepMessages?: boolean;
+      captureRetentionDays?: number;
+      captureBlockedSenders?: string;
     }
   ) {
     // Ensure settings exist

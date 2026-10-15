@@ -3,7 +3,8 @@ package com.example.spendsync.utils
 /** Result of hiding large amounts in a chat message. */
 data class MaskedText(val text: String, val hidSomething: Boolean)
 
-private val RUPEE_AMOUNT = Regex("""₹\s?(\d[\d,]*(?:\.\d+)?)""")
+// ₹, Rs and INR: bank SMS/email text (Captured messages) spells rupees all three ways.
+private val RUPEE_AMOUNT = Regex("""(?:₹|\bRs\.?|\bINR)\s?(\d[\d,]*(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
 
 /**
  * The same privacy rule as every other screen, applied to prose: while "Hide large amounts" is on and

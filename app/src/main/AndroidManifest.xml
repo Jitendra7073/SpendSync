@@ -76,6 +76,9 @@
         <receiver
             android:name=".notifications.NotificationReplyReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".notifications.CaptureActionReceiver"
+            android:exported="false" />
 
         <service
             android:name=".notifications.TransactionNotificationListenerService"
