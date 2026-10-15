@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.example.spendsync.R
 import com.example.spendsync.data.local.CaptureSettings
@@ -62,7 +63,10 @@ internal fun SmartCapturePage(m: SettingsModel, a: SettingsActions) {
         SettingsToggleRow(Icons.Default.SettingsSuggest, tr(R.string.cap_title), tr(R.string.cap_master_sub), m.autoCapture, onCheckedChange = a.setAutoCapture)
         ScopeTag(synced = true)
     }
-    if (!m.autoCapture) return
+    // Everything stays visible while Smart capture is off (so the user sees what it offers); only the
+    // capture controls are greyed out. History and deleting copies always work.
+    val on = m.autoCapture
+    val dim = Modifier.graphicsLayer { alpha = if (on) 1f else 0.5f }
 
     SettingsGroupLabel(tr(R.string.cap_sources))
     SettingsGroup(Modifier.cascadeIn(2), footer = tr(R.string.cap_sources_footer)) {
@@ -72,8 +76,8 @@ internal fun SmartCapturePage(m: SettingsModel, a: SettingsActions) {
             Triple("upi", Icons.Default.AccountBalanceWallet, R.string.cap_src_upi_sub),
         ).forEachIndexed { i, (wire, icon, sub) ->
             if (i > 0) SettingsDivider()
-            SettingsToggleRow(icon, sourceLabel(wire), tr(sub), wire in c.sources, onCheckedChange = { on ->
-                set(c.copy(sources = if (on) c.sources + wire else c.sources - wire))
+            SettingsToggleRow(icon, sourceLabel(wire), tr(sub), wire in c.sources, enabled = on, onCheckedChange = { checked ->
+                set(c.copy(sources = if (checked) c.sources + wire else c.sources - wire))
             })
         }
         ScopeTag(synced = true)
@@ -87,7 +91,8 @@ internal fun SmartCapturePage(m: SettingsModel, a: SettingsActions) {
                 SegmentOption("ask", tr(R.string.cap_mode_ask), Icons.Default.NotificationsActive),
             ),
             selected = c.mode,
-            onSelect = { set(c.copy(mode = it)) },
+            onSelect = { if (on) set(c.copy(mode = it)) },
+            modifier = dim,
         )
     }
 
@@ -99,7 +104,8 @@ internal fun SmartCapturePage(m: SettingsModel, a: SettingsActions) {
                 SegmentOption("keep", tr(R.string.cap_dup_keep), Icons.Default.ContentCopy),
             ),
             selected = c.duplicates,
-            onSelect = { set(c.copy(duplicates = it)) },
+            onSelect = { if (on) set(c.copy(duplicates = it)) },
+            modifier = dim,
         )
     }
 

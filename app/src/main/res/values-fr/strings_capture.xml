@@ -2,10 +2,10 @@
 <!-- Smart capture (settings page, Captured messages, notifications). -->
 <resources>
     <string name="cap_title">Capture intelligente</string>
-    <string name="cap_master_sub">Transforme les SMS, e-mails bancaires et alertes UPI en transactions</string>
-    <string name="cap_footer_privacy">Les codes à usage unique (OTP) ne sont jamais lus ni enregistrés. Les numéros de compte sont masqués sauf les 4 derniers chiffres.</string>
+    <string name="cap_master_sub">SMS, e-mails et alertes UPI deviennent des paiements</string>
+    <string name="cap_footer_privacy">Aucun OTP n\'est lu. Comptes masqués sauf les 4 derniers chiffres.</string>
     <string name="cap_sources">Lire les paiements depuis</string>
-    <string name="cap_sources_footer">Les e-mails sont lus depuis la notification Gmail ou Outlook : laissez les notifications activées pour les e-mails de votre banque.</string>
+    <string name="cap_sources_footer">Les e-mails sont lus depuis les notifications Gmail ou Outlook.</string>
     <string name="cap_src_sms">SMS bancaires</string>
     <string name="cap_src_email">E-mails bancaires</string>
     <string name="cap_src_upi">Applis UPI</string>
@@ -16,25 +16,25 @@
     <string name="cap_new_payments">Nouveaux paiements</string>
     <string name="cap_mode_auto">Ajouter automatiquement</string>
     <string name="cap_mode_ask">Me demander d\'abord</string>
-    <string name="cap_mode_auto_footer">Chaque paiement est ajouté dès l\'arrivée du message. Répondez à la notification pour ajouter une description.</string>
-    <string name="cap_mode_ask_footer">Vous recevez une notification avec Ajouter et Ignorer ; rien n\'est ajouté avant d\'appuyer sur Ajouter.</string>
+    <string name="cap_mode_auto_footer">Ajouté aussitôt. Répondez à la notification pour le décrire.</string>
+    <string name="cap_mode_ask_footer">Ajouter / Ignorer : rien n\'est ajouté sans votre accord.</string>
     <string name="cap_duplicates">Le même paiement deux fois</string>
     <string name="cap_dup_ask">Me demander</string>
     <string name="cap_dup_keep">Garder les deux</string>
-    <string name="cap_duplicates_footer">Si votre banque envoie un SMS et un e-mail pour un même paiement, il n\'est ajouté qu\'une fois quand la référence ou le compte et le montant correspondent. En cas de doute, il demande ou garde les deux, selon votre choix ici.</string>
+    <string name="cap_duplicates_footer">SMS et e-mail d\'un paiement comptent une fois ; ceci en cas de doute.</string>
     <string name="cap_messages">Messages capturés</string>
     <string name="cap_messages_sub">Chaque message bancaire lu et ce qui en a été fait</string>
     <string name="cap_messages_sheet_sub">Synchronisés avec votre compte. Touchez un message pour le vérifier.</string>
     <string name="cap_keep">Garder une copie de chaque message</string>
     <string name="cap_keep_sub">Désactivé : seul ce qui a été trouvé est gardé, pas le texte</string>
-    <string name="cap_keep_footer">Les copies sont stockées avec votre compte et vous suivent sur un nouveau téléphone. Les plus anciennes sont supprimées automatiquement.</string>
+    <string name="cap_keep_footer">Les copies sont synchronisées ; les anciennes sont supprimées.</string>
     <string name="cap_keep_days">%1$d jours</string>
     <string name="cap_keep_forever">Toujours</string>
     <string name="cap_delete_all">Supprimer tous les messages enregistrés</string>
     <string name="cap_delete_all_msg">Les copies sont supprimées de votre compte. Les transactions créées restent.</string>
     <string name="cap_delete_all_confirm">Supprimer les messages</string>
     <string name="cap_blocked">Expéditeurs bloqués</string>
-    <string name="cap_blocked_footer">Bloquez un expéditeur depuis un message dans Messages capturés. Les expéditeurs bloqués ne sont jamais lus.</string>
+    <string name="cap_blocked_footer">Bloquez un expéditeur depuis un message capturé.</string>
     <string name="cap_blocked_none">Aucun expéditeur bloqué</string>
     <string name="cap_unblock">Débloquer %1$s</string>
     <string name="cap_search_capture">capture intelligente banque sms e-mail upi transactions notifications</string>
