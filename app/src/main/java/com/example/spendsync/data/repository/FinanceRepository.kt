@@ -11,6 +11,7 @@ import com.example.spendsync.data.remote.ApiClient
 import com.example.spendsync.data.remote.model.*
 import com.example.spendsync.notifications.CaptureNotifier
 import com.example.spendsync.notifications.PendingCaptureRetryWorker
+import com.example.spendsync.data.bills.BillCall
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
@@ -301,16 +302,17 @@ class FinanceRepository private constructor(
         }
     }
 
-    suspend fun deleteTransaction(id: String): AuthResult<Unit> {
-        suspend fun queue(): AuthResult<Unit> = AuthResult.Success(Unit).also { enqueue("delete", id, null) }
+    /** Moves it to the Trash. Returns the ids of holds that went with it (their reminders must stop). */
+    suspend fun deleteTransaction(id: String): AuthResult<List<String>> {
+        // Offline: the hold ids are not known yet; the server moves the holds when the delete syncs.
+        suspend fun queue(): AuthResult<List<String>> = AuthResult.Success(emptyList<String>()).also { enqueue("delete", id, null) }
         if (dao.pendingFor(userId(), id) > 0) return queue()
         return try {
             val response = api.deleteTransaction(getAuthHeader(), id)
             if (response.isSuccessful) {
-                // "holds" too — the backend cascade-deletes the linked hold with
-                // its transaction, so a cached holds list would keep counting it.
+                // "holds" too — the backend moves the linked holds to the Trash with it.
                 cacheInvalidate("transactions", "dashboard", "holds", "plan")
-                AuthResult.Success(Unit)
+                AuthResult.Success(response.body()?.data?.holdIds.orEmpty())
             } else if (shouldQueue(null, response.code())) {
                 queue()
             } else {
@@ -428,6 +430,68 @@ class FinanceRepository private constructor(
         AuthResult.Error(e.toUserMessage())
     }
 
+    suspend fun restoreTransaction(id: String): AuthResult<RestoredTransactionDto> {
+        return try {
+            val response = api.restoreTransaction(getAuthHeader(), id)
+            val data = response.body()?.data
+            if (response.isSuccessful && data != null) {
+                cacheInvalidate("transactions", "dashboard", "holds", "plan")
+                AuthResult.Success(data)
+            } else {
+                AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    suspend fun restoreHold(id: String): AuthResult<HoldDto> {
+        return try {
+            val response = api.restoreHold(getAuthHeader(), id)
+            val data = response.body()?.data
+            if (response.isSuccessful && data != null) {
+                cacheInvalidate("holds")
+                AuthResult.Success(data)
+            } else {
+                AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    /** Never cached: the Trash changes from several screens. */
+    suspend fun getTrash(cursor: String?): AuthResult<TrashPageDto> {
+        return try {
+            val response = api.getTrash(getAuthHeader(), cursor)
+            val data = response.body()?.data
+            if (response.isSuccessful && data != null) AuthResult.Success(data)
+            else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    suspend fun deleteForever(kind: String, id: String): AuthResult<Unit> {
+        return try {
+            val response = api.deleteForever(getAuthHeader(), kind, id)
+            if (response.isSuccessful) AuthResult.Success(Unit)
+            else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
+    suspend fun emptyTrash(): AuthResult<Int> {
+        return try {
+            val response = api.emptyTrash(getAuthHeader())
+            if (response.isSuccessful) AuthResult.Success(response.body()?.data?.deleted ?: 0)
+            else AuthResult.Error(parseErrorMessage(response.errorBody()?.string()))
+        } catch (e: Exception) {
+            AuthResult.Error(e.toUserMessage())
+        }
+    }
+
     // ── Holds ─────────────────────────────────────────────────────────────────
 
     suspend fun createHold(
@@ -474,6 +538,7 @@ class FinanceRepository private constructor(
         }
     }
 
+    /** Moves the hold to the Trash. */
     suspend fun deleteHold(id: String): AuthResult<Unit> {
         return try {
             val response = api.deleteHold(getAuthHeader(), id)
@@ -683,6 +748,64 @@ class FinanceRepository private constructor(
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    // ── Bills ─────────────────────────────────────────────────────────────────
+
+    private suspend fun <T> billCall(block: suspend () -> retrofit2.Response<SuccessResponse<T>>): BillCall<T> = try {
+        val r = block()
+        val data = r.body()?.data
+        if (r.isSuccessful && data != null) BillCall.Ok(data)
+        else BillCall.Fail(parseErrorMessage(r.errorBody()?.string()), BillCall.isPermanent(r.code()), r.code())
+    } catch (e: Exception) {
+        BillCall.Fail(e.toUserMessage(), permanent = false)
+    }
+
+    suspend fun listBills(txId: String): AuthResult<List<BillDto>> = when (val r = billCall { api.listBills(getAuthHeader(), txId) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data)
+        is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+
+    suspend fun reserveBill(txId: String, req: ReserveBillRequest) = billCall { api.reserveBill(getAuthHeader(), txId, req) }
+    suspend fun signBill(id: String) = billCall { api.signBill(getAuthHeader(), id) }
+
+    suspend fun confirmBill(id: String, req: ConfirmBillRequest): BillCall<BillDto> =
+        billCall { api.confirmBill(getAuthHeader(), id, req) }.also { if (it is BillCall.Ok) cacheInvalidate("transactions") }
+
+    suspend fun deleteBill(id: String): AuthResult<Unit> = try {
+        val r = api.deleteBill(getAuthHeader(), id)
+        if (r.isSuccessful) { cacheInvalidate("transactions"); AuthResult.Success(Unit) } else AuthResult.Error(parseErrorMessage(r.errorBody()?.string()))
+    } catch (e: Exception) { AuthResult.Error(e.toUserMessage()) }
+
+    suspend fun restoreBill(id: String): AuthResult<BillDto> = when (val r = billCall { api.restoreBill(getAuthHeader(), id) }) {
+        is BillCall.Ok -> { cacheInvalidate("transactions"); AuthResult.Success(r.data) }
+        is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+
+    suspend fun billUsage(): AuthResult<BillUsageDto> = when (val r = billCall { api.billUsage(getAuthHeader()) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data)
+        is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+
+    suspend fun getTransaction(id: String): AuthResult<TransactionDto> = when (val r = billCall { api.getTransactionById(getAuthHeader(), id) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data)
+        is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+
+    suspend fun billRead(txId: String): AuthResult<BillReadStatusDto> = when (val r = billCall { api.getBillRead(getAuthHeader(), txId) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data); is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+    suspend fun runBillRead(txId: String, req: RunBillReadRequest): AuthResult<BillReadStatusDto> = when (val r = billCall { api.runBillRead(getAuthHeader(), txId, req) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data); is BillCall.Fail -> AuthResult.Error(r.message)
+    }
+    /** AI switched off: the server stops bill reads still waiting in its queue. Best effort. */
+    suspend fun stopBillReads() { runCatching { api.stopBillReads(getAuthHeader()) } }
+
+    /** Bills to the user's own account email (the user tapped Send on the email card). */
+    suspend fun emailBills(ids: List<String>) = billCall { api.emailBills(getAuthHeader(), EmailBillsRequest(ids)) }
+
+    suspend fun readBillImages(req: ReadBillImagesRequest): AuthResult<BillImagesReadDto> = when (val r = billCall { api.readBillImages(getAuthHeader(), req) }) {
+        is BillCall.Ok -> AuthResult.Success(r.data); is BillCall.Fail -> AuthResult.Error(r.message)
+    }
 
     private fun parseErrorMessage(errorBody: String?): String {
         if (errorBody.isNullOrBlank()) return tr(R.string.an_unexpected_error_occurred)

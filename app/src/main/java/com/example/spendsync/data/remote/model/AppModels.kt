@@ -34,6 +34,7 @@ data class TransactionDto(
     @SerializedName("note")      val note: String?,
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String?,
+    @SerializedName("billCount") val billCount: Int = 0,
 )
 
 data class CreateTransactionRequest(
@@ -328,3 +329,117 @@ data class ExportEmailRequest(
 )
 
 data class ExportEmailDto(@SerializedName("sentTo") val sentTo: String = "")
+
+// ── Trash ─────────────────────────────────────────────────────────────────────
+
+data class DeleteTransactionResult(
+    @SerializedName("holdIds") val holdIds: List<String>,
+)
+
+data class RestoredTransactionDto(
+    @SerializedName("transaction") val transaction: TransactionDto,
+    @SerializedName("holds")       val holds: List<HoldDto>,
+)
+
+/** kind "transaction" → [transaction] + [holds]; kind "hold" → [hold]. */
+data class TrashItemDto(
+    @SerializedName("kind")        val kind: String,
+    @SerializedName("id")          val id: String,
+    @SerializedName("deletedAt")   val deletedAt: String,
+    @SerializedName("transaction") val transaction: TransactionDto?,
+    @SerializedName("holds")       val holds: List<HoldDto>?,
+    @SerializedName("hold")        val hold: HoldDto?,
+    @SerializedName("bills")       val bills: List<BillDto>? = null,
+    @SerializedName("bill")        val bill: BillDto? = null,
+    @SerializedName("merchant")    val merchant: String? = null,
+)
+
+data class TrashPageDto(
+    @SerializedName("items")      val items: List<TrashItemDto>,
+    @SerializedName("nextCursor") val nextCursor: String?,
+)
+
+data class TrashEmptiedDto(
+    @SerializedName("deleted") val deleted: Int,
+)
+
+// ── Bills ─────────────────────────────────────────────────────────────────────
+
+data class BillDto(
+    @SerializedName("id")            val id: String,
+    @SerializedName("transactionId") val transactionId: String,
+    @SerializedName("position")      val position: Int,
+    @SerializedName("status")        val status: String,
+    @SerializedName("format")        val format: String?,
+    @SerializedName("pages")         val pages: Int?,
+    @SerializedName("thumb")         val thumb: String,
+    @SerializedName("full")          val full: String,
+    @SerializedName("blurred")       val blurred: String,
+    @SerializedName("pageUrls")      val pageUrls: List<String>,
+    @SerializedName("original")      val original: String?,
+)
+
+data class BillReservationDto(
+    @SerializedName("billId")    val billId: String,
+    @SerializedName("status")    val status: String,
+    @SerializedName("uploadUrl") val uploadUrl: String?,
+    @SerializedName("params")    val params: Map<String, String>?,
+)
+
+data class ReserveBillRequest(
+    @SerializedName("clientKey")   val clientKey: String,
+    @SerializedName("contentType") val contentType: String,
+    @SerializedName("bytes")       val bytes: Long,
+    @SerializedName("position")    val position: Int? = null,
+    @SerializedName("replaces")    val replaces: String? = null,
+)
+
+data class ConfirmBillRequest(
+    @SerializedName("public_id") val publicId: String,
+    @SerializedName("version")   val version: Long,
+    @SerializedName("signature") val signature: String,
+    @SerializedName("format")    val format: String,
+    @SerializedName("bytes")     val bytes: Long,
+    @SerializedName("width")     val width: Int? = null,
+    @SerializedName("height")    val height: Int? = null,
+    @SerializedName("pages")     val pages: Int? = null,
+    @SerializedName("aiConsent") val aiConsent: Boolean = false,
+)
+
+data class BillUsageDto(
+    @SerializedName("bytesUsed")     val bytesUsed: Long,
+    @SerializedName("bytesLimit")    val bytesLimit: Long,
+    @SerializedName("uploadsToday")  val uploadsToday: Int,
+    @SerializedName("uploadsPerDay") val uploadsPerDay: Int,
+)
+
+// ── Bill AI ───────────────────────────────────────────────────────────────────
+
+data class BillItemDto(
+    @SerializedName("name") val name: String?, @SerializedName("qty") val qty: Double?,
+    @SerializedName("unitPrice") val unitPrice: Double?, @SerializedName("amount") val amount: Double?,
+)
+data class BillChecksDto(@SerializedName("itemsMatchSubtotal") val itemsMatchSubtotal: Boolean?, @SerializedName("totalsAddUp") val totalsAddUp: Boolean?)
+data class BillReadDto(
+    @SerializedName("merchant") val merchant: String?, @SerializedName("date") val date: String?, @SerializedName("currency") val currency: String,
+    @SerializedName("total") val total: Double?, @SerializedName("subtotal") val subtotal: Double?, @SerializedName("tax") val tax: Double?,
+    @SerializedName("discount") val discount: Double?, @SerializedName("fees") val fees: Double?,
+    @SerializedName("items") val items: List<BillItemDto>, @SerializedName("paymentMethod") val paymentMethod: String?,
+    @SerializedName("billNumber") val billNumber: String?, @SerializedName("category") val category: String?,
+    @SerializedName("confidence") val confidence: Double, @SerializedName("summary") val summary: String,
+    @SerializedName("notes") val notes: List<String>, @SerializedName("checks") val checks: BillChecksDto?,
+)
+data class BillReadStatusDto(@SerializedName("status") val status: String, @SerializedName("data") val data: BillReadDto?, @SerializedName("model") val model: String?, @SerializedName("stale") val stale: Boolean)
+data class BillAiPrefsDto(@SerializedName("language") val language: String, @SerializedName("style") val style: String, @SerializedName("tone") val tone: String)
+data class RunBillReadRequest(@SerializedName("aiConsent") val aiConsent: Boolean, @SerializedName("force") val force: Boolean = false, @SerializedName("prefs") val prefs: BillAiPrefsDto)
+data class BillImageDto(@SerializedName("mime") val mime: String, @SerializedName("base64") val base64: String)
+data class ReadBillImagesRequest(@SerializedName("aiConsent") val aiConsent: Boolean = true, @SerializedName("images") val images: List<BillImageDto>, @SerializedName("prefs") val prefs: BillAiPrefsDto)
+data class BillImagesReadDto(@SerializedName("data") val data: BillReadDto, @SerializedName("model") val model: String)
+
+// ── Bills by email (assistant) ────────────────────────────────────────────────
+
+data class EmailBillsRequest(@SerializedName("transactionIds") val transactionIds: List<String>)
+data class EmailBillsResultDto(
+    @SerializedName("sentTo") val sentTo: String, @SerializedName("attached") val attached: Int,
+    @SerializedName("notAttached") val notAttached: Int, @SerializedName("skipped") val skipped: Int,
+)

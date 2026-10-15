@@ -96,6 +96,7 @@ import com.example.spendsync.ui.theme.NeutralMid
 import com.example.spendsync.ui.theme.NeutralOffWhite
 import com.example.spendsync.ui.theme.NeutralWhite
 import com.example.spendsync.ui.theme.SemanticError
+import com.example.spendsync.notifications.HoldReminderWorker
 import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -354,7 +355,6 @@ fun HomeScreen(
 
     // Global search modal + per-row action state
     var showGlobalSearch by remember { mutableStateOf(false) }
-    var transactionToDelete by remember { mutableStateOf<TransactionDto?>(null) }
     var transactionToView by remember { mutableStateOf<TransactionDto?>(null) }
 
     LaunchedEffect(externalViewTransactionId) {
@@ -383,7 +383,38 @@ fun HomeScreen(
             .toDayGroups()
     }
 
-    val onDeleteTx: (TransactionDto) -> Unit = { transactionToDelete = it }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    fun restoreTx(tx: TransactionDto) {
+        scope.launch {
+            when (val r = financeRepository.restoreTransaction(tx.id)) {
+                is AuthResult.Success -> {
+                    monthlyTransactions = monthlyTransactions.filter { it.id != tx.id } + r.data.transaction
+                    r.data.holds.forEach { HoldReminderWorker.scheduleFor(context, it) }
+                    balanceRefreshKey++
+                }
+                is AuthResult.Error -> toast = ToastMessage(r.message, isError = true)
+            }
+        }
+    }
+
+    // Instant: the row leaves now, the server moves it to the Trash, Undo brings it back.
+    val onDeleteTx: (TransactionDto) -> Unit = { tx ->
+        monthlyTransactions = monthlyTransactions.filter { it.id != tx.id }
+        scope.launch {
+            when (val res = financeRepository.deleteTransaction(tx.id)) {
+                is AuthResult.Success -> {
+                    res.data.forEach { HoldReminderWorker.cancel(context, it) }
+                    balanceRefreshKey++
+                    toast = ToastMessage(tr(R.string.trash_moved), isError = false, actionLabel = tr(R.string.trash_undo), onAction = { restoreTx(tx) })
+                }
+                is AuthResult.Error -> {
+                    if (monthlyTransactions.none { it.id == tx.id }) monthlyTransactions = monthlyTransactions + tx
+                    toast = ToastMessage(res.message, isError = true)
+                }
+            }
+        }
+    }
     val onEditTx: (TransactionDto) -> Unit = { onEditTransaction(it) }
     val onInfoTx: (TransactionDto) -> Unit = { transactionToView = it }
 
@@ -554,34 +585,35 @@ fun HomeScreen(
         }
     }
 
-    // ── Delete confirmation ───────────────────────────────────────────────────
-    transactionToDelete?.let { tx ->
-        DeleteTransactionDialog(
-            transaction = tx,
-            amountVisibility = amountVisibility,
-            onDismiss = { transactionToDelete = null },
-            onConfirm = {
-                scope.launch {
-                    val res = financeRepository.deleteTransaction(tx.id)
-                    if (res is AuthResult.Success) {
-                        monthlyTransactions = monthlyTransactions.filter { it.id != tx.id }
-                        balanceRefreshKey++
-                        toast = ToastMessage(tr(R.string.transaction_deleted), isError = false)
-                    } else {
-                        toast = ToastMessage((res as AuthResult.Error).message, isError = true)
-                    }
-                    transactionToDelete = null
-                }
-            },
-        )
-    }
-
     // ── Transaction details ───────────────────────────────────────────────────
     transactionToView?.let { tx ->
         TransactionInfoDialog(
             transaction = tx,
             amountVisibility = amountVisibility,
             onDismiss = { transactionToView = null },
+            financeRepository = financeRepository,
+            sessionDataStore = sessionDataStore,
+            onAmountUpdated = { total ->
+                scope.launch {
+                    val before = tx.amount.toDoubleOrNull() ?: return@launch
+                    when (val r = financeRepository.updateTransaction(id = tx.id, amount = total)) {
+                        is AuthResult.Success -> {
+                            monthlyTransactions = monthlyTransactions.map { if (it.id == tx.id) r.data else it }
+                            transactionToView = r.data
+                            balanceRefreshKey++
+                            toast = ToastMessage(tr(R.string.bai_amount_updated), isError = false, actionLabel = tr(R.string.trash_undo), onAction = {
+                                scope.launch {
+                                    (financeRepository.updateTransaction(id = tx.id, amount = before) as? AuthResult.Success)?.let { u ->
+                                        monthlyTransactions = monthlyTransactions.map { if (it.id == tx.id) u.data else it }
+                                        balanceRefreshKey++
+                                    }
+                                }
+                            })
+                        }
+                        is AuthResult.Error -> toast = ToastMessage(r.message, isError = true)
+                    }
+                }
+            },
             onViewMessage = { transactionToView = null; messagesForTransaction = tx.id },
         )
     }

@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Contacts
@@ -267,6 +268,12 @@ fun AddExpenseScreen(
     }
 
     var expectReturn by remember { mutableStateOf(false) }
+    // Bill pages picked before the transaction exists; queued for upload right after it is saved.
+    var draftBills by remember { mutableStateOf<List<com.example.spendsync.ui.bills.Picked>>(emptyList()) }
+    var pickingBills by remember { mutableStateOf(false) }
+    var prefill by remember { mutableStateOf<com.example.spendsync.ui.billai.PrefillState>(com.example.spendsync.ui.billai.PrefillState.Hidden) }
+    val aiConsent by sessionDataStore.assistantConsent.collectAsState(initial = false)
+    val assistantPrefs by sessionDataStore.assistantPrefs.collectAsState(initial = com.example.spendsync.data.assistant.AssistantPrefs())
     var holdPersonName by remember { mutableStateOf("") }
     // Picking from contacts fills the name and keeps the number on this phone (for follow-up messages later).
     val holdContactPicker = com.example.spendsync.ui.contacts.rememberContactPicker { picked ->
@@ -355,6 +362,19 @@ fun AddExpenseScreen(
             byLabel.putIfAbsent(editTransaction.category, Category(editTransaction.category, Icons.Default.Star))
         }
         byLabel.values.toList()
+    }
+
+    // Scanned a bill for a new expense: offer its amount, shop, date and category (never applied by itself).
+    LaunchedEffect(draftBills, aiConsent) {
+        if (isEditing || draftBills.isEmpty() || !aiConsent) { prefill = com.example.spendsync.ui.billai.PrefillState.Hidden; return@LaunchedEffect }
+        prefill = com.example.spendsync.ui.billai.PrefillState.Reading
+        val images = com.example.spendsync.data.billai.AiImages.prepare(context, draftBills)
+        if (images.isEmpty()) { prefill = com.example.spendsync.ui.billai.PrefillState.Hidden; return@LaunchedEffect }
+        val prefs = com.example.spendsync.data.billai.BillAi.prefs(com.example.spendsync.ui.i18n.LanguageManager.current.storedName, assistantPrefs.style, assistantPrefs.tone)
+        val r = financeRepository.readBillImages(com.example.spendsync.data.remote.model.ReadBillImagesRequest(images = images, prefs = prefs))
+        val read = (r as? AuthResult.Success)?.data
+        val p = read?.let { com.example.spendsync.data.billai.BillAi.prefill(it.data, today, poolExpenseCategories.map { c -> c.label }) }
+        prefill = if (read != null && p != null) com.example.spendsync.ui.billai.PrefillState.Ready(p, read.data, read.model) else com.example.spendsync.ui.billai.PrefillState.Hidden
     }
 
     val categoryPool = if (type == TransactionType.INCOME) poolIncomeCategories else poolExpenseCategories
@@ -505,6 +525,15 @@ fun AddExpenseScreen(
                 scope.launch { financeRepository.createCategory(keyword, chosenCategory) }
             }
             if (res is AuthResult.Success) {
+                if (!isEditing && draftBills.isNotEmpty()) {
+                    // Outlives this screen: the pages are copied and queued after it closes.
+                    val appContext = context.applicationContext
+                    val picked = draftBills
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        val prepared = picked.mapNotNull { com.example.spendsync.data.bills.BillImages.prepare(appContext, it.uri, it.mime).getOrNull() }
+                        com.example.spendsync.data.bills.BillQueue.enqueuePrepared(appContext, res.data.id, prepared)
+                    }
+                }
                 // Outlives this screen, so the alert still goes out after it closes.
                 val appContext = context.applicationContext
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -619,6 +648,40 @@ fun AddExpenseScreen(
                         )
                         Spacer(Modifier.height(12.dp))
                         DateSelectorRow(label = tr(R.string.date), date = transactionDate, accentColor = accentColor, onClick = { showDatePicker = true })
+                        Spacer(Modifier.height(12.dp))
+                        if (isEditing) {
+                            com.example.spendsync.ui.bills.BillsSection(
+                                editTransaction!!.id, financeRepository, amountVisibility,
+                                transaction = editTransaction, sessionDataStore = sessionDataStore,
+                                // On the edit form it only fills the field; Save stores it.
+                                onAmountUpdated = { amount = "%.2f".format(java.util.Locale.US, it) },
+                            )
+                        } else {
+                            Text(tr(R.string.bills_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(Modifier.height(8.dp))
+                            if (draftBills.isEmpty()) {
+                                AppButton(tr(R.string.bills_attach), onClick = { pickingBills = true }, variant = ButtonVariant.Tonal, leadingIcon = Icons.Default.AttachFile)
+                            } else {
+                                com.example.spendsync.ui.bills.BillStrip(
+                                    tiles = emptyList(), canAdd = draftBills.size < 5, masked = false,
+                                    onAdd = { pickingBills = true }, onOpen = {}, onRetry = {}, onRemove = {},
+                                    localPreview = draftBills,
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            com.example.spendsync.ui.billai.PrefillCard(
+                                state = prefill,
+                                masked = amountVisibility.isMaskingEnabled && !amountVisibility.isVisible,
+                                onUse = { p ->
+                                    p.amount?.let { amount = "%.2f".format(java.util.Locale.US, it).trimEnd('0').trimEnd('.') }
+                                    p.note?.let { note = it }
+                                    p.date?.let { transactionDate = it }
+                                    p.category?.let { selectedCat = it }
+                                    prefill = com.example.spendsync.ui.billai.PrefillState.Hidden
+                                },
+                                onIgnore = { prefill = com.example.spendsync.ui.billai.PrefillState.Hidden },
+                            )
+                        }
 
                         // A hold can only be attached to a NEW transaction.
                         if (!isEditing) {
@@ -769,6 +832,14 @@ fun AddExpenseScreen(
     }
 
     // Future dates are disabled — never backdate past "today"'s max
+    if (pickingBills) {
+        com.example.spendsync.ui.bills.BillSourceSheet(
+            remaining = 5 - draftBills.size,
+            onPicked = { draftBills = (draftBills + it).take(5); pickingBills = false },
+            onDismiss = { pickingBills = false },
+        )
+    }
+
     if (showDatePicker) {
         MonthPickerDialog(
             current = transactionDate,

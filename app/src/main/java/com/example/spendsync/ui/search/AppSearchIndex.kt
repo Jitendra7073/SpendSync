@@ -70,9 +70,12 @@ fun appSearchEntries(): List<AppSearchEntry> {
     setting(SettingsPage.Assistant, R.string.asst_group_style, "short", "detailed", "length")
     setting(SettingsPage.Assistant, R.string.asst_group_tone, "friendly", "professional", "simple")
     setting(SettingsPage.Assistant, R.string.asst_group_instructions, "custom", "prompt")
+    setting(SettingsPage.Assistant, R.string.voice_group, "voice", "mic", "speech", "listen", "talk", "read aloud", "tts")
     setting(SettingsPage.Assistant, R.string.asst_group_history, "clear chat", "delete chat")
     setting(SettingsPage.Appearance, R.string.cc_title, "custom", "colors", "colours", "background", "icons", "palette")
     setting(SettingsPage.Reports, R.string.rp_title, "support", "ticket", "problem", "report")
+    setting(SettingsPage.Data, R.string.bills_title, "bill", "bills", "receipt", "storage", "invoice")
+    setting(SettingsPage.Trash, R.string.trash_title, "trash", "deleted", "restore", "undo", "bin", "recycle")
     // Planify
     setting(SettingsPage.Planify, R.string.pl_set_alerts, "limit", "warn", "budget")
     setting(SettingsPage.Planify, R.string.pl_set_daily, "summary", "evening")

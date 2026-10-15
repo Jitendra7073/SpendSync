@@ -31,11 +31,38 @@ export const HELP_ENTRIES: HelpEntry[] = [
       'Tap the + button in the bottom bar and choose Money in (income) or Money out (expense). Enter the amount, an optional note about what it was for, pick a date (never in the future) and a category, then tap Add. Typing a note can suggest a category from what you picked before. Turn on "Expect this back?" to also track the money as a hold.',
   },
   {
+    id: 'bills',
+    title: 'Attach a bill or receipt',
+    screen: 'home',
+    text:
+      'You can attach up to 5 bill pages (photos or a PDF) to any expense or income. While adding an expense tap Attach bill, or open a transaction and use the Bills section; an auto-captured expense notification also has an Attach bill button. Choose Scan bill to use the camera scanner, or pick photos or a PDF. Uploads continue in the background and wait for the internet if you are offline. Tap a page to view it full screen, zoom, replace or delete it. Deleted bills go to Settings → Trash. Bills are private and blurred while amounts are hidden behind your PIN.',
+  },
+  {
+    id: 'bill_ai',
+    title: 'Reading and explaining bills',
+    screen: 'home',
+    text:
+      'When AI is on (Settings → Assistant), SpendSync reads each bill you attach: shop, date, items, tax, fees and total. Open a transaction to see a short summary and tap Explain for the item list, totals and tips. If the bill total differs from the amount you recorded, tap Update amount (you can Undo). While adding an expense, scan the bill first and tap Use these to fill the amount, shop, date and category. Reading uses free AI models and may make mistakes; it never changes anything unless you tap.',
+  },
+  {
+    id: 'find_bills',
+    title: 'Find and email bills',
+    text:
+      'Ask the assistant things like "do I have a bill for the 2000 shopping?" or "show my Zara bill". It shows the matching transactions with their bill pictures: tap Open to view, Explain for the AI summary, or Attach bill when one is missing. Tap Email to me (or ask "email it to me") to get the bills in your inbox — you confirm first and it only goes to your own account email. Tap Share to send them to anyone through WhatsApp, Gmail and other apps on your phone.',
+  },
+  {
+    id: 'trash',
+    title: 'Deleted items and the Trash',
+    screen: 'profile',
+    text:
+      'Deleting an expense, income or hold moves it to the Trash instead of erasing it. Right after deleting, tap Undo to bring it back. Later, open Profile → Settings → Trash: every deleted item is listed with Restore and Delete forever. Items in the Trash do not count in your balance, plans, analytics or exports. They stay there until you delete them forever or tap Empty Trash, which cannot be undone.',
+  },
+  {
     id: 'edit_delete_transaction',
     title: 'Edit, view or delete a transaction',
     screen: 'home',
     text:
-      'On Home or the Transactions list, tap a transaction to edit it, swipe it right to see its details, or swipe it left to delete it (you are asked to confirm and it cannot be undone).',
+      'On Home or the Transactions list, tap a transaction to edit it, swipe it right to see its details, or swipe it left to delete it. A deleted transaction goes to the Trash: tap Undo right away, or restore it later from Settings → Trash.',
   },
   {
     id: 'categories',

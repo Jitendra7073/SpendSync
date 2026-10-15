@@ -1,11 +1,17 @@
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '../db/index';
-import { holds } from '../db/schema/index';
+import { holds, transactions } from '../db/schema/index';
+import { liveHold } from '../lib/live';
+import { assertParentLive } from '../trash/rules';
+import { transactionService } from './transaction.service';
 import type { CreateHoldInput, UpdateHoldInput, HoldQuery } from '../types/hold.types';
 import { NotFoundError } from '../utils/errors';
 
 export class HoldService {
   async create(userId: string, data: CreateHoldInput) {
+    // The transaction must be the user's own and not in the Trash (404 otherwise).
+    await transactionService.getById(userId, data.transactionId);
+
     const [hold] = await db
       .insert(holds)
       .values({
@@ -22,7 +28,7 @@ export class HoldService {
   }
 
   async getAll(userId: string, query: HoldQuery) {
-    const conditions = [eq(holds.userId, userId)];
+    const conditions = [eq(holds.userId, userId), liveHold];
     if (query.status) conditions.push(eq(holds.status, query.status));
     if (query.direction) conditions.push(eq(holds.direction, query.direction));
 
@@ -37,7 +43,7 @@ export class HoldService {
     const [hold] = await db
       .select()
       .from(holds)
-      .where(and(eq(holds.id, holdId), eq(holds.userId, userId)));
+      .where(and(eq(holds.id, holdId), eq(holds.userId, userId), liveHold));
 
     if (!hold) {
       throw new NotFoundError('Hold not found');
@@ -60,16 +66,34 @@ export class HoldService {
         ...(status ? { status, settledAt: status === 'settled' ? new Date() : null } : {}),
         updatedAt: new Date(),
       })
-      .where(and(eq(holds.id, holdId), eq(holds.userId, userId)))
+      .where(and(eq(holds.id, holdId), eq(holds.userId, userId), liveHold))
       .returning();
 
     return updated;
   }
 
+  /** Move one hold to the Trash. Already there → no-op. */
   async delete(userId: string, holdId: string) {
-    await this.getById(userId, holdId);
+    const mine = and(eq(holds.id, holdId), eq(holds.userId, userId));
+    const [row] = await db.select({ deletedAt: holds.deletedAt }).from(holds).where(mine);
+    if (!row) throw new NotFoundError('Hold not found');
+    if (row.deletedAt) return;
+    await db.update(holds).set({ deletedAt: new Date() }).where(mine);
+  }
 
-    await db.delete(holds).where(and(eq(holds.id, holdId), eq(holds.userId, userId)));
+  /** Bring one hold back. Refused while its transaction is in the Trash (restore that instead). */
+  async restore(userId: string, holdId: string) {
+    const mine = and(eq(holds.id, holdId), eq(holds.userId, userId));
+    const [row] = await db
+      .select({ hold: holds, parentDeletedAt: transactions.deletedAt })
+      .from(holds)
+      .innerJoin(transactions, eq(transactions.id, holds.transactionId))
+      .where(mine);
+    if (!row) throw new NotFoundError('Hold not found');
+    if (!row.hold.deletedAt) return row.hold;
+    assertParentLive(row.parentDeletedAt);
+    const [hold] = await db.update(holds).set({ deletedAt: null, updatedAt: new Date() }).where(mine).returning();
+    return hold;
   }
 }
 

@@ -1,4 +1,5 @@
 import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import { liveTx } from '../lib/live';
 import { db } from '../db/index';
 import { budgets, planEvents, planMatches, plans, transactions } from '../db/schema/index';
 import type { MoveInput, SavePlanInput } from '../types/plan.types';
@@ -31,7 +32,7 @@ async function txsBetween(userId: string, start: Date, end: Date): Promise<TxLit
   const rows = await db
     .select({ category: transactions.category, merchant: transactions.merchant, type: transactions.type, amount: transactions.amount })
     .from(transactions)
-    .where(and(eq(transactions.userId, userId), gte(transactions.createdAt, start), lt(transactions.createdAt, end)));
+    .where(and(eq(transactions.userId, userId), liveTx, gte(transactions.createdAt, start), lt(transactions.createdAt, end)));
   return rows.map((r) => ({ category: r.category ?? '', merchant: r.merchant ?? '', type: r.type, amount: num(r.amount) }));
 }
 
@@ -208,13 +209,13 @@ export async function loadHistory(userId: string, month: string): Promise<MonthH
       count: sql<number>`COUNT(CASE WHEN ${transactions.type} = 'debit' THEN 1 END)`,
     })
     .from(transactions)
-    .where(and(eq(transactions.userId, userId), gte(transactions.createdAt, start), lt(transactions.createdAt, end)))
+    .where(and(eq(transactions.userId, userId), liveTx, gte(transactions.createdAt, start), lt(transactions.createdAt, end)))
     .groupBy(monthKey, transactions.category);
 
   const creditRows = await db
     .select({ month: monthKey, amount: transactions.amount })
     .from(transactions)
-    .where(and(eq(transactions.userId, userId), eq(transactions.type, 'credit'), gte(transactions.createdAt, start), lt(transactions.createdAt, end)));
+    .where(and(eq(transactions.userId, userId), liveTx, eq(transactions.type, 'credit'), gte(transactions.createdAt, start), lt(transactions.createdAt, end)));
 
   const history: MonthHistory[] = months
     .map((m) => ({
@@ -236,7 +237,7 @@ export async function loadCredits(userId: string, month: string): Promise<Credit
   const rows = await db
     .select({ at: transactions.createdAt, amount: transactions.amount, category: transactions.category, merchant: transactions.merchant, note: transactions.note })
     .from(transactions)
-    .where(and(eq(transactions.userId, userId), eq(transactions.type, 'credit'), gte(transactions.createdAt, start), lt(transactions.createdAt, end)));
+    .where(and(eq(transactions.userId, userId), liveTx, eq(transactions.type, 'credit'), gte(transactions.createdAt, start), lt(transactions.createdAt, end)));
   return rows.map((r) => ({
     month: r.at.toISOString().slice(0, 7),
     amount: num(r.amount),

@@ -2,6 +2,7 @@ import { and, desc, eq, gte, lte, lt, ne, sql, count } from 'drizzle-orm';
 import { db } from '../db/index';
 import { capturedMessages, transactions, userSettings, type CapturedMessage } from '../db/schema/index';
 import { categoryService } from '../services/category.service';
+import { liveTx } from '../lib/live';
 import { ConflictError, NotFoundError, ValidationError } from '../utils/errors';
 import type { CaptureAction, IngestInput, ListQuery } from '../types/capture.types';
 import { decide, maskBody, OTP, windowMs, type Candidate, type Source } from './decide';
@@ -47,12 +48,12 @@ async function fillMerchant(tx: Tx, userId: string, transactionId: string | null
   await tx
     .update(transactions)
     .set({ merchant: payee, updatedAt: new Date() })
-    .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId), eq(transactions.merchant, 'Unknown')));
+    .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId), eq(transactions.merchant, 'Unknown'), liveTx));
 }
 
 async function withTransaction(message: CapturedMessage) {
   if (!message.transactionId) return { message, transaction: null };
-  const [transaction] = await db.select().from(transactions).where(eq(transactions.id, message.transactionId));
+  const [transaction] = await db.select().from(transactions).where(and(eq(transactions.id, message.transactionId), liveTx));
   return { message, transaction: transaction ?? null };
 }
 
@@ -141,6 +142,7 @@ export async function ingest(userId: string, input: IngestInput) {
       .where(
         and(
           eq(transactions.userId, userId),
+          liveTx, // a payment in the Trash is not a duplicate of a new one
           eq(transactions.type, type),
           eq(transactions.amount, amount.toFixed(2)),
           gte(transactions.createdAt, new Date(receivedAt.getTime() - widest)),

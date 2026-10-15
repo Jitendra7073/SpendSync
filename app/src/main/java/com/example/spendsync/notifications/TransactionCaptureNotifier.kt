@@ -62,6 +62,18 @@ object TransactionCaptureNotifier {
             .setContentTitle(tr(R.string.captured_amount_to, directionSign, transaction.amount, transaction.merchant))
             .setContentText(tr(R.string.tap_reply_to_add_a_description))
             .addAction(replyAction)
+            .addAction(
+                android.R.drawable.ic_menu_camera,
+                tr(R.string.bills_attach),
+                PendingIntent.getActivity(
+                    context, ("bill" + transaction.id).hashCode(),
+                    Intent(context, com.example.spendsync.MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        putExtra(BillLinks.EXTRA, transaction.id)
+                    },
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                ),
+            )
             .setAutoCancel(true)
             .build()
 

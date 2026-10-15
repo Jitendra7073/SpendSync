@@ -115,6 +115,7 @@ import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.repository.AuthRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
+import com.example.spendsync.notifications.HoldReminderWorker
 import com.example.spendsync.data.remote.model.DashboardSummaryDto
 import androidx.compose.runtime.LaunchedEffect
 import com.example.spendsync.ui.shared.AmountVisibilityState
@@ -150,6 +151,8 @@ fun ProfileScreen(
     openSettingsRequestId: Int = 0,
     /** The Settings page a search result asked for; null opens the Settings hub. */
     openSettingsPage: SettingsPage? = null,
+    /** Something on another tab changed (e.g. a Trash restore): Home must reload. */
+    onDataChanged: () -> Unit = {},
     onSignOut: () -> Unit,
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
@@ -189,6 +192,7 @@ fun ProfileScreen(
     val exportOnLogin by sessionDataStore.exportOnLogin.collectAsState(initial = false)
     val customColors by sessionDataStore.customColors.collectAsState(initial = com.example.spendsync.ui.theme.CustomColors())
     val assistantPrefs by sessionDataStore.assistantPrefs.collectAsState(initial = com.example.spendsync.data.assistant.AssistantPrefs())
+    val voicePrefs by sessionDataStore.voicePrefs.collectAsState(initial = com.example.spendsync.voice.VoicePrefs())
     var assistantModels by remember { mutableStateOf<List<com.example.spendsync.ui.settings.AssistantModelInfo>?>(null) }
     val assistantRepository = remember { com.example.spendsync.data.assistant.AssistantRepository(sessionDataStore) }
     val chatStore = remember { com.example.spendsync.data.assistant.ChatStore(context.applicationContext) }
@@ -310,6 +314,7 @@ fun ProfileScreen(
         assistantEnabled = assistantConsent,
         assistant = assistantPrefs,
         assistantModels = assistantModels,
+        voicePrefs = voicePrefs,
         planify = planifySettings,
         motion = motionPrefs,
         colors = customColors,
@@ -339,12 +344,43 @@ fun ProfileScreen(
             if (turningOn) showPinSetupDialog = true
             else commit(SettingField.Masking) { sessionDataStore.updateAmountMaskingEnabled(false) }
         },
-        setAssistant = { v -> scope.launch { sessionDataStore.updateAssistantConsent(v) } },
+        setAssistant = { v ->
+            scope.launch {
+                sessionDataStore.updateAssistantConsent(v)
+                if (!v) financeRepository.stopBillReads() // queued bill reads must not run after consent is withdrawn
+            }
+        },
         setMotion = { m -> scope.launch { sessionDataStore.updateAnimationPrefs(m) } },
         setExportOnLogin = { v -> scope.launch { sessionDataStore.updateExportOnLogin(v) } },
         setColors = { c -> scope.launch { sessionDataStore.updateCustomColors(c) } },
         loadReports = { assistantRepository.tickets() },
         closeReport = { ref -> assistantRepository.closeTicket(ref) },
+        loadTrash = { cursor -> (financeRepository.getTrash(cursor) as? AuthResult.Success)?.data },
+        restoreTrashItem = { item ->
+            if (item.kind == "bill") {
+                val r = financeRepository.restoreBill(item.id)
+                if (r is AuthResult.Success) onDataChanged()
+                r is AuthResult.Success
+            } else if (item.kind == "transaction") {
+                val r = financeRepository.restoreTransaction(item.id)
+                if (r is AuthResult.Success) {
+                    r.data.holds.forEach { HoldReminderWorker.scheduleFor(context, it) }
+                    onDataChanged()
+                }
+                r is AuthResult.Success
+            } else {
+                val r = financeRepository.restoreHold(item.id)
+                if (r is AuthResult.Success) {
+                    HoldReminderWorker.scheduleFor(context, r.data)
+                    onDataChanged()
+                }
+                r is AuthResult.Success
+            }
+        },
+        deleteTrashItem = { item -> financeRepository.deleteForever(item.kind, item.id) is AuthResult.Success },
+        emptyTrash = { financeRepository.emptyTrash() is AuthResult.Success },
+        loadBillUsage = { (financeRepository.billUsage() as? AuthResult.Success)?.data },
+        amountVisibility = amountVisibility,
         setPlanify = { p ->
             commit(SettingField.Planify) { sessionDataStore.updatePlanifySettings(p) }
             // the evening job follows the switch right away
@@ -352,6 +388,7 @@ fun ProfileScreen(
             if (p.daily || p.alerts) askNotificationPermissionIfNeeded()
         },
         setAssistantPrefs = { p -> commit(SettingField.Assistant) { sessionDataStore.updateAssistantPrefs(p) } },
+        setVoicePrefs = { v -> scope.launch { sessionDataStore.updateVoicePrefs(v) } },
         refreshAssistantStatus = { scope.launch { assistantModels = assistantRepository.models() } },
         clearAssistantHistory = { scope.launch { chatStore.clear(sessionDataStore.userId.first().orEmpty()) } },
         changePin = { showChangePinDialog = true },

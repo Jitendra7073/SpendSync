@@ -1,5 +1,5 @@
 import { withApi, corsPreflight } from '@/lib/api-handler';
-import { success, noContent } from '@/lib/response';
+import { success } from '@/lib/response';
 import { transactionService } from '@/services/transaction.service';
 import { transactionIdSchema, updateTransactionSchema } from '@/types/transaction.types';
 
@@ -25,8 +25,7 @@ export const PATCH = withApi(
 export const DELETE = withApi(
   async (_request, { userId, params }) => {
     const { id } = transactionIdSchema.parse(await params);
-    await transactionService.delete(userId, id);
-    return noContent();
+    return success(await transactionService.delete(userId, id));
   },
   { auth: 'required' }
 );
