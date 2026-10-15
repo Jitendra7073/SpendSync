@@ -2,10 +2,10 @@
 <!-- Smart capture (settings page, Captured messages, notifications). -->
 <resources>
     <string name="cap_title">Captura inteligente</string>
-    <string name="cap_master_sub">Convierte SMS y correos del banco y avisos UPI en transacciones</string>
-    <string name="cap_footer_privacy">Los códigos de un solo uso (OTP) nunca se leen ni se guardan. Los números de cuenta solo muestran los últimos 4 dígitos.</string>
+    <string name="cap_master_sub">SMS, correos y avisos UPI del banco como pagos</string>
+    <string name="cap_footer_privacy">Nunca se leen OTP. Las cuentas muestran solo los últimos 4.</string>
     <string name="cap_sources">Leer pagos de</string>
-    <string name="cap_sources_footer">Los correos se leen desde la notificación de Gmail u Outlook; mantén activas las notificaciones de los correos del banco.</string>
+    <string name="cap_sources_footer">Los correos se leen de los avisos de Gmail u Outlook.</string>
     <string name="cap_src_sms">SMS del banco</string>
     <string name="cap_src_email">Correos del banco</string>
     <string name="cap_src_upi">Apps UPI</string>
@@ -16,25 +16,25 @@
     <string name="cap_new_payments">Pagos nuevos</string>
     <string name="cap_mode_auto">Añadir automáticamente</string>
     <string name="cap_mode_ask">Preguntarme antes</string>
-    <string name="cap_mode_auto_footer">Cada pago se añade en cuanto llega el mensaje. Responde a la notificación para añadir una descripción.</string>
-    <string name="cap_mode_ask_footer">Recibes una notificación con Añadir e Ignorar; no se añade nada hasta que pulses Añadir.</string>
+    <string name="cap_mode_auto_footer">Se añade al momento. Responde al aviso para describirlo.</string>
+    <string name="cap_mode_ask_footer">Verás Añadir / Ignorar; nada se añade sin pulsar Añadir.</string>
     <string name="cap_duplicates">El mismo pago dos veces</string>
     <string name="cap_dup_ask">Preguntarme</string>
     <string name="cap_dup_keep">Conservar ambos</string>
-    <string name="cap_duplicates_footer">Si tu banco envía un SMS y un correo por un mismo pago, se añade una sola vez cuando coinciden la referencia o la cuenta y el importe. Si no está seguro, pregunta o conserva ambos, según elijas aquí.</string>
+    <string name="cap_duplicates_footer">SMS y correo de un pago cuentan una vez; esto es para dudas.</string>
     <string name="cap_messages">Mensajes capturados</string>
     <string name="cap_messages_sub">Cada mensaje del banco leído y qué se hizo con él</string>
     <string name="cap_messages_sheet_sub">Sincronizados con tu cuenta. Toca un mensaje para revisarlo.</string>
     <string name="cap_keep">Guardar una copia de cada mensaje</string>
     <string name="cap_keep_sub">Desactivado: solo se guarda lo encontrado, no el texto</string>
-    <string name="cap_keep_footer">Las copias se guardan con tu cuenta, así te acompañan a un móvil nuevo. Las más antiguas se borran solas.</string>
+    <string name="cap_keep_footer">Las copias se sincronizan; las antiguas se borran solas.</string>
     <string name="cap_keep_days">%1$d días</string>
     <string name="cap_keep_forever">Siempre</string>
     <string name="cap_delete_all">Borrar todos los mensajes guardados</string>
     <string name="cap_delete_all_msg">Las copias se borran de tu cuenta. Las transacciones creadas se conservan.</string>
     <string name="cap_delete_all_confirm">Borrar mensajes</string>
     <string name="cap_blocked">Remitentes bloqueados</string>
-    <string name="cap_blocked_footer">Bloquea un remitente desde un mensaje en Mensajes capturados. Los remitentes bloqueados nunca se leen.</string>
+    <string name="cap_blocked_footer">Bloquea remitentes desde un mensaje en Mensajes capturados.</string>
     <string name="cap_blocked_none">Ningún remitente bloqueado</string>
     <string name="cap_unblock">Desbloquear %1$s</string>
     <string name="cap_search_capture">captura inteligente banco sms correo upi transacciones notificaciones</string>

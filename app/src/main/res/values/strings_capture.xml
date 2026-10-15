@@ -2,10 +2,10 @@
 <!-- Smart capture (settings page, Captured messages, notifications). -->
 <resources>
     <string name="cap_title">Smart capture</string>
-    <string name="cap_master_sub">Turn bank SMS, bank emails and UPI alerts into transactions</string>
-    <string name="cap_footer_privacy">One-time codes (OTPs) are never read or saved. Account numbers are masked to the last 4 digits.</string>
+    <string name="cap_master_sub">Bank SMS, emails and UPI alerts become payments</string>
+    <string name="cap_footer_privacy">OTPs are never read. Account numbers show only the last 4.</string>
     <string name="cap_sources">Read payments from</string>
-    <string name="cap_sources_footer">Emails are read from the Gmail or Outlook notification, so keep notifications on for your bank\'s emails.</string>
+    <string name="cap_sources_footer">Emails are read from Gmail or Outlook notifications.</string>
     <string name="cap_src_sms">Bank SMS</string>
     <string name="cap_src_email">Bank emails</string>
     <string name="cap_src_upi">UPI apps</string>
@@ -16,25 +16,25 @@
     <string name="cap_new_payments">New payments</string>
     <string name="cap_mode_auto">Add automatically</string>
     <string name="cap_mode_ask">Ask me first</string>
-    <string name="cap_mode_auto_footer">Each payment is added as soon as the message arrives. Reply to the notification to add a description.</string>
-    <string name="cap_mode_ask_footer">You get a notification with Add and Ignore; nothing is added until you tap Add.</string>
+    <string name="cap_mode_auto_footer">Added at once. Reply to the notification to describe it.</string>
+    <string name="cap_mode_ask_footer">You get Add / Ignore; nothing is added until you tap Add.</string>
     <string name="cap_duplicates">Same payment twice</string>
     <string name="cap_dup_ask">Ask me</string>
     <string name="cap_dup_keep">Keep both</string>
-    <string name="cap_duplicates_footer">When your bank sends an SMS and an email for one payment, it is added once if the reference number or the account and amount match. If it is not sure, it asks or keeps both, as you choose here.</string>
+    <string name="cap_duplicates_footer">SMS and email for one payment count once; this is for unsure cases.</string>
     <string name="cap_messages">Captured messages</string>
     <string name="cap_messages_sub">Every bank message read, and what was done with it</string>
     <string name="cap_messages_sheet_sub">Synced to your account. Tap a message to review it.</string>
     <string name="cap_keep">Keep a copy of each message</string>
     <string name="cap_keep_sub">Off: only what was found is kept, not the text</string>
-    <string name="cap_keep_footer">Copies are stored with your account so they follow you to a new phone. Older copies are deleted automatically.</string>
+    <string name="cap_keep_footer">Copies sync with your account; old ones are deleted for you.</string>
     <string name="cap_keep_days">%1$d days</string>
     <string name="cap_keep_forever">Forever</string>
     <string name="cap_delete_all">Delete all saved messages</string>
     <string name="cap_delete_all_msg">The copies are deleted from your account. Transactions they created stay.</string>
     <string name="cap_delete_all_confirm">Delete messages</string>
     <string name="cap_blocked">Blocked senders</string>
-    <string name="cap_blocked_footer">Block a sender from a message in Captured messages. Blocked senders are never read.</string>
+    <string name="cap_blocked_footer">Block a sender from any message in Captured messages.</string>
     <string name="cap_blocked_none">No blocked senders</string>
     <string name="cap_unblock">Unblock %1$s</string>
     <string name="cap_search_capture">smart capture auto detect bank sms email upi transactions notifications</string>

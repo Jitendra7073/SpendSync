@@ -2,10 +2,10 @@
 <!-- Smart capture (settings page, Captured messages, notifications). -->
 <resources>
     <string name="cap_title">Smart-Erfassung</string>
-    <string name="cap_master_sub">Bank-SMS, Bank-E-Mails und UPI-Hinweise werden zu Buchungen</string>
-    <string name="cap_footer_privacy">Einmalcodes (OTPs) werden nie gelesen oder gespeichert. Kontonummern werden bis auf die letzten 4 Ziffern verdeckt.</string>
+    <string name="cap_master_sub">Bank-SMS, E-Mails und UPI-Hinweise als Zahlungen</string>
+    <string name="cap_footer_privacy">OTPs werden nie gelesen. Konten zeigen nur die letzten 4 Ziffern.</string>
     <string name="cap_sources">Zahlungen lesen aus</string>
-    <string name="cap_sources_footer">E-Mails werden aus der Gmail- oder Outlook-Benachrichtigung gelesen – lass Benachrichtigungen für Bank-E-Mails an.</string>
+    <string name="cap_sources_footer">E-Mails werden aus Gmail- oder Outlook-Hinweisen gelesen.</string>
     <string name="cap_src_sms">Bank-SMS</string>
     <string name="cap_src_email">Bank-E-Mails</string>
     <string name="cap_src_upi">UPI-Apps</string>
@@ -16,25 +16,25 @@
     <string name="cap_new_payments">Neue Zahlungen</string>
     <string name="cap_mode_auto">Automatisch hinzufügen</string>
     <string name="cap_mode_ask">Erst fragen</string>
-    <string name="cap_mode_auto_footer">Jede Zahlung wird sofort hinzugefügt. Antworte auf die Benachrichtigung, um eine Beschreibung hinzuzufügen.</string>
-    <string name="cap_mode_ask_footer">Du bekommst eine Benachrichtigung mit Hinzufügen und Ignorieren; erst Hinzufügen speichert etwas.</string>
+    <string name="cap_mode_auto_footer">Sofort hinzugefügt. Antworte auf den Hinweis zum Beschreiben.</string>
+    <string name="cap_mode_ask_footer">Hinzufügen / Ignorieren: ohne Tippen wird nichts gespeichert.</string>
     <string name="cap_duplicates">Dieselbe Zahlung doppelt</string>
     <string name="cap_dup_ask">Fragen</string>
     <string name="cap_dup_keep">Beide behalten</string>
-    <string name="cap_duplicates_footer">Schickt deine Bank für eine Zahlung SMS und E-Mail, wird sie einmal hinzugefügt, wenn Referenz oder Konto und Betrag passen. Ist es unsicher, wird gefragt oder beides behalten – wie du hier wählst.</string>
+    <string name="cap_duplicates_footer">SMS und E-Mail einer Zahlung zählen einmal; dies gilt bei Zweifel.</string>
     <string name="cap_messages">Erfasste Nachrichten</string>
     <string name="cap_messages_sub">Jede gelesene Banknachricht und was damit passiert ist</string>
     <string name="cap_messages_sheet_sub">Mit deinem Konto synchronisiert. Tippe auf eine Nachricht, um sie zu prüfen.</string>
     <string name="cap_keep">Kopie jeder Nachricht behalten</string>
     <string name="cap_keep_sub">Aus: nur die erkannten Angaben bleiben, nicht der Text</string>
-    <string name="cap_keep_footer">Kopien werden mit deinem Konto gespeichert und folgen dir aufs neue Handy. Ältere werden automatisch gelöscht.</string>
+    <string name="cap_keep_footer">Kopien werden synchronisiert; alte werden automatisch gelöscht.</string>
     <string name="cap_keep_days">%1$d Tage</string>
     <string name="cap_keep_forever">Immer</string>
     <string name="cap_delete_all">Alle gespeicherten Nachrichten löschen</string>
     <string name="cap_delete_all_msg">Die Kopien werden aus deinem Konto gelöscht. Daraus entstandene Buchungen bleiben.</string>
     <string name="cap_delete_all_confirm">Nachrichten löschen</string>
     <string name="cap_blocked">Blockierte Absender</string>
-    <string name="cap_blocked_footer">Blockiere einen Absender über eine Nachricht in Erfasste Nachrichten. Blockierte Absender werden nie gelesen.</string>
+    <string name="cap_blocked_footer">Absender in Erfasste Nachrichten über eine Nachricht blockieren.</string>
     <string name="cap_blocked_none">Keine blockierten Absender</string>
     <string name="cap_unblock">%1$s entsperren</string>
     <string name="cap_search_capture">smart erfassung bank sms e-mail upi buchungen benachrichtigungen</string>
