@@ -325,8 +325,8 @@ private fun PolicyPoint(title: String, body: String) {
 internal fun AutoCaptureExplainerDialog(onContinue: () -> Unit, onDismiss: () -> Unit) {
     AppDialog(
         onDismiss = onDismiss,
-        title = tr(R.string.add_payments_automatically),
-        message = tr(R.string.spendsync_can_notice_payment_alerts_from),
+        title = tr(R.string.cap_explainer_title),
+        message = tr(R.string.cap_explainer),
         icon = Icons.Default.NotificationsActive,
         primary = DialogAction(tr(R.string.continue_label), onContinue),
         secondary = DialogAction(tr(R.string.not_now), onDismiss),

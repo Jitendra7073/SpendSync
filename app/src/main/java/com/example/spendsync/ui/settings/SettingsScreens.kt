@@ -86,7 +86,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.spendsync.notifications.NotificationAppAllowlist
 import com.example.spendsync.ui.i18n.AppLanguage
 import com.example.spendsync.ui.profile.FAQItem
 import com.example.spendsync.ui.theme.AccentOptions
@@ -108,7 +107,7 @@ data class SettingsModel(
     val emailNotifications: Boolean,
     val autoBackup: Boolean,
     val autoCapture: Boolean,
-    val autoCapturePackages: Set<String>,
+    val capture: com.example.spendsync.data.local.CaptureSettings,
     val notificationAccessGranted: Boolean,
     val maskingEnabled: Boolean,
     val visibilitySeconds: Int,
@@ -134,7 +133,9 @@ class SettingsActions(
     val setEmail: (Boolean) -> Unit,
     val setAutoBackup: (Boolean) -> Unit,
     val setAutoCapture: (Boolean) -> Unit,
-    val setCapturePackage: (String, Boolean) -> Unit,
+    val setCapture: (com.example.spendsync.data.local.CaptureSettings) -> Unit,
+    val openCapturedMessages: () -> Unit,
+    val deleteCapturedMessages: () -> Unit,
     val openNotificationAccess: () -> Unit,
     val setMasking: (Boolean) -> Unit,
     val setAssistant: (Boolean) -> Unit,
@@ -192,9 +193,7 @@ enum class SettingsPage(@StringRes val titleRes: Int, val icon: ImageVector, val
         if (n == 0) tr(R.string.an_summary_off) else tr(R.string.an_summary_on, n)
     }),
     Reports(R.string.rp_title, Icons.Default.ReportProblem, { tr(R.string.asst_sup_title) }),
-    AutoCapture(R.string.auto_capture, Icons.Default.SettingsSuggest, {
-        if (!it.autoCapture) tr(R.string.off) else tr(R.string.on_1_app_s, it.autoCapturePackages.size)
-    }),
+    AutoCapture(R.string.cap_title, Icons.Default.SettingsSuggest, { smartCaptureSummary(it) }),
     Data(R.string.data_backup, Icons.Default.Backup, { if (it.autoBackup) tr(R.string.daily_backup_on) else tr(R.string.backup_off) }),
     Trash(R.string.trash_title, Icons.Default.Delete, { tr(R.string.trash_summary) }),
     About(R.string.help_about, Icons.Default.Help, { tr(R.string.faq_privacy_policy) });
@@ -218,9 +217,9 @@ private fun searchIndex(): List<Pair<String, SettingsPage>> = listOf(
     tr(R.string.asst_group_use) to SettingsPage.Assistant,
     tr(R.string.asst_model_row) to SettingsPage.Assistant,
     tr(R.string.asst_group_instructions) to SettingsPage.Assistant,
+    tr(R.string.cap_search_capture) to SettingsPage.AutoCapture,
+    tr(R.string.cap_search_messages) to SettingsPage.AutoCapture,
     tr(R.string.voice_group) to SettingsPage.Assistant,
-    tr(R.string.auto_detect_capture_transactions_notificatio) to SettingsPage.AutoCapture,
-    tr(R.string.google_pay_phonepe_paytm_messages_apps) to SettingsPage.AutoCapture,
     tr(R.string.auto_backup_cloud) to SettingsPage.Data,
     tr(R.string.export_csv_pdf_download) to SettingsPage.Data,
     tr(R.string.clear_local_data_cache) to SettingsPage.Data,
@@ -315,8 +314,8 @@ fun SettingsPageScreen(page: SettingsPage, model: SettingsModel, actions: Settin
                             SettingsPage.Planify -> PlanifySettingsPage(model, actions)
                             SettingsPage.Animations -> AnimationsPage(model, actions)
                             SettingsPage.Reports -> ReportsPage(actions)
+                            SettingsPage.AutoCapture -> SmartCapturePage(model, actions)
                             SettingsPage.Trash -> TrashPage(actions)
-                            SettingsPage.AutoCapture -> AutoCapturePage(model, actions)
                             SettingsPage.Data -> DataPage(model, actions)
                             SettingsPage.About -> AboutPage(actions)
                         }
@@ -420,43 +419,6 @@ private fun PrivacyPage(m: SettingsModel, a: SettingsActions) {
             value = durationLabel(m.visibilitySeconds), enabled = m.maskingEnabled, onClick = a.pickVisibility,
         )
         ScopeTag(synced = false)
-    }
-}
-
-@Composable
-private fun AutoCapturePage(m: SettingsModel, a: SettingsActions) {
-    if (m.autoCapture && !m.notificationAccessGranted) {
-        Box(Modifier.cascadeIn(0)) {
-            SettingsBanner(
-                icon = Icons.Default.Warning,
-                text = tr(R.string.notification_access_is_off_so_payments),
-                actionLabel = tr(R.string.fix),
-                onAction = a.openNotificationAccess,
-            )
-        }
-    }
-    SettingsGroup(
-        Modifier.cascadeIn(1),
-        footer = tr(R.string.only_the_apps_you_pick_below),
-    ) {
-        SettingsToggleRow(
-            Icons.Default.SettingsSuggest, tr(R.string.auto_detect_transactions), tr(R.string.turn_payment_notifications_into_transactions),
-            m.autoCapture, onCheckedChange = a.setAutoCapture,
-        )
-        ScopeTag(synced = false)
-    }
-    if (m.autoCapture) {
-        SettingsGroupLabel(tr(R.string.apps_to_watch))
-        SettingsGroup(Modifier.cascadeIn(2)) {
-            NotificationAppAllowlist.APPS.forEachIndexed { i, app ->
-                if (i > 0) SettingsDivider()
-                SettingsToggleRow(
-                    Icons.Default.NotificationsActive, app.displayName,
-                    checked = app.packageName in m.autoCapturePackages,
-                    onCheckedChange = { a.setCapturePackage(app.packageName, it) },
-                )
-            }
-        }
     }
 }
 

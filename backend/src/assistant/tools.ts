@@ -421,8 +421,11 @@ const getSettings = tool({
         auto_backup: s.autoBackup,
         hide_large_amounts_with_pin: s.amountMaskingEnabled,
         amounts_visible_for_seconds_after_unlock: s.amountVisibilitySeconds,
-        auto_capture_payments: s.autoCaptureEnabled,
-        auto_capture_apps: s.autoCapturePackages ? s.autoCapturePackages.split(',').filter(Boolean).length : 0,
+        smart_capture: s.autoCaptureEnabled,
+        smart_capture_sources: s.captureSources,
+        smart_capture_new_payments: s.captureMode === 'ask' ? 'ask first' : 'add automatically',
+        smart_capture_possible_duplicates: s.captureDuplicates === 'keep' ? 'keep both' : 'ask',
+        smart_capture_keeps_message_copies: s.captureKeepMessages,
       },
     };
   },

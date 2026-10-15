@@ -21,7 +21,7 @@ object TransactionCaptureNotifier {
 
     private const val ACTION_ADD_DESCRIPTION = "com.example.spendsync.ACTION_ADD_DESCRIPTION"
 
-    private fun ensureChannel(context: Context) {
+    internal fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(

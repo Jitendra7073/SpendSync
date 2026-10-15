@@ -34,6 +34,8 @@ class SpendSyncApp : Application(), SingletonImageLoader.Factory {
         CrashHandler.install(this)
         // The daily Planify summary is a scheduled job: make sure it matches the saved setting after a reboot or update.
         val store = SessionDataStore(this)
+        // Push any offline writes left from last time (runs once the phone is online).
+        com.example.spendsync.notifications.PendingCaptureRetryWorker.schedule(this)
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             runCatching { com.example.spendsync.notifications.PlanDailyWorker.sync(this@SpendSyncApp, store.planifySettings.first().daily) }
         }

@@ -1,5 +1,6 @@
 package com.example.spendsync.ui.planify
 
+import kotlinx.coroutines.flow.drop
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -168,6 +169,8 @@ fun PlanifyScreen(
         load(false)
         loading = false
     }
+    // New data anywhere: refresh the numbers in place (keeps the page the user is on).
+    LaunchedEffect(month) { financeRepository.changes.drop(1).collect { load(false) } }
     LaunchedEffect(buildRequestId) {
         if (buildRequestId > 0) page = Page.Builder(month, plan?.takeIf { it.exists }, editing = plan?.exists == true)
     }

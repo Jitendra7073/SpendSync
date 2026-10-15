@@ -51,7 +51,7 @@ fun AppNavigation(
 ) {
     val context          = LocalContext.current
     val repository       = authRepository
-    val financeRepository = remember { FinanceRepository(sessionDataStore) }
+    val financeRepository = remember { FinanceRepository.shared(sessionDataStore) }
     val scope            = rememberCoroutineScope()
 
     val authViewModel: AuthViewModel = viewModel(

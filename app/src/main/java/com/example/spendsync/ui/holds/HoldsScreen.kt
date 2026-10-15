@@ -1,5 +1,6 @@
 package com.example.spendsync.ui.holds
 
+import kotlinx.coroutines.flow.drop
 import com.example.spendsync.R
 import com.example.spendsync.ui.i18n.tr
 import androidx.activity.compose.BackHandler
@@ -80,6 +81,7 @@ fun HoldsScreen(
         }
         loading = false
     }
+    LaunchedEffect(Unit) { financeRepository.changes.drop(1).collect { refreshKey++ } }
 
     val person = selectedPerson
     if (person != null) {
