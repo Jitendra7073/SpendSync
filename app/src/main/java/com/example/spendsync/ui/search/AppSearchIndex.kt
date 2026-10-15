@@ -70,9 +70,12 @@ fun appSearchEntries(): List<AppSearchEntry> {
     setting(SettingsPage.Assistant, R.string.asst_group_style, "short", "detailed", "length")
     setting(SettingsPage.Assistant, R.string.asst_group_tone, "friendly", "professional", "simple")
     setting(SettingsPage.Assistant, R.string.asst_group_instructions, "custom", "prompt")
+    setting(SettingsPage.Assistant, R.string.voice_group, "voice", "mic", "speech", "listen", "talk", "read aloud", "tts")
     setting(SettingsPage.Assistant, R.string.asst_group_history, "clear chat", "delete chat")
     setting(SettingsPage.Appearance, R.string.cc_title, "custom", "colors", "colours", "background", "icons", "palette")
     setting(SettingsPage.Reports, R.string.rp_title, "support", "ticket", "problem", "report")
+    setting(SettingsPage.Data, R.string.bills_title, "bill", "bills", "receipt", "storage", "invoice")
+    setting(SettingsPage.Trash, R.string.trash_title, "trash", "deleted", "restore", "undo", "bin", "recycle")
     // Planify
     setting(SettingsPage.Planify, R.string.pl_set_alerts, "limit", "warn", "budget")
     setting(SettingsPage.Planify, R.string.pl_set_daily, "summary", "evening")
@@ -81,9 +84,11 @@ fun appSearchEntries(): List<AppSearchEntry> {
     setting(SettingsPage.Animations, R.string.an_all, "motion", "reduce", "effects")
     listOf(R.string.an_counts, R.string.an_entrance, R.string.an_transitions, R.string.an_typing, R.string.an_skeleton, R.string.an_press, R.string.an_charts)
         .forEach { setting(SettingsPage.Animations, it, "animation", "motion") }
-    // Auto capture
-    setting(SettingsPage.AutoCapture, R.string.auto_capture, "notifications", "upi", "bank", "detect")
-    setting(SettingsPage.AutoCapture, R.string.apps_to_watch, "google pay", "phonepe", "paytm")
+    // Smart capture
+    setting(SettingsPage.AutoCapture, R.string.cap_title, "auto capture", "notifications", "upi", "bank", "detect", "sms", "email")
+    setting(SettingsPage.AutoCapture, R.string.cap_sources, "sms", "email", "gmail", "outlook", "google pay", "phonepe", "paytm", "bhim")
+    setting(SettingsPage.AutoCapture, R.string.cap_duplicates, "duplicate", "twice", "same payment")
+    setting(SettingsPage.AutoCapture, R.string.cap_messages, "history", "captured messages", "review", "blocked", "sender")
     // Data
     setting(SettingsPage.Data, R.string.auto_backup_2, "backup", "cloud")
     setting(SettingsPage.Data, R.string.export_data, "csv", "pdf", "download", "export")

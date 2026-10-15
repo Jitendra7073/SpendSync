@@ -21,7 +21,7 @@ object TransactionCaptureNotifier {
 
     private const val ACTION_ADD_DESCRIPTION = "com.example.spendsync.ACTION_ADD_DESCRIPTION"
 
-    private fun ensureChannel(context: Context) {
+    internal fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(
@@ -62,6 +62,18 @@ object TransactionCaptureNotifier {
             .setContentTitle(tr(R.string.captured_amount_to, directionSign, transaction.amount, transaction.merchant))
             .setContentText(tr(R.string.tap_reply_to_add_a_description))
             .addAction(replyAction)
+            .addAction(
+                android.R.drawable.ic_menu_camera,
+                tr(R.string.bills_attach),
+                PendingIntent.getActivity(
+                    context, ("bill" + transaction.id).hashCode(),
+                    Intent(context, com.example.spendsync.MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        putExtra(BillLinks.EXTRA, transaction.id)
+                    },
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                ),
+            )
             .setAutoCancel(true)
             .build()
 

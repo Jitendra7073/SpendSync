@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, decimal, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, decimal, timestamp, index } from 'drizzle-orm/pg-core';
 import { user } from './auth.schema';
 
 /**
@@ -11,7 +11,9 @@ export type TransactionType = (typeof transactionTypes)[number];
  * Transactions table
  * Stores all user transactions captured from payment apps or manually entered
  */
-export const transactions = pgTable('transactions', {
+export const transactions = pgTable(
+  'transactions',
+  {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id')
     .notNull()
@@ -32,7 +34,12 @@ export const transactions = pgTable('transactions', {
   // Timestamps
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+
+  // Set when moved to Trash; null = live. Every read filters on it (see src/lib/live.ts).
+  deletedAt: timestamp('deleted_at'),
+  },
+  (t) => ({ userDeleted: index('transactions_user_deleted_idx').on(t.userId, t.deletedAt) }),
+);
 
 // Type exports
 export type Transaction = typeof transactions.$inferSelect;

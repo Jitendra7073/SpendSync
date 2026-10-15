@@ -43,7 +43,6 @@ import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.notifications.HoldReminderWorker
 import com.example.spendsync.ui.components.AppButton
-import com.example.spendsync.ui.components.AppConfirmDialog
 import com.example.spendsync.ui.components.AppDialog
 import com.example.spendsync.ui.components.AppTextField
 import com.example.spendsync.ui.components.ButtonSize
@@ -85,10 +84,8 @@ fun HoldDetailScreen(
 
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     var holdToEdit by remember { mutableStateOf<HoldDto?>(null) }
-    var holdToDelete by remember { mutableStateOf<HoldDto?>(null) }
     var followUpFor by remember { mutableStateOf<HoldDto?>(null) }
     val aiAllowed by sessionDataStore.assistantConsent.collectAsState(initial = false)
-    var deleting by remember { mutableStateOf(false) }
 
     fun rescheduleReminder(hold: HoldDto, newPersonName: String, newDate: LocalDate) {
         HoldReminderWorker.cancel(context, hold.id)
@@ -129,18 +126,28 @@ fun HoldDetailScreen(
         }
     }
 
+    fun restoreHold(hold: HoldDto) {
+        scope.launch {
+            when (val r = financeRepository.restoreHold(hold.id)) {
+                is AuthResult.Success -> {
+                    HoldReminderWorker.scheduleFor(context, r.data)
+                    onHoldsChanged()
+                }
+                is AuthResult.Error -> toast = ToastMessage(r.message, isError = true)
+            }
+        }
+    }
+
     fun deleteHold(hold: HoldDto) {
         scope.launch {
-            deleting = true
             when (val res = financeRepository.deleteHold(hold.id)) {
                 is AuthResult.Success -> {
                     HoldReminderWorker.cancel(context, hold.id)
-                    holdToDelete = null
                     onHoldsChanged()
+                    toast = ToastMessage(tr(R.string.trash_moved), isError = false, actionLabel = tr(R.string.trash_undo), onAction = { restoreHold(hold) })
                 }
                 is AuthResult.Error -> toast = ToastMessage(res.message, isError = true)
             }
-            deleting = false
         }
     }
 
@@ -158,7 +165,7 @@ fun HoldDetailScreen(
                                 amountVisibility = amountVisibility,
                                 onEdit = { holdToEdit = hold },
                                 onSettle = { markSettled(hold) },
-                                onDelete = { holdToDelete = hold },
+                                onDelete = { deleteHold(hold) },
                                 onRemind = { followUpFor = hold },
                             )
                         }
@@ -185,19 +192,6 @@ fun HoldDetailScreen(
             hold = hold,
             onDismiss = { holdToEdit = null },
             onSave = { newPersonName, newDate -> saveEdit(hold, newPersonName, newDate) },
-        )
-    }
-
-    holdToDelete?.let { hold ->
-        AppConfirmDialog(
-            title = tr(R.string.delete_this_hold),
-            message = tr(R.string.you_ll_stop_tracking_this_money, personName),
-            confirmLabel = tr(R.string.delete),
-            cancelLabel = tr(R.string.keep_it),
-            destructive = true,
-            loading = deleting,
-            onConfirm = { deleteHold(hold) },
-            onDismiss = { if (!deleting) holdToDelete = null },
         )
     }
 }

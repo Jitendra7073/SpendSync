@@ -1,5 +1,6 @@
 package com.example.spendsync.ui.analytics
 
+import kotlinx.coroutines.flow.drop
 import com.example.spendsync.ui.i18n.LanguageManager
 import com.example.spendsync.ui.i18n.categoryLabel
 import androidx.annotation.StringRes
@@ -331,6 +332,7 @@ fun AnalyticsScreen(
         load(forceRefresh = false)
         isLoading = false
     }
+    LaunchedEffect(bounds) { financeRepository.changes.drop(1).collect { load(forceRefresh = false) } }
 
     // Fixed, CVD-validated categorical palette; categories past the 7th fold into a neutral "Other".
     val palette = chartCategoricalColors()

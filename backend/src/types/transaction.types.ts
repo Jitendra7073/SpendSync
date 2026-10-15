@@ -27,12 +27,14 @@ export const createTransactionSchema = z.object({
       message: 'Transaction date cannot be in the future',
     })
     .optional(),
+  // Made by the phone so an offline write that is retried is stored once.
+  id: z.string().uuid().optional(),
 });
 
 /**
  * Transaction update schema
  */
-export const updateTransactionSchema = createTransactionSchema.partial();
+export const updateTransactionSchema = createTransactionSchema.omit({ id: true }).partial();
 
 /**
  * Transaction query schema

@@ -52,6 +52,14 @@ export const userSettings = pgTable('user_settings', {
   planifyFundingSource: text('planify_funding_source').notNull().default('detected_salary'), // 'detected_salary' | 'net_balance' | 'custom'
   planifyCustomAmount: integer('planify_custom_amount').notNull().default(0),
 
+  // Smart capture (Settings -> Smart capture). auto_capture_enabled above is the master switch.
+  captureSources: text('capture_sources').notNull().default('sms,email,upi'),
+  captureMode: text('capture_mode').notNull().default('auto'), // 'auto' | 'ask'
+  captureDuplicates: text('capture_duplicates').notNull().default('ask'), // 'ask' | 'keep'
+  captureKeepMessages: boolean('capture_keep_messages').notNull().default(true),
+  captureRetentionDays: integer('capture_retention_days').notNull().default(365), // 0 = forever
+  captureBlockedSenders: text('capture_blocked_senders').notNull().default(''),
+
   // Timestamps
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

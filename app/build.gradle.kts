@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -75,6 +76,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.svg)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.mlkit.document.scanner)
     // DataStore
     implementation(libs.androidx.datastore.preferences)
     // Splash Screen
@@ -83,6 +85,10 @@ dependencies {
     implementation(libs.accompanist.systemuicontroller)
     // WorkManager â€” retries transaction creation for auto-captured notifications
     implementation(libs.androidx.work.runtime.ktx)
+    // Room — offline cache of reads + outbox of writes (data/local/OfflineDb.kt)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

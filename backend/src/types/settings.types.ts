@@ -42,6 +42,12 @@ export const updateSettingsSchema = z.object({
   planifySalaryMin: z.number().int().min(0).max(1_000_000).optional(),
   planifyFundingSource: z.enum(['detected_salary', 'net_balance', 'custom']).optional(),
   planifyCustomAmount: z.number().int().min(0).max(10_000_000).optional(),
+  captureSources: z.string().regex(/^((sms|email|upi)(,(sms|email|upi))*)?$/).optional(),
+  captureMode: z.enum(['auto', 'ask']).optional(),
+  captureDuplicates: z.enum(['ask', 'keep']).optional(),
+  captureKeepMessages: z.boolean().optional(),
+  captureRetentionDays: z.union([z.literal(0), z.literal(30), z.literal(90), z.literal(365)]).optional(),
+  captureBlockedSenders: z.string().max(2000).optional(),
 });
 
 /**

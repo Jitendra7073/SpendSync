@@ -115,9 +115,9 @@ import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.data.repository.AuthRepository
 import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
+import com.example.spendsync.notifications.HoldReminderWorker
 import com.example.spendsync.data.remote.model.DashboardSummaryDto
 import androidx.compose.runtime.LaunchedEffect
-import com.example.spendsync.notifications.NotificationAppAllowlist
 import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.MaskableAmountText
 import com.example.spendsync.ui.shared.PinSetupDialog
@@ -151,6 +151,8 @@ fun ProfileScreen(
     openSettingsRequestId: Int = 0,
     /** The Settings page a search result asked for; null opens the Settings hub. */
     openSettingsPage: SettingsPage? = null,
+    /** Something on another tab changed (e.g. a Trash restore): Home must reload. */
+    onDataChanged: () -> Unit = {},
     onSignOut: () -> Unit,
 ) {
     val NeutralOffWhite = MaterialTheme.colorScheme.background
@@ -177,7 +179,10 @@ fun ProfileScreen(
     val autoBackup by sessionDataStore.autoBackup.collectAsState(initial = true)
     val dateFormat by sessionDataStore.dateFormat.collectAsState(initial = "DD / MM / YYYY")
     val autoCaptureEnabled by sessionDataStore.autoCaptureEnabled.collectAsState(initial = false)
-    val autoCapturePackages by sessionDataStore.autoCapturePackages.collectAsState(initial = emptySet())
+    val captureSettings by sessionDataStore.captureSettings.collectAsState(initial = com.example.spendsync.data.local.CaptureSettings())
+    var showCapturedMessages by remember { mutableStateOf(false) }
+    var showDeleteCapturedDialog by remember { mutableStateOf(false) }
+    var capturedDeleteError by remember { mutableStateOf<String?>(null) }
     val amountMaskingEnabled by sessionDataStore.amountMaskingEnabled.collectAsState(initial = false)
     val amountVisibilityDurationSeconds by sessionDataStore.amountVisibilityDurationSeconds.collectAsState(initial = 60)
     val pinHash by sessionDataStore.pinHash.collectAsState(initial = null)
@@ -187,6 +192,7 @@ fun ProfileScreen(
     val exportOnLogin by sessionDataStore.exportOnLogin.collectAsState(initial = false)
     val customColors by sessionDataStore.customColors.collectAsState(initial = com.example.spendsync.ui.theme.CustomColors())
     val assistantPrefs by sessionDataStore.assistantPrefs.collectAsState(initial = com.example.spendsync.data.assistant.AssistantPrefs())
+    val voicePrefs by sessionDataStore.voicePrefs.collectAsState(initial = com.example.spendsync.voice.VoicePrefs())
     var assistantModels by remember { mutableStateOf<List<com.example.spendsync.ui.settings.AssistantModelInfo>?>(null) }
     val assistantRepository = remember { com.example.spendsync.data.assistant.AssistantRepository(sessionDataStore) }
     val chatStore = remember { com.example.spendsync.data.assistant.ChatStore(context.applicationContext) }
@@ -301,13 +307,14 @@ fun ProfileScreen(
         emailNotifications = emailNotifications,
         autoBackup = autoBackup,
         autoCapture = autoCaptureEnabled,
-        autoCapturePackages = autoCapturePackages,
+        capture = captureSettings,
         notificationAccessGranted = notificationAccessGranted,
         maskingEnabled = amountMaskingEnabled,
         visibilitySeconds = amountVisibilityDurationSeconds,
         assistantEnabled = assistantConsent,
         assistant = assistantPrefs,
         assistantModels = assistantModels,
+        voicePrefs = voicePrefs,
         planify = planifySettings,
         motion = motionPrefs,
         colors = customColors,
@@ -327,10 +334,9 @@ fun ProfileScreen(
             if (turningOn) showAutoCaptureExplainer = true
             else commit(SettingField.AutoCapture) { sessionDataStore.updateAutoCaptureEnabled(false) }
         },
-        setCapturePackage = { pkg, on ->
-            val updated = if (on) autoCapturePackages + pkg else autoCapturePackages - pkg
-            commit(SettingField.AutoCapturePackages) { sessionDataStore.updateAutoCapturePackages(updated) }
-        },
+        setCapture = { c -> commit(SettingField.Capture) { sessionDataStore.updateCaptureSettings(c) } },
+        openCapturedMessages = { showCapturedMessages = true },
+        deleteCapturedMessages = { capturedDeleteError = null; showDeleteCapturedDialog = true },
         openNotificationAccess = {
             context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         },
@@ -338,12 +344,43 @@ fun ProfileScreen(
             if (turningOn) showPinSetupDialog = true
             else commit(SettingField.Masking) { sessionDataStore.updateAmountMaskingEnabled(false) }
         },
-        setAssistant = { v -> scope.launch { sessionDataStore.updateAssistantConsent(v) } },
+        setAssistant = { v ->
+            scope.launch {
+                sessionDataStore.updateAssistantConsent(v)
+                if (!v) financeRepository.stopBillReads() // queued bill reads must not run after consent is withdrawn
+            }
+        },
         setMotion = { m -> scope.launch { sessionDataStore.updateAnimationPrefs(m) } },
         setExportOnLogin = { v -> scope.launch { sessionDataStore.updateExportOnLogin(v) } },
         setColors = { c -> scope.launch { sessionDataStore.updateCustomColors(c) } },
         loadReports = { assistantRepository.tickets() },
         closeReport = { ref -> assistantRepository.closeTicket(ref) },
+        loadTrash = { cursor -> (financeRepository.getTrash(cursor) as? AuthResult.Success)?.data },
+        restoreTrashItem = { item ->
+            if (item.kind == "bill") {
+                val r = financeRepository.restoreBill(item.id)
+                if (r is AuthResult.Success) onDataChanged()
+                r is AuthResult.Success
+            } else if (item.kind == "transaction") {
+                val r = financeRepository.restoreTransaction(item.id)
+                if (r is AuthResult.Success) {
+                    r.data.holds.forEach { HoldReminderWorker.scheduleFor(context, it) }
+                    onDataChanged()
+                }
+                r is AuthResult.Success
+            } else {
+                val r = financeRepository.restoreHold(item.id)
+                if (r is AuthResult.Success) {
+                    HoldReminderWorker.scheduleFor(context, r.data)
+                    onDataChanged()
+                }
+                r is AuthResult.Success
+            }
+        },
+        deleteTrashItem = { item -> financeRepository.deleteForever(item.kind, item.id) is AuthResult.Success },
+        emptyTrash = { financeRepository.emptyTrash() is AuthResult.Success },
+        loadBillUsage = { (financeRepository.billUsage() as? AuthResult.Success)?.data },
+        amountVisibility = amountVisibility,
         setPlanify = { p ->
             commit(SettingField.Planify) { sessionDataStore.updatePlanifySettings(p) }
             // the evening job follows the switch right away
@@ -351,6 +388,7 @@ fun ProfileScreen(
             if (p.daily || p.alerts) askNotificationPermissionIfNeeded()
         },
         setAssistantPrefs = { p -> commit(SettingField.Assistant) { sessionDataStore.updateAssistantPrefs(p) } },
+        setVoicePrefs = { v -> scope.launch { sessionDataStore.updateVoicePrefs(v) } },
         refreshAssistantStatus = { scope.launch { assistantModels = assistantRepository.models() } },
         clearAssistantHistory = { scope.launch { chatStore.clear(sessionDataStore.userId.first().orEmpty()) } },
         changePin = { showChangePinDialog = true },
@@ -457,6 +495,34 @@ fun ProfileScreen(
 
     if (showExportDialog) {
         ExportSheet(financeRepository = financeRepository, onDismiss = { showExportDialog = false })
+    }
+
+    if (showCapturedMessages) {
+        com.example.spendsync.ui.capture.CapturedMessagesSheet(
+            finance = financeRepository,
+            store = sessionDataStore,
+            amountVisibility = amountVisibility,
+            onDismiss = { showCapturedMessages = false },
+        )
+    }
+
+    if (showDeleteCapturedDialog) {
+        com.example.spendsync.ui.components.AppConfirmDialog(
+            title = tr(R.string.cap_delete_all),
+            message = capturedDeleteError ?: tr(R.string.cap_delete_all_msg),
+            confirmLabel = tr(R.string.cap_delete_all_confirm),
+            cancelLabel = tr(R.string.cancel),
+            destructive = true,
+            onDismiss = { showDeleteCapturedDialog = false },
+            onConfirm = {
+                scope.launch {
+                    when (val r = financeRepository.deleteAllCapturedMessages()) {
+                        is com.example.spendsync.data.repository.AuthResult.Success -> showDeleteCapturedDialog = false
+                        is com.example.spendsync.data.repository.AuthResult.Error -> capturedDeleteError = r.message
+                    }
+                }
+            },
+        )
     }
 
     if (showAutoCaptureExplainer) {

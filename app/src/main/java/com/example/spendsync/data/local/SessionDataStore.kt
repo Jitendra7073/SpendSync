@@ -67,11 +67,25 @@ private fun serializePersistedCategories(categories: List<PersistedCategory>): S
         if (cat.iconId != null) "${cat.name}||${cat.iconId}" else cat.name
     }
 
-internal fun parseAutoCapturePackages(raw: String?): Set<String> =
-    raw?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+/**
+ * Smart capture preferences (synced as one unit). [sources] ⊆ sms, email, upi; [mode] auto = add payments
+ * straight away, ask = notify first; [duplicates] ask = "Same payment?" when unsure, keep = add both;
+ * [retentionDays] 0 = keep copies forever; [blockedSenders] are never read.
+ */
+data class CaptureSettings(
+    val sources: Set<String> = setOf("sms", "email", "upi"),
+    val mode: String = "auto",
+    val duplicates: String = "ask",
+    val keepMessages: Boolean = true,
+    val retentionDays: Int = 365,
+    val blockedSenders: Set<String> = emptySet(),
+) {
+    fun blocks(sender: String) = sender.trim().lowercase() in blockedSenders.map { it.lowercase() }
+}
 
-internal fun serializeAutoCapturePackages(packages: Set<String>): String =
-    packages.joinToString(",")
+internal fun csvSet(raw: String?): Set<String> = raw.orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+/** Sender names can contain commas, so they are one per line. */
+internal fun lineSet(raw: String?): Set<String> = raw.orEmpty().lines().map { it.trim() }.filter { it.isNotEmpty() }.toSet()
 
 /**
  * Persists the Better Auth session token to DataStore so the app can
@@ -108,7 +122,12 @@ class SessionDataStore(private val context: Context) {
         private val KEY_CUSTOM_EXPENSE_CATEGORIES = stringPreferencesKey("custom_expense_categories")
 
         private val KEY_AUTO_CAPTURE_ENABLED  = booleanPreferencesKey("auto_capture_enabled")
-        private val KEY_AUTO_CAPTURE_PACKAGES = stringPreferencesKey("auto_capture_packages")
+        private val KEY_CAPTURE_SOURCES = stringPreferencesKey("capture_sources")
+        private val KEY_CAPTURE_MODE = stringPreferencesKey("capture_mode")
+        private val KEY_CAPTURE_DUPLICATES = stringPreferencesKey("capture_duplicates")
+        private val KEY_CAPTURE_KEEP = booleanPreferencesKey("capture_keep_messages")
+        private val KEY_CAPTURE_RETENTION = intPreferencesKey("capture_retention_days")
+        private val KEY_CAPTURE_BLOCKED = stringPreferencesKey("capture_blocked_senders")
         private val KEY_ASSISTANT_MODEL = stringPreferencesKey("assistant_model")
         private val KEY_ASSISTANT_STYLE = stringPreferencesKey("assistant_style")
         private val KEY_ASSISTANT_TONE = stringPreferencesKey("assistant_tone")
@@ -125,6 +144,10 @@ class SessionDataStore(private val context: Context) {
         private val KEY_ANIM_SKELETON = booleanPreferencesKey("anim_skeleton")
         private val KEY_ANIM_PRESS = booleanPreferencesKey("anim_press")
         private val KEY_ANIM_CHARTS = booleanPreferencesKey("anim_charts")
+        private val KEY_VOICE_LANGUAGE = stringPreferencesKey("voice_language")
+        private val KEY_VOICE_NAME = stringPreferencesKey("voice_name")
+        private val KEY_VOICE_SPEED = intPreferencesKey("voice_speed")
+        private val KEY_VOICE_KEEP_LISTENING = booleanPreferencesKey("voice_keep_listening")
         private val KEY_PLANIFY_ALERTS = booleanPreferencesKey("planify_alerts")
         private val KEY_PLANIFY_DAILY = booleanPreferencesKey("planify_daily")
         private val KEY_PLANIFY_SALARY_MIN = intPreferencesKey("planify_salary_min")
@@ -220,8 +243,27 @@ class SessionDataStore(private val context: Context) {
         prefs[KEY_AUTO_CAPTURE_ENABLED] ?: false
     }
 
-    val autoCapturePackages: Flow<Set<String>> = context.dataStore.data.map { prefs ->
-        parseAutoCapturePackages(prefs[KEY_AUTO_CAPTURE_PACKAGES])
+    val captureSettings: Flow<CaptureSettings> = context.dataStore.data.map { prefs ->
+        val d = CaptureSettings()
+        CaptureSettings(
+            sources = prefs[KEY_CAPTURE_SOURCES]?.let(::csvSet) ?: d.sources,
+            mode = prefs[KEY_CAPTURE_MODE] ?: d.mode,
+            duplicates = prefs[KEY_CAPTURE_DUPLICATES] ?: d.duplicates,
+            keepMessages = prefs[KEY_CAPTURE_KEEP] ?: d.keepMessages,
+            retentionDays = prefs[KEY_CAPTURE_RETENTION] ?: d.retentionDays,
+            blockedSenders = lineSet(prefs[KEY_CAPTURE_BLOCKED]),
+        )
+    }
+
+    suspend fun updateCaptureSettings(s: CaptureSettings) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CAPTURE_SOURCES] = s.sources.joinToString(",")
+            prefs[KEY_CAPTURE_MODE] = s.mode
+            prefs[KEY_CAPTURE_DUPLICATES] = s.duplicates
+            prefs[KEY_CAPTURE_KEEP] = s.keepMessages
+            prefs[KEY_CAPTURE_RETENTION] = s.retentionDays
+            prefs[KEY_CAPTURE_BLOCKED] = s.blockedSenders.joinToString("\n")
+        }
     }
 
     /** What the user chose in Settings -> Assistant. Synced to the backend as one unit. */
@@ -284,7 +326,9 @@ class SessionDataStore(private val context: Context) {
             // auto-capture opt-in) must not carry over to the next account.
             prefs.remove(KEY_PENDING_CAPTURES)
             prefs.remove(KEY_AUTO_CAPTURE_ENABLED)
-            prefs.remove(KEY_AUTO_CAPTURE_PACKAGES)
+            listOf(KEY_CAPTURE_SOURCES, KEY_CAPTURE_MODE, KEY_CAPTURE_DUPLICATES, KEY_CAPTURE_BLOCKED).forEach { prefs.remove(it) }
+            prefs.remove(KEY_CAPTURE_KEEP)
+            prefs.remove(KEY_CAPTURE_RETENTION)
             prefs.remove(KEY_PIN_HASH)
             prefs.remove(KEY_PIN_SALT)
             // Unsynced edits belong to the account that made them.
@@ -295,6 +339,10 @@ class SessionDataStore(private val context: Context) {
             prefs.remove(KEY_PLAN_SALARY_PROMPTED)
             prefs.remove(KEY_HOLD_CONTACTS) // contacts of the previous account must not follow the next one
         }
+        // Bills queued by the previous account must not upload under the next one.
+        com.example.spendsync.data.bills.BillUploadWorker.cancel(context)
+        com.example.spendsync.data.bills.BillQueue.clear(context)
+        com.example.spendsync.data.bills.BillShare.clear(context)
     }
 
     // Update settings functions
@@ -393,9 +441,6 @@ class SessionDataStore(private val context: Context) {
         context.dataStore.edit { prefs -> prefs[KEY_AUTO_CAPTURE_ENABLED] = enabled }
     }
 
-    suspend fun updateAutoCapturePackages(packages: Set<String>) {
-        context.dataStore.edit { prefs -> prefs[KEY_AUTO_CAPTURE_PACKAGES] = serializeAutoCapturePackages(packages) }
-    }
 
     val exportOnLogin: Flow<Boolean> = context.dataStore.data.map { it[KEY_EXPORT_ON_LOGIN] ?: false }
     suspend fun updateExportOnLogin(on: Boolean) { context.dataStore.edit { it[KEY_EXPORT_ON_LOGIN] = on } }
@@ -430,6 +475,22 @@ class SessionDataStore(private val context: Context) {
             p[KEY_ANIM_ALL] = m.all; p[KEY_ANIM_COUNTS] = m.counts; p[KEY_ANIM_ENTRANCE] = m.entrance
             p[KEY_ANIM_TRANSITIONS] = m.transitions; p[KEY_ANIM_TYPING] = m.typing
             p[KEY_ANIM_SKELETON] = m.skeleton; p[KEY_ANIM_PRESS] = m.press; p[KEY_ANIM_CHARTS] = m.charts
+        }
+    }
+
+    // ── Voice (this phone only) ──────────────────────────────────────────────
+
+    val voicePrefs: Flow<com.example.spendsync.voice.VoicePrefs> = context.dataStore.data.map { p ->
+        com.example.spendsync.voice.VoicePrefs(
+            language = p[KEY_VOICE_LANGUAGE].orEmpty(), voice = p[KEY_VOICE_NAME].orEmpty(),
+            speed = p[KEY_VOICE_SPEED] ?: 100, keepListening = p[KEY_VOICE_KEEP_LISTENING] ?: true,
+        )
+    }
+
+    suspend fun updateVoicePrefs(v: com.example.spendsync.voice.VoicePrefs) {
+        context.dataStore.edit { p ->
+            p[KEY_VOICE_LANGUAGE] = v.language; p[KEY_VOICE_NAME] = v.voice
+            p[KEY_VOICE_SPEED] = v.speed; p[KEY_VOICE_KEEP_LISTENING] = v.keepListening
         }
     }
 

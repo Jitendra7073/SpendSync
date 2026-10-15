@@ -49,7 +49,7 @@ export function toGeminiBody(req: LlmRequest, systemAsUser: boolean): Record<str
   };
 
   for (const m of req.messages as LlmMessage[]) {
-    if (m.role === 'user') push('user', [{ text: m.text }]);
+    if (m.role === 'user') push('user', [{ text: m.text }, ...(m.images ?? []).map((i) => ({ inlineData: { mimeType: i.mime, data: i.base64 } }))]);
     else if (m.role === 'assistant') {
       const parts: Part[] = [];
       if (m.text) parts.push({ text: m.text });

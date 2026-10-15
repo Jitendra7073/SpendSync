@@ -3,7 +3,6 @@ package com.example.spendsync.ui.home
 import com.example.spendsync.ui.i18n.categoryLabel
 import com.example.spendsync.R
 import com.example.spendsync.ui.i18n.tr
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,9 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -22,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,52 +36,15 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-internal fun DeleteTransactionDialog(
-    transaction: TransactionDto,
-    amountVisibility: AmountVisibilityState,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-    loading: Boolean = false,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val amount = transaction.amount.toDoubleOrNull() ?: 0.0
-    AppDialog(
-        onDismiss = onDismiss,
-        title = tr(R.string.delete_this_transaction),
-        message = tr(R.string.it_will_be_removed_from_your),
-        icon = Icons.Default.DeleteForever,
-        tone = DialogTone.Danger,
-        primary = DialogAction(tr(R.string.delete), onConfirm, loading = loading),
-        secondary = DialogAction(tr(R.string.keep_it), onDismiss),
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(scheme.surfaceVariant.copy(alpha = 0.6f))
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                transaction.merchant.ifBlank { categoryLabel(transaction.category) },
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = scheme.onSurface,
-                modifier = Modifier.weight(1f),
-                maxLines = 2,
-            )
-            Spacer(Modifier.width(12.dp))
-            MaskableAmountText(amount, amountVisibility, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
-        }
-    }
-}
-
-@Composable
 internal fun TransactionInfoDialog(
     transaction: TransactionDto,
     amountVisibility: AmountVisibilityState,
     onDismiss: () -> Unit,
+    /** Shown for captured transactions: opens the bank message(s) behind it. */
+    onViewMessage: (() -> Unit)? = null,
+    financeRepository: com.example.spendsync.data.repository.FinanceRepository? = null,
+    sessionDataStore: com.example.spendsync.data.local.SessionDataStore? = null,
+    onAmountUpdated: (Double) -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
     val amount = transaction.amount.toDoubleOrNull() ?: 0.0
@@ -107,6 +66,7 @@ internal fun TransactionInfoDialog(
         icon = Icons.Default.ReceiptLong,
         tone = if (isCredit) DialogTone.Success else DialogTone.Danger,
         primary = DialogAction(tr(R.string.close), onDismiss),
+        secondary = onViewMessage?.takeIf { !transaction.sourceApp.isNullOrBlank() }?.let { DialogAction(tr(R.string.cap_view_message), it) },
     ) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             MaskableAmountText(
@@ -124,6 +84,10 @@ internal fun TransactionInfoDialog(
             if (!transaction.note.isNullOrBlank()) InfoRow(tr(R.string.note), transaction.note)
             if (!transaction.sourceApp.isNullOrBlank()) InfoRow(tr(R.string.added_from), transaction.sourceApp)
             InfoRow(tr(R.string.date), created)
+            if (financeRepository != null) {
+                Spacer(Modifier.heightIn(min = 12.dp))
+                com.example.spendsync.ui.bills.BillsSection(transaction.id, financeRepository, amountVisibility, transaction = transaction, sessionDataStore = sessionDataStore, onAmountUpdated = onAmountUpdated)
+            }
         }
     }
 }

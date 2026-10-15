@@ -34,11 +34,17 @@ class MainActivity : ComponentActivity() {
 
     private fun takePlanifyLink(intent: android.content.Intent?) {
         intent?.getStringExtra(PlanifyLinks.EXTRA)?.let { PlanifyLinks.pending.value = it; intent.removeExtra(PlanifyLinks.EXTRA) }
+        intent?.getStringExtra(com.example.spendsync.notifications.BillLinks.EXTRA)?.let {
+            com.example.spendsync.notifications.BillLinks.pending.value = it
+            intent.removeExtra(com.example.spendsync.notifications.BillLinks.EXTRA)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        // Copies made for the share sheet: cleared on a fresh start only (not on rotation, while another app may still read them).
+        if (savedInstanceState == null) { val app = applicationContext; Thread { com.example.spendsync.data.bills.BillShare.clear(app) }.start() }
 
         enableEdgeToEdge()
 

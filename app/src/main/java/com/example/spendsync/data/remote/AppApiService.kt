@@ -49,7 +49,73 @@ interface AppApiService {
     suspend fun deleteTransaction(
         @Header("Authorization") token: String,
         @Path("id") id: String
-    ): Response<SuccessResponse<Unit>>
+    ): Response<SuccessResponse<DeleteTransactionResult>>
+
+    @POST("api/transactions/{id}/restore")
+    suspend fun restoreTransaction(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<SuccessResponse<RestoredTransactionDto>>
+
+    @POST("api/holds/{id}/restore")
+    suspend fun restoreHold(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<SuccessResponse<HoldDto>>
+
+    // ── Trash ─────────────────────────────────────────────────────────────────
+
+    @GET("api/trash")
+    suspend fun getTrash(
+        @Header("Authorization") token: String,
+        @Query("cursor") cursor: String?
+    ): Response<SuccessResponse<TrashPageDto>>
+
+    @DELETE("api/trash/{kind}/{id}")
+    suspend fun deleteForever(
+        @Header("Authorization") token: String,
+        @Path("kind") kind: String,
+        @Path("id") id: String
+    ): Response<Unit>
+
+    @DELETE("api/trash")
+    suspend fun emptyTrash(
+        @Header("Authorization") token: String
+    ): Response<SuccessResponse<TrashEmptiedDto>>
+
+    // ── Smart capture ─────────────────────────────────────────────────────────
+
+    @POST("api/capture/messages")
+    suspend fun capture(
+        @Header("Authorization") token: String,
+        @Body body: CaptureRequest
+    ): Response<SuccessResponse<CaptureResultDto>>
+
+    @GET("api/capture/messages")
+    suspend fun getCapturedMessages(
+        @Header("Authorization") token: String,
+        @Query("status") status: String?,
+        @Query("transactionId") transactionId: String?,
+        @Query("page") page: Int?
+    ): Response<SuccessResponseList<CapturedMessageDto>>
+
+    @PATCH("api/capture/messages/{id}")
+    suspend fun actOnCapturedMessage(
+        @Header("Authorization") token: String,
+        @Path("id") id: String,
+        @Body body: CaptureActionRequest
+    ): Response<SuccessResponse<CaptureResultDto>>
+
+    @DELETE("api/capture/messages/{id}")
+    suspend fun deleteCapturedMessage(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<SuccessResponse<Map<String, Boolean>>>
+
+    @DELETE("api/capture/messages")
+    suspend fun deleteAllCapturedMessages(
+        @Header("Authorization") token: String
+    ): Response<SuccessResponse<Map<String, Int>>>
 
     // ── Holds ─────────────────────────────────────────────────────────────────
 
@@ -241,4 +307,44 @@ interface AppApiService {
         @Header("Authorization") token: String,
         @Body body: CategorySuggestRequest
     ): Response<SuccessResponse<CategorySuggestResponse>>
+
+    // ── Bills ─────────────────────────────────────────────────────────────────
+
+    @GET("api/transactions/{id}/bills")
+    suspend fun listBills(@Header("Authorization") token: String, @Path("id") txId: String): Response<SuccessResponse<List<BillDto>>>
+
+    @POST("api/transactions/{id}/bills")
+    suspend fun reserveBill(@Header("Authorization") token: String, @Path("id") txId: String, @Body body: ReserveBillRequest): Response<SuccessResponse<BillReservationDto>>
+
+    @POST("api/bills/{id}/sign")
+    suspend fun signBill(@Header("Authorization") token: String, @Path("id") id: String): Response<SuccessResponse<BillReservationDto>>
+
+    @POST("api/bills/{id}/confirm")
+    suspend fun confirmBill(@Header("Authorization") token: String, @Path("id") id: String, @Body body: ConfirmBillRequest): Response<SuccessResponse<BillDto>>
+
+    @DELETE("api/bills/{id}")
+    suspend fun deleteBill(@Header("Authorization") token: String, @Path("id") id: String): Response<Unit>
+
+    @POST("api/bills/{id}/restore")
+    suspend fun restoreBill(@Header("Authorization") token: String, @Path("id") id: String): Response<SuccessResponse<BillDto>>
+
+    @GET("api/bills/usage")
+    suspend fun billUsage(@Header("Authorization") token: String): Response<SuccessResponse<BillUsageDto>>
+
+    // ── Bill AI ───────────────────────────────────────────────────────────────
+
+    @GET("api/transactions/{id}/bills/read")
+    suspend fun getBillRead(@Header("Authorization") token: String, @Path("id") txId: String): Response<SuccessResponse<BillReadStatusDto>>
+
+    @POST("api/transactions/{id}/bills/read")
+    suspend fun runBillRead(@Header("Authorization") token: String, @Path("id") txId: String, @Body body: RunBillReadRequest): Response<SuccessResponse<BillReadStatusDto>>
+
+    @POST("api/bills/read/stop")
+    suspend fun stopBillReads(@Header("Authorization") token: String): Response<Unit>
+
+    @POST("api/bills/read")
+    suspend fun readBillImages(@Header("Authorization") token: String, @Body body: ReadBillImagesRequest): Response<SuccessResponse<BillImagesReadDto>>
+
+    @POST("api/bills/email")
+    suspend fun emailBills(@Header("Authorization") token: String, @Body body: EmailBillsRequest): Response<SuccessResponse<EmailBillsResultDto>>
 }

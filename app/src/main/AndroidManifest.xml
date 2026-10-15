@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Voice assistant: only while the user is talking in the chat (asked on first mic tap). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- Android 11+ package visibility: lets us see whether WhatsApp is installed and which apps can take a
          mailto: / smsto: link. We never read the app list; these are the only things we look for. -->
@@ -17,6 +19,13 @@
         <intent>
             <action android:name="android.intent.action.SENDTO" />
             <data android:scheme="smsto" />
+        </intent>
+        <!-- Voice assistant: the phone's speech recogniser and text-to-speech engine. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
     </queries>
 
@@ -66,6 +75,9 @@
 
         <receiver
             android:name=".notifications.NotificationReplyReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notifications.CaptureActionReceiver"
             android:exported="false" />
 
         <service

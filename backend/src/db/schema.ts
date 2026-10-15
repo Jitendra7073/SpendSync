@@ -2,7 +2,7 @@
  * Complete schema definitions for Drizzle Kit
  * All tables defined inline to avoid module resolution issues
  */
-import { pgTable, text, timestamp, boolean, uuid, decimal, integer, unique } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, uuid, decimal, integer, unique, index, smallint, bigint, date, primaryKey, jsonb } from 'drizzle-orm/pg-core';
 
 // ============================================================================
 // AUTH TABLES (Better Auth)
@@ -63,7 +63,9 @@ export const verification = pgTable('verification', {
 // APPLICATION TABLES
 // ============================================================================
 
-export const transactions = pgTable('transactions', {
+export const transactions = pgTable(
+  'transactions',
+  {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id')
     .notNull()
@@ -76,7 +78,10 @@ export const transactions = pgTable('transactions', {
   note: text('note'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+  deletedAt: timestamp('deleted_at'),
+  },
+  (t) => ({ userDeleted: index('transactions_user_deleted_idx').on(t.userId, t.deletedAt) }),
+);
 
 export const categories = pgTable('categories', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -106,7 +111,9 @@ export const budgets = pgTable('budgets', {
   rollover: boolean('rollover').notNull().default(false),
 });
 
-export const holds = pgTable('holds', {
+export const holds = pgTable(
+  'holds',
+  {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id')
     .notNull()
@@ -122,7 +129,67 @@ export const holds = pgTable('holds', {
   settledAt: timestamp('settled_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+  },
+  (t) => ({ userDeleted: index('holds_user_deleted_idx').on(t.userId, t.deletedAt) }),
+);
+
+// Bills (photos/PDFs in Cloudinary) — keep identical to schema/bills.schema.ts
+export const billStatuses = ['pending', 'ready'] as const;
+
+/** A bill page attached to a transaction; the file lives in Cloudinary under `public_id`. */
+export const bills = pgTable(
+  'bills',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    transactionId: uuid('transaction_id').notNull().references(() => transactions.id, { onDelete: 'cascade' }),
+    publicId: text('public_id').notNull().unique(),
+    position: smallint('position').notNull(),
+    status: text('status', { enum: billStatuses }).notNull().default('pending'),
+    format: text('format'),
+    bytes: integer('bytes'),
+    width: integer('width'),
+    height: integer('height'),
+    pages: integer('pages'),
+    version: bigint('version', { mode: 'number' }),
+    clientKey: uuid('client_key').notNull(),
+    // Set when this upload replaces a page: that page goes to the Trash when this one is confirmed.
+    replacesId: uuid('replaces_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (t) => ({
+    byTransaction: index('bills_transaction_idx').on(t.transactionId),
+    userDeleted: index('bills_user_deleted_idx').on(t.userId, t.deletedAt),
+    clientKey: unique('bills_user_client_key_unique').on(t.userId, t.clientKey),
+  }),
+);
+
+
+/** Outbox of Cloudinary deletions. No FK on purpose: it must outlive the rows it was cut from. */
+export const billPurges = pgTable('bill_purges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  target: text('target').notNull(),
+  kind: text('kind', { enum: ['asset', 'prefix'] }).notNull().default('asset'),
+  attempts: integer('attempts').notNull().default(0),
+  nextAt: timestamp('next_at').notNull().defaultNow(),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+/** Uploads reserved per user per UTC day. Deleting bills never lowers it. */
+export const billUploadCounts = pgTable(
+  'bill_upload_counts',
+  {
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    day: date('day', { mode: 'string' }).notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.userId, t.day] }) }),
+);
+
 
 // ============================================================================
 // USER SETTINGS TABLE
@@ -164,6 +231,16 @@ export const userSettings = pgTable('user_settings', {
   planifyAlerts: boolean('planify_alerts').notNull().default(true),
   planifyDaily: boolean('planify_daily').notNull().default(false),
   planifySalaryMin: integer('planify_salary_min').notNull().default(5000),
+  planifyFundingSource: text('planify_funding_source').notNull().default('detected_salary'),
+  planifyCustomAmount: integer('planify_custom_amount').notNull().default(0),
+
+  // Smart capture (Settings -> Smart capture). auto_capture_enabled above is the master switch.
+  captureSources: text('capture_sources').notNull().default('sms,email,upi'),
+  captureMode: text('capture_mode').notNull().default('auto'), // 'auto' | 'ask'
+  captureDuplicates: text('capture_duplicates').notNull().default('ask'), // 'ask' | 'keep'
+  captureKeepMessages: boolean('capture_keep_messages').notNull().default(true),
+  captureRetentionDays: integer('capture_retention_days').notNull().default(365), // 0 = forever
+  captureBlockedSenders: text('capture_blocked_senders').notNull().default(''),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -292,4 +369,84 @@ export const planMatches = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => ({ onePerPair: unique('plan_matches_unique').on(t.userId, t.bucket, t.kind, t.key) }),
+);
+
+// =====================================================================);
+
+// SMART CAPTURE (mirror of schema/capture.schema.ts)
+// ============================================================================
+
+export const capturedMessages = pgTable(
+  'captured_messages',
+  {
+    id: uuid('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    sender: text('sender').notNull(),
+    packageName: text('package_name'),
+    body: text('body').notNull(),
+    receivedAt: timestamp('received_at').notNull(),
+    amount: decimal('amount', { precision: 12, scale: 2 }),
+    type: text('type'),
+    payee: text('payee'),
+    refNo: text('ref_no'),
+    last4: text('last4'),
+    balance: decimal('balance', { precision: 14, scale: 2 }),
+    status: text('status').notNull(),
+    reason: text('reason'),
+    transactionId: uuid('transaction_id').references(() => transactions.id, { onDelete: 'set null' }),
+    duplicateOf: uuid('duplicate_of'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    byTime: index('captured_messages_user_time_idx').on(t.userId, t.receivedAt),
+    byRef: index('captured_messages_user_ref_idx').on(t.userId, t.refNo),
+  }),
+);
+
+// Bill AI — keep identical to schema/billai.schema.ts
+export const billReadStatuses = ['queued', 'done', 'failed', 'no_consent'] as const;
+
+/** What the AI read from a transaction's bill pages. One row per transaction; re-read when pages_key changes. */
+export const billReads = pgTable(
+  'bill_reads',
+  {
+    transactionId: uuid('transaction_id').primaryKey().references(() => transactions.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: billReadStatuses }).notNull().default('queued'),
+    pagesKey: text('pages_key').notNull(),
+    data: jsonb('data'),
+    model: text('model'),
+    attempts: integer('attempts').notNull().default(0),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({ byStatus: index('bill_reads_status_idx').on(t.status, t.updatedAt) }),
+);
+
+/** AI bill reads per user per UTC day (auto, retries and pre-fill all count). */
+export const billReadCounts = pgTable(
+  'bill_read_counts',
+  {
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    day: date('day', { mode: 'string' }).notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.userId, t.day] }) }),
+);
+
+// Bill emails — keep identical to schema/billmail.schema.ts
+/** Bill emails sent per user per UTC day; last_at drives the once-a-minute limit. */
+export const billEmailCounts = pgTable(
+  'bill_email_counts',
+  {
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    day: date('day', { mode: 'string' }).notNull(),
+    count: integer('count').notNull().default(0),
+    lastAt: timestamp('last_at').notNull().defaultNow(),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.userId, t.day] }) }),
 );

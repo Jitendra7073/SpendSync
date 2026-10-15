@@ -65,5 +65,12 @@ class HoldReminderWorker(
         fun cancel(context: Context, holdId: String) {
             WorkManager.getInstance(context).cancelUniqueWork(workName(holdId))
         }
+
+        /** Re-arms the reminder of a hold that came back from the Trash (pending only). */
+        fun scheduleFor(context: Context, hold: com.example.spendsync.data.remote.model.HoldDto) {
+            if (hold.status != "pending") return
+            val due = runCatching { java.time.ZonedDateTime.parse(hold.expectedReturnDate).toLocalDate() }.getOrNull() ?: return
+            schedule(context, hold.id, hold.personName, hold.amount.toDoubleOrNull() ?: 0.0, hold.direction, due)
+        }
     }
 }

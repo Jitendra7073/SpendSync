@@ -31,6 +31,12 @@ object PlanifyLinks {
     val coversBottomBar = MutableStateFlow(false)
 }
 
+/** "Attach bill" on a capture notification: carries the transaction id to the app. */
+object BillLinks {
+    const val EXTRA = "bill_link"
+    val pending = MutableStateFlow<String?>(null)
+}
+
 /** Posts Planify's own notifications (limit alerts, salary prompt, daily summary, month wrap-up). */
 object PlanNotifier {
     private const val CHANNEL_ID = "planify"

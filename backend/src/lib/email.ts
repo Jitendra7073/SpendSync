@@ -24,7 +24,7 @@ export interface EmailPayload {
   /** Shown as the sender's name (e.g. the person who wrote the report). The address stays the SMTP account. */
   fromName?: string;
   /** Files to attach (for example a CSV export). */
-  attachments?: { filename: string; content: string; contentType?: string }[];
+  attachments?: { filename: string; content: string | Buffer; contentType?: string }[];
 }
 
 export type EmailResult = { ok: true; messageId?: string } | { ok: false; reason: 'not_configured' | 'failed'; error?: string };
