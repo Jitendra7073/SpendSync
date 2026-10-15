@@ -117,7 +117,6 @@ import com.example.spendsync.data.repository.FinanceRepository
 import com.example.spendsync.data.repository.AuthResult
 import com.example.spendsync.data.remote.model.DashboardSummaryDto
 import androidx.compose.runtime.LaunchedEffect
-import com.example.spendsync.notifications.NotificationAppAllowlist
 import com.example.spendsync.ui.shared.AmountVisibilityState
 import com.example.spendsync.ui.shared.MaskableAmountText
 import com.example.spendsync.ui.shared.PinSetupDialog
@@ -177,7 +176,10 @@ fun ProfileScreen(
     val autoBackup by sessionDataStore.autoBackup.collectAsState(initial = true)
     val dateFormat by sessionDataStore.dateFormat.collectAsState(initial = "DD / MM / YYYY")
     val autoCaptureEnabled by sessionDataStore.autoCaptureEnabled.collectAsState(initial = false)
-    val autoCapturePackages by sessionDataStore.autoCapturePackages.collectAsState(initial = emptySet())
+    val captureSettings by sessionDataStore.captureSettings.collectAsState(initial = com.example.spendsync.data.local.CaptureSettings())
+    var showCapturedMessages by remember { mutableStateOf(false) }
+    var showDeleteCapturedDialog by remember { mutableStateOf(false) }
+    var capturedDeleteError by remember { mutableStateOf<String?>(null) }
     val amountMaskingEnabled by sessionDataStore.amountMaskingEnabled.collectAsState(initial = false)
     val amountVisibilityDurationSeconds by sessionDataStore.amountVisibilityDurationSeconds.collectAsState(initial = 60)
     val pinHash by sessionDataStore.pinHash.collectAsState(initial = null)
@@ -301,7 +303,7 @@ fun ProfileScreen(
         emailNotifications = emailNotifications,
         autoBackup = autoBackup,
         autoCapture = autoCaptureEnabled,
-        autoCapturePackages = autoCapturePackages,
+        capture = captureSettings,
         notificationAccessGranted = notificationAccessGranted,
         maskingEnabled = amountMaskingEnabled,
         visibilitySeconds = amountVisibilityDurationSeconds,
@@ -327,10 +329,9 @@ fun ProfileScreen(
             if (turningOn) showAutoCaptureExplainer = true
             else commit(SettingField.AutoCapture) { sessionDataStore.updateAutoCaptureEnabled(false) }
         },
-        setCapturePackage = { pkg, on ->
-            val updated = if (on) autoCapturePackages + pkg else autoCapturePackages - pkg
-            commit(SettingField.AutoCapturePackages) { sessionDataStore.updateAutoCapturePackages(updated) }
-        },
+        setCapture = { c -> commit(SettingField.Capture) { sessionDataStore.updateCaptureSettings(c) } },
+        openCapturedMessages = { showCapturedMessages = true },
+        deleteCapturedMessages = { capturedDeleteError = null; showDeleteCapturedDialog = true },
         openNotificationAccess = {
             context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         },
@@ -457,6 +458,34 @@ fun ProfileScreen(
 
     if (showExportDialog) {
         ExportSheet(financeRepository = financeRepository, onDismiss = { showExportDialog = false })
+    }
+
+    if (showCapturedMessages) {
+        com.example.spendsync.ui.capture.CapturedMessagesSheet(
+            finance = financeRepository,
+            store = sessionDataStore,
+            amountVisibility = amountVisibility,
+            onDismiss = { showCapturedMessages = false },
+        )
+    }
+
+    if (showDeleteCapturedDialog) {
+        com.example.spendsync.ui.components.AppConfirmDialog(
+            title = tr(R.string.cap_delete_all),
+            message = capturedDeleteError ?: tr(R.string.cap_delete_all_msg),
+            confirmLabel = tr(R.string.cap_delete_all_confirm),
+            cancelLabel = tr(R.string.cancel),
+            destructive = true,
+            onDismiss = { showDeleteCapturedDialog = false },
+            onConfirm = {
+                scope.launch {
+                    when (val r = financeRepository.deleteAllCapturedMessages()) {
+                        is com.example.spendsync.data.repository.AuthResult.Success -> showDeleteCapturedDialog = false
+                        is com.example.spendsync.data.repository.AuthResult.Error -> capturedDeleteError = r.message
+                    }
+                }
+            },
+        )
     }
 
     if (showAutoCaptureExplainer) {

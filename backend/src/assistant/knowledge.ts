@@ -77,7 +77,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     title: 'Settings overview',
     screen: 'profile',
     text:
-      'Open the Profile tab. It shows your name, email and this month\'s stats, with Settings below it in seven groups: Account, Appearance & Format, Notifications, Privacy & Security, Auto-capture, Data & Backup, and Help & About. Use the search box at the top to find any setting quickly.',
+      'Open the Profile tab. It shows your name, email and this month\'s stats, with Settings below it in seven groups: Account, Appearance & Format, Notifications, Privacy & Security, Smart capture, Data & Backup, and Help & About. Use the search box at the top to find any setting quickly.',
   },
   {
     id: 'theme_accent',
@@ -116,10 +116,10 @@ export const HELP_ENTRIES: HelpEntry[] = [
   },
   {
     id: 'auto_capture',
-    title: 'Auto-capture payments',
+    title: 'Smart capture: payments from bank SMS, emails and UPI apps',
     screen: 'profile',
     text:
-      'Settings → Auto-capture can turn payment notifications into transactions automatically. Turn on "Auto-detect transactions", allow notification access when Android asks, and choose which apps to watch (such as Google Pay, PhonePe, Paytm and messaging apps). Only the apps you choose are read, and only the transaction you confirm leaves your phone. If a warning says notification access is off, tap Fix and enable SpendSync in Android settings. When a payment is captured you can reply to the notification to add a description.',
+      'Settings → Smart capture turns bank SMS, bank emails (from the Gmail or Outlook app notification) and UPI app alerts into transactions. Turn it on, allow notification access when Android asks, and pick the sources. When a bank sends both an SMS and an email for one payment it is added once: the same reference number, or the same amount on the same account close in time, counts as one payment. If SpendSync is not sure, it asks "Same payment?" instead of guessing. You can choose to have every new payment added automatically or to be asked first, block a sender, and decide how long copies of the messages are kept. One-time codes (OTPs) are never read or saved, and account numbers are masked to the last 4 digits. Every message is listed in Smart capture → Captured messages, where you can add, ignore or delete it. Reply to the capture notification to add a description.',
   },
   {
     id: 'backup_sync',
@@ -192,10 +192,10 @@ export const HELP_ENTRIES: HelpEntry[] = [
   },
   {
     id: 'troubleshooting_capture',
-    title: 'Auto-capture is not adding payments',
+    title: 'Smart capture is not adding payments',
     screen: 'profile',
     text:
-      'Check Settings → Auto-capture: the switch must be on, the app that sends the payment alert must be ticked, and notification access must be enabled for SpendSync in Android settings (the Fix button opens it). Only common payment alert formats are recognised.',
+      'Check Settings → Smart capture: the switch must be on, the source (Bank SMS, Bank emails or UPI apps) must be on, the sender must not be blocked, and notification access must be enabled for SpendSync in Android settings (the Fix button opens it). Emails are only seen when the Gmail or Outlook app shows a notification for them. Open Captured messages: a message marked "Needs review" is waiting for your answer, and "Ignored" shows why it was skipped (an offer, a failed payment, a reminder of a future debit). Payments made while offline are added when the phone is back online.',
   },
   {
     id: 'troubleshooting_sync',

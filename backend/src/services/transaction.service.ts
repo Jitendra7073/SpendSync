@@ -2,7 +2,7 @@ import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index';
 import { transactions } from '../db/schema/index';
 import type { CreateTransactionInput, UpdateTransactionInput, TransactionQuery } from '../types/transaction.types';
-import { NotFoundError } from '../utils/errors';
+import { ConflictError, NotFoundError } from '../utils/errors';
 
 /**
  * Transaction Service
@@ -24,10 +24,19 @@ export class TransactionService {
         sourceApp: data.sourceApp,
         note: data.note,
         ...(data.transactionDate ? { createdAt: new Date(data.transactionDate) } : {}),
+        ...(data.id ? { id: data.id } : {}),
       })
+      .onConflictDoNothing({ target: transactions.id })
       .returning();
+    if (transaction) return transaction;
 
-    return transaction;
+    // A retry of a create that already went through: hand back the stored row.
+    const [existing] = await db
+      .select()
+      .from(transactions)
+      .where(and(eq(transactions.id, data.id!), eq(transactions.userId, userId)));
+    if (!existing) throw new ConflictError('Transaction id already in use');
+    return existing;
   }
 
   /**

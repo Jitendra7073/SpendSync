@@ -2,7 +2,7 @@
  * Complete schema definitions for Drizzle Kit
  * All tables defined inline to avoid module resolution issues
  */
-import { pgTable, text, timestamp, boolean, uuid, decimal, integer, unique } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, uuid, decimal, integer, unique, index } from 'drizzle-orm/pg-core';
 
 // ============================================================================
 // AUTH TABLES (Better Auth)
@@ -164,6 +164,16 @@ export const userSettings = pgTable('user_settings', {
   planifyAlerts: boolean('planify_alerts').notNull().default(true),
   planifyDaily: boolean('planify_daily').notNull().default(false),
   planifySalaryMin: integer('planify_salary_min').notNull().default(5000),
+  planifyFundingSource: text('planify_funding_source').notNull().default('detected_salary'),
+  planifyCustomAmount: integer('planify_custom_amount').notNull().default(0),
+
+  // Smart capture (Settings -> Smart capture). auto_capture_enabled above is the master switch.
+  captureSources: text('capture_sources').notNull().default('sms,email,upi'),
+  captureMode: text('capture_mode').notNull().default('auto'), // 'auto' | 'ask'
+  captureDuplicates: text('capture_duplicates').notNull().default('ask'), // 'ask' | 'keep'
+  captureKeepMessages: boolean('capture_keep_messages').notNull().default(true),
+  captureRetentionDays: integer('capture_retention_days').notNull().default(365), // 0 = forever
+  captureBlockedSenders: text('capture_blocked_senders').notNull().default(''),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -292,4 +302,38 @@ export const planMatches = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => ({ onePerPair: unique('plan_matches_unique').on(t.userId, t.bucket, t.kind, t.key) }),
+);
+
+// ============================================================================
+// SMART CAPTURE (mirror of schema/capture.schema.ts)
+// ============================================================================
+
+export const capturedMessages = pgTable(
+  'captured_messages',
+  {
+    id: uuid('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    sender: text('sender').notNull(),
+    packageName: text('package_name'),
+    body: text('body').notNull(),
+    receivedAt: timestamp('received_at').notNull(),
+    amount: decimal('amount', { precision: 12, scale: 2 }),
+    type: text('type'),
+    payee: text('payee'),
+    refNo: text('ref_no'),
+    last4: text('last4'),
+    balance: decimal('balance', { precision: 14, scale: 2 }),
+    status: text('status').notNull(),
+    reason: text('reason'),
+    transactionId: uuid('transaction_id').references(() => transactions.id, { onDelete: 'set null' }),
+    duplicateOf: uuid('duplicate_of'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    byTime: index('captured_messages_user_time_idx').on(t.userId, t.receivedAt),
+    byRef: index('captured_messages_user_ref_idx').on(t.userId, t.refNo),
+  }),
 );

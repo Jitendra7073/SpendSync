@@ -45,6 +45,8 @@ data class CreateTransactionRequest(
     @SerializedName("note")      val note: String? = null,
     // ISO datetime, never in the future — lets the user backdate a transaction.
     @SerializedName("transactionDate") val transactionDate: String? = null,
+    // Made on the phone so a retried create is stored once (the server ignores a repeated id).
+    @SerializedName("id")        val id: String? = null,
 )
 
 data class UpdateTransactionRequest(
@@ -167,7 +169,6 @@ data class SettingsDto(
     @SerializedName("amountMaskingEnabled")    val amountMaskingEnabled: Boolean? = null,
     @SerializedName("amountVisibilitySeconds") val amountVisibilitySeconds: Int? = null,
     @SerializedName("autoCaptureEnabled")      val autoCaptureEnabled: Boolean? = null,
-    @SerializedName("autoCapturePackages")     val autoCapturePackages: String? = null,
     @SerializedName("assistantModel")          val assistantModel: String? = null,
     @SerializedName("assistantStyle")          val assistantStyle: String? = null,
     @SerializedName("assistantTone")           val assistantTone: String? = null,
@@ -178,6 +179,12 @@ data class SettingsDto(
     @SerializedName("planifySalaryMin")        val planifySalaryMin: Int? = null,
     @SerializedName("planifyFundingSource")    val planifyFundingSource: String? = null,
     @SerializedName("planifyCustomAmount")     val planifyCustomAmount: Int? = null,
+    @SerializedName("captureSources")          val captureSources: String? = null,
+    @SerializedName("captureMode")             val captureMode: String? = null,
+    @SerializedName("captureDuplicates")       val captureDuplicates: String? = null,
+    @SerializedName("captureKeepMessages")     val captureKeepMessages: Boolean? = null,
+    @SerializedName("captureRetentionDays")    val captureRetentionDays: Int? = null,
+    @SerializedName("captureBlockedSenders")   val captureBlockedSenders: String? = null,
 )
 
 data class UpdateSettingsRequest(
@@ -192,7 +199,6 @@ data class UpdateSettingsRequest(
     @SerializedName("amountMaskingEnabled")    val amountMaskingEnabled: Boolean? = null,
     @SerializedName("amountVisibilitySeconds") val amountVisibilitySeconds: Int? = null,
     @SerializedName("autoCaptureEnabled")      val autoCaptureEnabled: Boolean? = null,
-    @SerializedName("autoCapturePackages")     val autoCapturePackages: String? = null,
     @SerializedName("assistantModel")          val assistantModel: String? = null,
     @SerializedName("assistantStyle")          val assistantStyle: String? = null,
     @SerializedName("assistantTone")           val assistantTone: String? = null,
@@ -203,7 +209,60 @@ data class UpdateSettingsRequest(
     @SerializedName("planifySalaryMin")        val planifySalaryMin: Int? = null,
     @SerializedName("planifyFundingSource")    val planifyFundingSource: String? = null,
     @SerializedName("planifyCustomAmount")     val planifyCustomAmount: Int? = null,
+    @SerializedName("captureSources")          val captureSources: String? = null,
+    @SerializedName("captureMode")             val captureMode: String? = null,
+    @SerializedName("captureDuplicates")       val captureDuplicates: String? = null,
+    @SerializedName("captureKeepMessages")     val captureKeepMessages: Boolean? = null,
+    @SerializedName("captureRetentionDays")    val captureRetentionDays: Int? = null,
+    @SerializedName("captureBlockedSenders")   val captureBlockedSenders: String? = null,
 )
+
+// ── Smart capture ────────────────────────────────────────────────────────────
+
+/** One bank SMS / email / UPI alert, as the phone read it. [id] is made on the phone (stable per message). */
+data class CaptureRequest(
+    @SerializedName("id")           val id: String,
+    @SerializedName("source")       val source: String,
+    @SerializedName("sender")       val sender: String,
+    @SerializedName("packageName")  val packageName: String?,
+    @SerializedName("body")         val body: String,
+    @SerializedName("receivedAt")   val receivedAt: String,
+    @SerializedName("amount")       val amount: Double? = null,
+    @SerializedName("type")         val type: String? = null,
+    @SerializedName("payee")        val payee: String? = null,
+    @SerializedName("refNo")        val refNo: String? = null,
+    @SerializedName("last4")        val last4: String? = null,
+    @SerializedName("balance")      val balance: Double? = null,
+    @SerializedName("ignoreReason") val ignoreReason: String? = null,
+)
+
+/** status: added | duplicate | review | ignored, or "pending" on the phone while it waits to sync. */
+data class CapturedMessageDto(
+    @SerializedName("id")            val id: String,
+    @SerializedName("source")        val source: String,
+    @SerializedName("sender")        val sender: String,
+    @SerializedName("packageName")   val packageName: String? = null,
+    @SerializedName("body")          val body: String,
+    @SerializedName("receivedAt")    val receivedAt: String,
+    @SerializedName("amount")        val amount: String? = null,
+    @SerializedName("type")          val type: String? = null,
+    @SerializedName("payee")         val payee: String? = null,
+    @SerializedName("refNo")         val refNo: String? = null,
+    @SerializedName("last4")         val last4: String? = null,
+    @SerializedName("balance")       val balance: String? = null,
+    @SerializedName("status")        val status: String,
+    @SerializedName("reason")        val reason: String? = null,
+    @SerializedName("transactionId") val transactionId: String? = null,
+    @SerializedName("duplicateOf")   val duplicateOf: String? = null,
+)
+
+data class CaptureResultDto(
+    @SerializedName("message")     val message: CapturedMessageDto,
+    @SerializedName("transaction") val transaction: TransactionDto? = null,
+)
+
+/** add | same | different | ignore */
+data class CaptureActionRequest(@SerializedName("action") val action: String)
 
 // ── Categories ───────────────────────────────────────────────────────────────
 

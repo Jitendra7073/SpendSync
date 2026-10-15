@@ -128,7 +128,7 @@ fun AssistantScreen(
     var feedbackFor by remember { mutableStateOf<UiMessage?>(null) }
     var sharing by remember { mutableStateOf<String?>(null) }
     val typedIds = remember { androidx.compose.runtime.mutableStateSetOf<Long>() }
-    val financeRepository = remember(sessionDataStore) { com.example.spendsync.data.repository.FinanceRepository(sessionDataStore) }
+    val financeRepository = remember(sessionDataStore) { com.example.spendsync.data.repository.FinanceRepository.shared(sessionDataStore) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     fun copy(text: String) {

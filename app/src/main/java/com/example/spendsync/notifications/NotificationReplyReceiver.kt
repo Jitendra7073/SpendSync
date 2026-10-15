@@ -30,7 +30,7 @@ class NotificationReplyReceiver : BroadcastReceiver() {
 
         val pendingResult = goAsync()
         val sessionDataStore = SessionDataStore(context.applicationContext)
-        val financeRepository = FinanceRepository(sessionDataStore)
+        val financeRepository = FinanceRepository.shared(sessionDataStore)
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
