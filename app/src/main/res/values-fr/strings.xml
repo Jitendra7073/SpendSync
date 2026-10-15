@@ -15,7 +15,6 @@
     <string name="add_description">Ajouter une description</string>
     <string name="add_money_in">Ajouter une entrée</string>
     <string name="add_money_out">Ajouter une dépense</string>
-    <string name="add_payments_automatically">Ajouter les paiements automatiquement</string>
     <string name="add_transaction">Ajouter une transaction</string>
     <string name="added_from">Ajouté depuis</string>
     <string name="after_you_enter_your_pin_amounts">Après avoir saisi votre code PIN, les montants se masquent de nouveau d\'eux-mêmes après ce délai.</string>
@@ -32,15 +31,11 @@
     <string name="an_unexpected_error_occurred">Une erreur inattendue s\'est produite.</string>
     <string name="analytics">Analyses</string>
     <string name="appearance_format">Apparence et formats</string>
-    <string name="apps_to_watch">Applications à surveiller</string>
     <string name="auto_backup">Sauvegarde automatique</string>
     <string name="auto_backup_2">Sauvegarde automatique</string>
     <string name="auto_backup_cloud">Sauvegarde automatique cloud auto backup cloud</string>
     <string name="auto_backup_is_on_by_default">La sauvegarde automatique est activée par défaut (Données et sauvegarde). Vos données sont synchronisées chaque jour.</string>
-    <string name="auto_capture">Capture automatique</string>
-    <string name="auto_captured_transactions">Transactions capturées automatiquement</string>
-    <string name="auto_detect_capture_transactions_notificatio">Détection automatique transactions accès aux notifications auto capture</string>
-    <string name="auto_detect_transactions">Détecter les transactions automatiquement</string>
+    <string name="auto_captured_transactions">Capture intelligente</string>
     <string name="average">Moyenne</string>
     <string name="average_daily_spend">Dépense quotidienne moyenne</string>
     <string name="average_per_day">Moyenne par jour</string>
@@ -145,7 +140,6 @@
     <string name="for_the_remaining_1_day_s">Pour les %1$s jour(s) restants ce mois-ci</string>
     <string name="frequently_asked">Questions fréquentes</string>
     <string name="full_name">Nom complet</string>
-    <string name="google_pay_phonepe_paytm_messages_apps">Google Pay PhonePe Paytm messages applications</string>
     <string name="got_it">Compris</string>
     <string name="guest">Invité</string>
     <string name="guest_mode">Mode invité</string>
@@ -236,10 +230,8 @@
     <string name="notification_access_is_off_so_payments">L\'accès aux notifications est désactivé : les paiements ne peuvent pas être détectés.</string>
     <string name="notifications">Notifications</string>
     <string name="off">Désactivé</string>
-    <string name="on_1_app_s">Activé · %1$s application(s)</string>
     <string name="on_hold">En retenue</string>
     <string name="on_track">Dans les clous</string>
-    <string name="only_the_apps_you_pick_below">Seules les applications choisies ci-dessous sont lues. Rien ne quitte votre téléphone, hormis la transaction que vous confirmez.</string>
     <string name="only_you_we_never_sell_or">Vous seul. Nous ne vendons ni ne partageons jamais vos dépenses.</string>
     <string name="open_1">Ouvrir %1$s</string>
     <string name="open_holds">Ouvrir les retenues</string>
@@ -348,7 +340,6 @@
     <string name="spending_pace">Rythme de dépense</string>
     <string name="spending_patterns">Habitudes de dépense</string>
     <string name="spending_trend">Tendance des dépenses</string>
-    <string name="spendsync_can_notice_payment_alerts_from">SpendSync peut repérer les alertes de paiement des applications que vous choisissez et en faire des transactions. Il ne lit que ces applications et rien ne quitte votre téléphone, hormis la transaction que vous confirmez. Android vous demandera ensuite d\'autoriser l\'accès aux notifications.</string>
     <string name="spent">Dépensé</string>
     <string name="spent_so_far">Dépensé jusqu\'ici</string>
     <string name="stored_on_this_device_only">Enregistré uniquement sur cet appareil</string>
@@ -395,7 +386,6 @@
     <string name="transactions">Transactions</string>
     <string name="transactions_are_encrypted_in_transit_and">Les transactions sont chiffrées pendant le transfert, et votre PIN et vos réglages de confidentialité restent sur cet appareil.</string>
     <string name="try_again">Réessayer</string>
-    <string name="turn_payment_notifications_into_transactions">Transformez les alertes de paiement en transactions</string>
     <string name="type_delete_to_confirm">Saisissez DELETE pour confirmer</string>
     <string name="type_it_once_more">Saisissez-le encore une fois</string>
     <string name="under_pace_by">"En retard sur le rythme de "</string>

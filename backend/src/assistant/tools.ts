@@ -405,7 +405,7 @@ const getSettings = tool({
   name: 'get_settings',
   tier: 'read',
   description:
-    "The user's current app settings: language, theme, accent colour, date format, notification switches, auto backup, whether amounts are hidden behind a PIN and for how long, and whether auto-capture is on. Use for 'what language am I using', 'is auto-capture on'. Never includes the PIN.",
+    "The user's current app settings: language, theme, accent colour, date format, notification switches, auto backup, whether amounts are hidden behind a PIN and for how long, and the Smart capture settings (on/off, sources, add automatically or ask first, duplicates, message copies). Use for 'what language am I using', 'is smart capture on'. Never includes the PIN.",
   input: z.object({}),
   jsonSchema: { type: 'object', properties: {}, additionalProperties: false },
   async run(ctx) {

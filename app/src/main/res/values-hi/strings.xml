@@ -15,7 +15,6 @@
     <string name="add_description">विवरण जोड़ें</string>
     <string name="add_money_in">आमदनी जोड़ें</string>
     <string name="add_money_out">खर्च जोड़ें</string>
-    <string name="add_payments_automatically">भुगतान अपने-आप जोड़ें</string>
     <string name="add_transaction">लेन-देन जोड़ें</string>
     <string name="added_from">कहाँ से जोड़ा गया</string>
     <string name="after_you_enter_your_pin_amounts">PIN डालने के बाद, इतने समय में राशियाँ अपने-आप फिर छिप जाएँगी।</string>
@@ -32,15 +31,11 @@
     <string name="an_unexpected_error_occurred">कुछ अनपेक्षित गड़बड़ हुई।</string>
     <string name="analytics">विश्लेषण</string>
     <string name="appearance_format">रूप और फ़ॉर्मैट</string>
-    <string name="apps_to_watch">देखने वाले ऐप</string>
     <string name="auto_backup">अपने-आप बैकअप</string>
     <string name="auto_backup_2">अपने-आप बैकअप</string>
     <string name="auto_backup_cloud">अपने-आप बैकअप क्लाउड auto backup cloud</string>
     <string name="auto_backup_is_on_by_default">अपने-आप बैकअप पहले से चालू है (डेटा और बैकअप)। आपका डेटा रोज़ क्लाउड में सेव होता है।</string>
-    <string name="auto_capture">अपने-आप जोड़ना</string>
-    <string name="auto_captured_transactions">अपने-आप जुड़े लेन-देन</string>
-    <string name="auto_detect_capture_transactions_notificatio">अपने-आप पहचान लेन-देन नोटिफ़िकेशन एक्सेस auto capture</string>
-    <string name="auto_detect_transactions">लेन-देन अपने-आप पहचानें</string>
+    <string name="auto_captured_transactions">स्मार्ट कैप्चर</string>
     <string name="average">औसत</string>
     <string name="average_daily_spend">रोज़ का औसत खर्च</string>
     <string name="average_per_day">प्रति दिन औसत</string>
@@ -145,7 +140,6 @@
     <string name="for_the_remaining_1_day_s">इस महीने के बचे %1$s दिन के लिए</string>
     <string name="frequently_asked">अक्सर पूछे जाने वाले सवाल</string>
     <string name="full_name">पूरा नाम</string>
-    <string name="google_pay_phonepe_paytm_messages_apps">Google Pay PhonePe Paytm मैसेज ऐप messages apps</string>
     <string name="got_it">समझ गया</string>
     <string name="guest">मेहमान</string>
     <string name="guest_mode">मेहमान मोड</string>
@@ -236,10 +230,8 @@
     <string name="notification_access_is_off_so_payments">नोटिफ़िकेशन एक्सेस बंद है, इसलिए भुगतान पहचाने नहीं जा सकते।</string>
     <string name="notifications">सूचनाएँ</string>
     <string name="off">बंद</string>
-    <string name="on_1_app_s">चालू · %1$s ऐप</string>
     <string name="on_hold">होल्ड पर</string>
     <string name="on_track">ठीक चल रहा</string>
-    <string name="only_the_apps_you_pick_below">सिर्फ़ वही ऐप पढ़े जाते हैं जो आप नीचे चुनते हैं। आपके कन्फ़र्म किए लेन-देन के अलावा कुछ भी फ़ोन से बाहर नहीं जाता।</string>
     <string name="only_you_we_never_sell_or">सिर्फ़ आप। हम आपका खर्च कभी किसी को बेचते या दिखाते नहीं।</string>
     <string name="open_1">%1$s खोलें</string>
     <string name="open_holds">होल्ड खोलें</string>
@@ -348,7 +340,6 @@
     <string name="spending_pace">खर्च की रफ़्तार</string>
     <string name="spending_patterns">खर्च के तरीके</string>
     <string name="spending_trend">खर्च का रुझान</string>
-    <string name="spendsync_can_notice_payment_alerts_from">SpendSync आपके चुने ऐप के भुगतान संदेश पहचानकर उन्हें लेन-देन बना सकता है। यह सिर्फ़ उन्हीं ऐप को पढ़ता है, और आपके कन्फ़र्म किए लेन-देन के अलावा कुछ भी फ़ोन से बाहर नहीं जाता। अगले कदम में Android आपसे नोटिफ़िकेशन की अनुमति माँगेगा।</string>
     <string name="spent">खर्च हुआ</string>
     <string name="spent_so_far">अब तक का खर्च</string>
     <string name="stored_on_this_device_only">सिर्फ़ इसी फ़ोन में रखा है</string>
@@ -395,7 +386,6 @@
     <string name="transactions">लेन-देन</string>
     <string name="transactions_are_encrypted_in_transit_and">लेन-देन भेजते समय एन्क्रिप्ट रहते हैं, और आपका PIN व गोपनीयता सेटिंग्स इसी फ़ोन में रहती हैं।</string>
     <string name="try_again">फिर कोशिश करें</string>
-    <string name="turn_payment_notifications_into_transactions">भुगतान की सूचनाओं को लेन-देन बनाएँ</string>
     <string name="type_delete_to_confirm">पक्का करने के लिए DELETE लिखें</string>
     <string name="type_it_once_more">इसे एक बार और लिखें</string>
     <string name="under_pace_by">"रफ़्तार से पीछे: "</string>

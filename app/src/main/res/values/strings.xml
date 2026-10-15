@@ -16,7 +16,6 @@
     <string name="add_description">Add description</string>
     <string name="add_money_in">Add money in</string>
     <string name="add_money_out">Add money out</string>
-    <string name="add_payments_automatically">Add payments automatically</string>
     <string name="add_transaction">Add transaction</string>
     <string name="added_from">Added from</string>
     <string name="after_you_enter_your_pin_amounts">After you enter your PIN, amounts hide again by themselves after this time.</string>
@@ -33,15 +32,11 @@
     <string name="an_unexpected_error_occurred">An unexpected error occurred.</string>
     <string name="analytics">Analytics</string>
     <string name="appearance_format">Appearance &amp; Format</string>
-    <string name="apps_to_watch">Apps to watch</string>
     <string name="auto_backup">Auto Backup</string>
     <string name="auto_backup_2">Auto backup</string>
     <string name="auto_backup_cloud">Auto backup cloud</string>
     <string name="auto_backup_is_on_by_default">Auto Backup is on by default (Data &amp; Backup). Your data syncs to the cloud daily.</string>
-    <string name="auto_capture">Auto-capture</string>
-    <string name="auto_captured_transactions">Auto-captured transactions</string>
-    <string name="auto_detect_capture_transactions_notificatio">Auto detect capture transactions notification access</string>
-    <string name="auto_detect_transactions">Auto-detect transactions</string>
+    <string name="auto_captured_transactions">Smart capture</string>
     <string name="average">Average</string>
     <string name="average_daily_spend">Average daily spend</string>
     <string name="average_per_day">Average per day</string>
@@ -146,7 +141,6 @@
     <string name="for_the_remaining_1_day_s">For the remaining %1$s day(s) this month</string>
     <string name="frequently_asked">Frequently asked</string>
     <string name="full_name">Full Name</string>
-    <string name="google_pay_phonepe_paytm_messages_apps">Google Pay PhonePe Paytm messages apps</string>
     <string name="got_it">Got it</string>
     <string name="guest">Guest</string>
     <string name="guest_mode">Guest mode</string>
@@ -237,10 +231,8 @@
     <string name="notification_access_is_off_so_payments">Notification access is off, so payments can\'t be detected.</string>
     <string name="notifications">Notifications</string>
     <string name="off">Off</string>
-    <string name="on_1_app_s">On · %1$s app(s)</string>
     <string name="on_hold">On hold</string>
     <string name="on_track">On track</string>
-    <string name="only_the_apps_you_pick_below">Only the apps you pick below are read. Nothing leaves your phone except the transaction you confirm.</string>
     <string name="only_you_we_never_sell_or">Only you. We never sell or share your spending with anyone.</string>
     <string name="open_1">Open %1$s</string>
     <string name="open_holds">Open holds</string>
@@ -349,7 +341,6 @@
     <string name="spending_pace">Spending pace</string>
     <string name="spending_patterns">Spending patterns</string>
     <string name="spending_trend">Spending trend</string>
-    <string name="spendsync_can_notice_payment_alerts_from">SpendSync can notice payment alerts from the apps you choose and turn them into transactions. It reads only those apps, and nothing leaves your phone except the transaction you confirm. Android will ask you to allow notification access next.</string>
     <string name="spent">Spent</string>
     <string name="spent_so_far">Spent so far</string>
     <string name="stored_on_this_device_only">Stored on this device only</string>
@@ -396,7 +387,6 @@
     <string name="transactions">Transactions</string>
     <string name="transactions_are_encrypted_in_transit_and">Transactions are encrypted in transit, and your PIN and privacy settings stay on this device.</string>
     <string name="try_again">Try again</string>
-    <string name="turn_payment_notifications_into_transactions">Turn payment notifications into transactions</string>
     <string name="type_delete_to_confirm">Type DELETE to confirm</string>
     <string name="type_it_once_more">Type it once more</string>
     <string name="under_pace_by">"Under pace by "</string>

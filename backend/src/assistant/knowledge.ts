@@ -35,7 +35,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     title: 'Attach a bill or receipt',
     screen: 'home',
     text:
-      'You can attach up to 5 bill pages (photos or a PDF) to any expense or income. While adding an expense tap Attach bill, or open a transaction and use the Bills section; an auto-captured expense notification also has an Attach bill button. Choose Scan bill to use the camera scanner, or pick photos or a PDF. Uploads continue in the background and wait for the internet if you are offline. Tap a page to view it full screen, zoom, replace or delete it. Deleted bills go to Settings → Trash. Bills are private and blurred while amounts are hidden behind your PIN.',
+      'You can attach up to 5 bill pages (photos or a PDF) to any expense or income. While adding an expense tap Attach bill, or open a transaction and use the Bills section; a Smart capture payment notification also has an Attach bill button. Choose Scan bill to use the camera scanner, or pick photos or a PDF. Uploads continue in the background and wait for the internet if you are offline. Tap a page to view it full screen, zoom, replace or delete it. Deleted bills go to Settings → Trash. Bills are private and blurred while amounts are hidden behind your PIN.',
   },
   {
     id: 'bill_ai',

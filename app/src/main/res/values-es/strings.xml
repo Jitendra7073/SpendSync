@@ -15,7 +15,6 @@
     <string name="add_description">Añadir descripción</string>
     <string name="add_money_in">Añadir ingreso</string>
     <string name="add_money_out">Añadir gasto</string>
-    <string name="add_payments_automatically">Añadir pagos automáticamente</string>
     <string name="add_transaction">Añadir transacción</string>
     <string name="added_from">Añadido desde</string>
     <string name="after_you_enter_your_pin_amounts">Tras introducir tu PIN, los importes se ocultan solos pasado este tiempo.</string>
@@ -32,15 +31,11 @@
     <string name="an_unexpected_error_occurred">Ocurrió un error inesperado.</string>
     <string name="analytics">Analíticas</string>
     <string name="appearance_format">Apariencia y formato</string>
-    <string name="apps_to_watch">Apps a vigilar</string>
     <string name="auto_backup">Copia automática</string>
     <string name="auto_backup_2">Copia automática</string>
     <string name="auto_backup_cloud">Copia automática nube auto backup cloud</string>
     <string name="auto_backup_is_on_by_default">La copia automática viene activada (Datos y copia). Tus datos se sincronizan con la nube cada día.</string>
-    <string name="auto_capture">Captura automática</string>
-    <string name="auto_captured_transactions">Transacciones capturadas automáticamente</string>
-    <string name="auto_detect_capture_transactions_notificatio">Detectar automáticamente transacciones acceso a notificaciones auto capture</string>
-    <string name="auto_detect_transactions">Detectar transacciones automáticamente</string>
+    <string name="auto_captured_transactions">Captura inteligente</string>
     <string name="average">Promedio</string>
     <string name="average_daily_spend">Gasto diario medio</string>
     <string name="average_per_day">Promedio por día</string>
@@ -145,7 +140,6 @@
     <string name="for_the_remaining_1_day_s">Para los %1$s día(s) que quedan este mes</string>
     <string name="frequently_asked">Preguntas frecuentes</string>
     <string name="full_name">Nombre completo</string>
-    <string name="google_pay_phonepe_paytm_messages_apps">Google Pay PhonePe Paytm mensajes apps messages</string>
     <string name="got_it">Entendido</string>
     <string name="guest">Invitado</string>
     <string name="guest_mode">Modo invitado</string>
@@ -236,10 +230,8 @@
     <string name="notification_access_is_off_so_payments">El acceso a notificaciones está desactivado, así que no se pueden detectar pagos.</string>
     <string name="notifications">Notificaciones</string>
     <string name="off">Desactivado</string>
-    <string name="on_1_app_s">Activado · %1$s app(s)</string>
     <string name="on_hold">En retención</string>
     <string name="on_track">Vas bien</string>
-    <string name="only_the_apps_you_pick_below">Solo se leen las apps que elijas abajo. Nada sale de tu teléfono salvo la transacción que confirmes.</string>
     <string name="only_you_we_never_sell_or">Solo tú. Nunca vendemos ni compartimos tus gastos con nadie.</string>
     <string name="open_1">Abrir %1$s</string>
     <string name="open_holds">Abrir retenciones</string>
@@ -348,7 +340,6 @@
     <string name="spending_pace">Ritmo de gasto</string>
     <string name="spending_patterns">Patrones de gasto</string>
     <string name="spending_trend">Tendencia de gasto</string>
-    <string name="spendsync_can_notice_payment_alerts_from">SpendSync puede detectar avisos de pago de las apps que elijas y convertirlos en transacciones. Solo lee esas apps y nada sale de tu teléfono salvo la transacción que confirmes. Android te pedirá permiso de acceso a notificaciones a continuación.</string>
     <string name="spent">Gastado</string>
     <string name="spent_so_far">Gastado hasta ahora</string>
     <string name="stored_on_this_device_only">Guardado solo en este dispositivo</string>
@@ -395,7 +386,6 @@
     <string name="transactions">Transacciones</string>
     <string name="transactions_are_encrypted_in_transit_and">Las transacciones viajan cifradas y tu PIN y tus ajustes de privacidad se quedan en este dispositivo.</string>
     <string name="try_again">Reintentar</string>
-    <string name="turn_payment_notifications_into_transactions">Convierte avisos de pago en transacciones</string>
     <string name="type_delete_to_confirm">Escribe DELETE para confirmar</string>
     <string name="type_it_once_more">Escríbelo otra vez</string>
     <string name="under_pace_by">"Por debajo del ritmo en "</string>
