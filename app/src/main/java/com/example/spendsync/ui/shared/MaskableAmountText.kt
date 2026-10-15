@@ -14,6 +14,11 @@ import com.example.spendsync.ui.components.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import android.os.Build
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -24,9 +29,11 @@ import com.example.spendsync.utils.shouldMaskAmount
 
 /**
  * Drop-in replacement for `Text(text = formatInr(amount), ...)` — renders
- * the real amount when unmasked, or "★★★★★" plus a tap-to-reveal eye icon
+ * the real amount when unmasked, or a blurred amount plus a tap-to-reveal eye icon
  * when [amount] exceeds the masking threshold and [visibility] isn't
- * currently unlocked. [prefix] carries a "+"/"-" sign some call sites
+ * currently unlocked. The blurred figure is always the same dummy ([HIDDEN_AMOUNT]), never
+ * the real one, so screen readers, screenshots and its length give nothing away. Blur needs
+ * Android 12+; older phones keep the stars. [prefix] carries a "+"/"-" sign some call sites
  * already prepend, so it stays part of the masked/unmasked text either way.
  */
 @Composable
@@ -43,16 +50,20 @@ fun MaskableAmountText(
 ) {
     if (visibility.isMaskingEnabled && shouldMaskAmount(amount, visibility.isVisible)) {
         Row(
-            modifier = modifier.clickable { visibility.requestUnlock() },
+            modifier = modifier
+                .clickable { visibility.requestUnlock() }
+                .clearAndSetSemantics { contentDescription = tr(R.string.show_amount) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val blur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
             Text(
-                text = "$prefix★★★★★",
+                text = prefix + if (blur) HIDDEN_AMOUNT else "★★★★★",
                 color = color,
                 fontSize = fontSize,
                 fontWeight = fontWeight,
                 textAlign = textAlign,
                 maxLines = maxLines,
+                modifier = if (blur) Modifier.blur(7.dp, BlurredEdgeTreatment.Unbounded) else Modifier,
             )
             Spacer(Modifier.width(4.dp))
             Icon(
@@ -74,3 +85,6 @@ fun MaskableAmountText(
         )
     }
 }
+
+/** What sits under the blur: a fixed dummy, so the blurred shape says nothing about the real amount. */
+private const val HIDDEN_AMOUNT = "₹88,888.00"
