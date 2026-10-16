@@ -60,6 +60,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
@@ -424,7 +426,6 @@ fun VoicePanel(
     modifier: Modifier = Modifier,
     onMinimize: (() -> Unit)? = null,
 ) {
-    val scheme = MaterialTheme.colorScheme
     val phase = voice.state.phase
     val motion = LocalMotion.current
     val animate = motion.enabled(MotionKind.Transitions)
@@ -438,10 +439,20 @@ fun VoicePanel(
         },
     )
 
+    val cosmicBackground = remember {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF0F172A),
+                Color(0xFF090D16),
+                Color(0xFF030508),
+            ),
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(scheme.surface.copy(alpha = 0.98f))
+            .background(cosmicBackground)
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(horizontal = 20.dp, vertical = 16.dp),
@@ -458,6 +469,7 @@ fun VoicePanel(
                     icon = Icons.Default.Keyboard,
                     contentDescription = tr(R.string.back),
                     onClick = onMinimize,
+                    tint = Color(0xFFF1F5F9),
                 )
             } else {
                 Spacer(Modifier.size(48.dp))
@@ -467,7 +479,7 @@ fun VoicePanel(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(scheme.surfaceVariant.copy(alpha = 0.65f))
+                    .background(Color(0xFF1E293B).copy(alpha = 0.7f))
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -482,7 +494,7 @@ fun VoicePanel(
                         text = target,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
-                        color = scheme.onSurfaceVariant,
+                        color = Color(0xFFE2E8F0),
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
@@ -492,6 +504,7 @@ fun VoicePanel(
                 icon = Icons.Default.Close,
                 contentDescription = tr(R.string.voice_end),
                 onClick = voice::end,
+                tint = Color(0xFFF1F5F9),
             )
         }
 
@@ -502,7 +515,7 @@ fun VoicePanel(
             phase = phase,
             audioLevel = voice.level,
             onClick = voice::tap,
-            visualizerSize = 230.dp,
+            visualizerSize = 240.dp,
         )
 
         Spacer(Modifier.height(28.dp))
@@ -536,7 +549,7 @@ fun VoicePanel(
                     text = text,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Normal,
-                    color = if (voice.heard.isNotBlank() && phase != VoicePhase.Paused) scheme.onSurface else scheme.onSurfaceVariant,
+                    color = if (voice.heard.isNotBlank() && phase != VoicePhase.Paused) Color(0xFFF8FAFC) else Color(0xFF94A3B8),
                     textAlign = TextAlign.Center,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -550,7 +563,7 @@ fun VoicePanel(
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(32.dp))
-                .background(scheme.surfaceVariant.copy(alpha = 0.55f))
+                .background(Color(0xFF1E293B).copy(alpha = 0.75f))
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -560,6 +573,7 @@ fun VoicePanel(
                 icon = if (phase == VoicePhase.Listening) Icons.Default.Pause else Icons.Default.Mic,
                 contentDescription = if (phase == VoicePhase.Listening) tr(R.string.voice_pause) else tr(R.string.voice_talk),
                 onClick = voice::tap,
+                tint = Color(0xFFF1F5F9),
             )
 
             // Primary contextual button
@@ -607,6 +621,7 @@ fun VoicePanel(
                 icon = Icons.Default.Close,
                 contentDescription = tr(R.string.voice_end),
                 onClick = voice::end,
+                tint = Color(0xFFF1F5F9),
             )
         }
 
