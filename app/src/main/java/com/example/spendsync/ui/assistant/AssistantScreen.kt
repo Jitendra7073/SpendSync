@@ -30,10 +30,16 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -719,45 +725,103 @@ private fun InputBar(
     onVoiceMode: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val buttonSize = 42.dp
+
     Row(
         Modifier
             .fillMaxWidth()
             .background(scheme.surface)
             .navigationBarsPadding()
             .imePadding()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = { if (it.length <= 1000) onValueChange(it) },
-            modifier = Modifier.weight(1f).defaultMinSize(minHeight = 48.dp),
-            placeholder = { Text(hint, fontSize = 14.sp, color = scheme.onSurfaceVariant) },
-            maxLines = 4,
-            shape = RoundedCornerShape(22.dp),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { onSend() }),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = scheme.onSurface,
-                unfocusedTextColor = scheme.onSurface,
-                focusedBorderColor = scheme.primary,
-                unfocusedBorderColor = scheme.outline,
-                cursorColor = scheme.primary,
-            ),
-        )
-        // The same 48dp height as the text field, so the row reads as one bar.
+        // Text input capsule: exact 42dp minimum height matching buttonSize
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .defaultMinSize(minHeight = buttonSize)
+                .clip(RoundedCornerShape(21.dp))
+                .background(scheme.surfaceVariant.copy(alpha = 0.35f))
+                .border(
+                    width = 1.dp,
+                    color = if (isFocused) scheme.primary else scheme.outlineVariant.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(21.dp),
+                )
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (value.isEmpty()) {
+                Text(
+                    text = hint,
+                    fontSize = 14.sp,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = { if (it.length <= 1000) onValueChange(it) },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = TextStyle(
+                    fontSize = 14.sp,
+                    color = scheme.onSurface,
+                    lineHeight = 20.sp,
+                ),
+                cursorBrush = SolidColor(scheme.primary),
+                maxLines = 4,
+                interactionSource = interactionSource,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { if (value.isNotBlank() && !busy) onSend() }),
+            )
+        }
+
+        // Action icons: Mic, Voice (Headphone), and Send/Stop — all with exact buttonSize (42dp)
+        if (canListen) {
+            // Mic icon (Dictation into text box)
+            RoundAction(
+                icon = Icons.Default.Mic,
+                label = tr(R.string.voice_mic),
+                filled = dictating,
+                enabled = !busy,
+                onClick = onDictate,
+                size = buttonSize,
+            )
+
+            // Voice mode icon (Headset: Real-time ChatGPT Voice Assistant)
+            RoundAction(
+                icon = Icons.Default.Headset,
+                label = tr(R.string.voice_mode),
+                filled = false,
+                enabled = !busy,
+                onClick = onVoiceMode,
+                size = buttonSize,
+            )
+        }
+
+        // Send / Stop icon
         if (busy) {
-            RoundAction(Icons.Default.Stop, tr(R.string.assistant_stop), filled = false, enabled = true, onClick = onStop)
-        } else if (dictating) {
-            RoundAction(Icons.Default.Mic, tr(R.string.voice_mic), filled = true, enabled = true, onClick = onDictate)
-        } else if (value.isNotBlank()) {
-            RoundAction(Icons.AutoMirrored.Filled.Send, tr(R.string.assistant_send), filled = true, enabled = true, onClick = onSend)
-        } else if (canListen) {
-            RoundAction(Icons.Default.Mic, tr(R.string.voice_mic), filled = false, enabled = true, onClick = onDictate)
-            RoundAction(Icons.Default.Headset, tr(R.string.voice_mode), filled = false, enabled = true, onClick = onVoiceMode)
+            RoundAction(
+                icon = Icons.Default.Stop,
+                label = tr(R.string.assistant_stop),
+                filled = true,
+                enabled = true,
+                onClick = onStop,
+                size = buttonSize,
+            )
         } else {
-            RoundAction(Icons.AutoMirrored.Filled.Send, tr(R.string.assistant_send), filled = true, enabled = false, onClick = onSend)
+            RoundAction(
+                icon = Icons.AutoMirrored.Filled.Send,
+                label = tr(R.string.assistant_send),
+                filled = value.isNotBlank(),
+                enabled = value.isNotBlank(),
+                onClick = onSend,
+                size = buttonSize,
+            )
         }
     }
 }
@@ -846,16 +910,37 @@ private fun FollowUpCard(
 }
 
 @Composable
-internal fun RoundAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, filled: Boolean, enabled: Boolean, onClick: () -> Unit) {
+internal fun RoundAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    filled: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 42.dp,
+) {
     val scheme = MaterialTheme.colorScheme
-    val bg = when { !enabled -> scheme.onSurface.copy(alpha = 0.12f); filled -> scheme.primary; else -> scheme.primary.copy(alpha = 0.14f) }
-    val fg = when { !enabled -> scheme.onSurface.copy(alpha = 0.38f); filled -> scheme.onPrimary; else -> scheme.primary }
+    val bg = when {
+        !enabled -> scheme.surfaceVariant.copy(alpha = 0.4f)
+        filled -> scheme.primary
+        else -> scheme.primary.copy(alpha = 0.12f)
+    }
+    val fg = when {
+        !enabled -> scheme.onSurface.copy(alpha = 0.38f)
+        filled -> scheme.onPrimary
+        else -> scheme.primary
+    }
     Box(
-        Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape).background(bg)
+        modifier = modifier
+            .size(size)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(bg)
             .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp)) }
+    ) {
+        Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
+    }
 }
 
 /** Appears when the chat is scrolled up; one tap goes back to the newest message. */
