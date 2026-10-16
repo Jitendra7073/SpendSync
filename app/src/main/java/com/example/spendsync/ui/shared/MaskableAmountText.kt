@@ -3,16 +3,8 @@ package com.example.spendsync.ui.shared
 import com.example.spendsync.R
 import com.example.spendsync.ui.i18n.tr
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import com.example.spendsync.ui.components.Icon
 import com.example.spendsync.ui.components.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
@@ -29,10 +21,10 @@ import com.example.spendsync.utils.shouldMaskAmount
 
 /**
  * Drop-in replacement for `Text(text = formatInr(amount), ...)` — renders
- * the real amount when unmasked, or a blurred amount plus a tap-to-reveal eye icon
- * when [amount] exceeds the masking threshold and [visibility] isn't
- * currently unlocked. The blurred figure is always the same dummy ([HIDDEN_AMOUNT]), never
- * the real one, so screen readers, screenshots and its length give nothing away. Blur needs
+ * the real amount when unmasked, or a blurred amount when [amount] exceeds
+ * the masking threshold and [visibility] isn't currently unlocked.
+ * Tapping the blurred amount unlocks it. The blurred figure is always the same dummy ([HIDDEN_AMOUNT]),
+ * never the real one, so screen readers, screenshots and its length give nothing away. Blur needs
  * Android 12+; older phones keep the stars. [prefix] carries a "+"/"-" sign some call sites
  * already prepend, so it stays part of the masked/unmasked text either way.
  */
@@ -49,30 +41,19 @@ fun MaskableAmountText(
     maxLines: Int = Int.MAX_VALUE,
 ) {
     if (visibility.isMaskingEnabled && shouldMaskAmount(amount, visibility.isVisible)) {
-        Row(
+        val blur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        Text(
+            text = prefix + if (blur) HIDDEN_AMOUNT else "★★★★★",
+            color = color,
+            fontSize = fontSize,
+            fontWeight = fontWeight,
+            textAlign = textAlign,
+            maxLines = maxLines,
             modifier = modifier
                 .clickable { visibility.requestUnlock() }
-                .clearAndSetSemantics { contentDescription = tr(R.string.show_amount) },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val blur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-            Text(
-                text = prefix + if (blur) HIDDEN_AMOUNT else "★★★★★",
-                color = color,
-                fontSize = fontSize,
-                fontWeight = fontWeight,
-                textAlign = textAlign,
-                maxLines = maxLines,
-                modifier = if (blur) Modifier.blur(7.dp, BlurredEdgeTreatment.Unbounded) else Modifier,
-            )
-            Spacer(Modifier.width(4.dp))
-            Icon(
-                imageVector = Icons.Default.Visibility,
-                contentDescription = tr(R.string.show_amount),
-                tint = color,
-                modifier = Modifier.size(14.dp),
-            )
-        }
+                .clearAndSetSemantics { contentDescription = tr(R.string.show_amount) }
+                .then(if (blur) Modifier.blur(7.dp, BlurredEdgeTreatment.Unbounded) else Modifier),
+        )
     } else {
         Text(
             text = "$prefix${formatInr(amount)}",
