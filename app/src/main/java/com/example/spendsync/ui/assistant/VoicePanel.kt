@@ -12,14 +12,23 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +45,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Keyboard
@@ -43,6 +54,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ripple
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
@@ -60,8 +72,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import com.example.spendsync.ui.theme.BrandBlue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
@@ -412,13 +427,14 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 }
 
 /**
- * Real-time ChatGPT-style voice assistant conversation UI.
+ * Real-time Gemini-style smart voice assistant conversation UI.
  *
- * Provides an immersive, fluid voice session featuring:
- * - Clean top bar with minimize/text-mode button, animated status pill, and close button
- * - Center stage with the fluid [VoiceVisualizer] reacting organically to microphone volume level and voice phase
- * - Live speech captions and guidance text with smooth AnimatedContent transitions
- * - Tactile, ergonomic bottom controls (Pause/Resume, Talk/Interrupt/Stop, End)
+ * Provides a sleek, modern voice session featuring:
+ * - Clean top action bar with sparkle assistant icon and close button
+ * - Upper stage with the chromatic Gemini soundwave visualizer reacting to speech and audio energy
+ * - Assistant version pill badge ("Your Assistant 3.0") and bold aligned headline typography
+ * - Dynamic guidance subtitle and live speech captions with smooth AnimatedContent transitions
+ * - Bottom interaction bar: floating chat bubble button, glowing center ripple mic button, and end button
  */
 @Composable
 fun VoicePanel(
@@ -426,112 +442,178 @@ fun VoicePanel(
     modifier: Modifier = Modifier,
     onMinimize: (() -> Unit)? = null,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val isDark = scheme.surface.luminance() < 0.5f
     val phase = voice.state.phase
     val motion = LocalMotion.current
     val animate = motion.enabled(MotionKind.Transitions)
 
-    val statusText = tr(
-        when (phase) {
-            VoicePhase.Listening -> R.string.voice_listening
-            VoicePhase.Thinking -> R.string.voice_thinking
-            VoicePhase.Speaking -> R.string.voice_speaking
-            else -> R.string.voice_paused
-        },
+    val infiniteTransition = rememberInfiniteTransition(label = "voice_panel_halo")
+    val rippleScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.62f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "mic_halo_scale",
+    )
+    val rippleAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.28f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "mic_halo_alpha",
     )
 
-    val cosmicBackground = remember {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFF0F172A),
-                Color(0xFF090D16),
-                Color(0xFF030508),
-            ),
-        )
+    val backgroundBrush = remember(isDark, scheme.background) {
+        if (isDark) {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF0F172A),
+                    scheme.background,
+                    Color(0xFF090D16),
+                ),
+            )
+        } else {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFF0F4FF),
+                    scheme.background,
+                    scheme.background,
+                ),
+            )
+        }
     }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(cosmicBackground)
+            .background(backgroundBrush)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Top action bar
+        // Top action bar: sparkle/back icon & close icon
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            if (onMinimize != null) {
-                AppIconButton(
-                    icon = Icons.Default.Keyboard,
-                    contentDescription = tr(R.string.back),
-                    onClick = onMinimize,
-                    tint = Color(0xFFF1F5F9),
-                )
-            } else {
-                Spacer(Modifier.size(48.dp))
-            }
-
-            // Animated status badge
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1E293B).copy(alpha = 0.7f))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(if (isDark) Color(0xFF1E293B) else Color(0xFFF3F4F6))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = ripple(color = BrandBlue),
+                        onClick = { onMinimize?.invoke() ?: voice.end() },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
-                AnimatedContent(
-                    targetState = statusText,
-                    transitionSpec = motionSpec(animate) {
-                        (slideInVertically { it / 2 } + fadeIn()) togetherWith (slideOutVertically { -it / 2 } + fadeOut())
-                    },
-                    label = "voice_status_text",
-                ) { target ->
-                    Text(
-                        text = target,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFFE2E8F0),
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = tr(R.string.assistant_title),
+                    tint = BrandBlue,
+                    modifier = Modifier.size(20.dp),
+                )
             }
 
-            AppIconButton(
-                icon = Icons.Default.Close,
-                contentDescription = tr(R.string.voice_end),
-                onClick = voice::end,
-                tint = Color(0xFFF1F5F9),
-            )
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(if (isDark) Color(0xFF1E293B) else Color(0xFFF3F4F6))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = ripple(color = scheme.primary),
+                        onClick = voice::end,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = tr(R.string.voice_end),
+                    tint = scheme.onSurface,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(10.dp))
 
-        // Center visualizer with tap-to-interrupt / tap-to-talk
+        // Dynamic Gemini Spectrum Waveform Visualizer
         VoiceVisualizer(
             phase = phase,
             audioLevel = voice.level,
             onClick = voice::tap,
-            visualizerSize = 240.dp,
+            visualizerHeight = 180.dp,
+            modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(18.dp))
+
+        // Assistant Version Pill Badge
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(24.dp))
+                .background(if (isDark) Color(0xFF1E293B) else Color(0xFFEEF2FF))
+                .border(
+                    width = 1.dp,
+                    color = if (isDark) Color(0xFF334155) else Color(0xFFE0E7FF),
+                    shape = RoundedCornerShape(24.dp),
+                )
+                .padding(horizontal = 16.dp, vertical = 7.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = BrandBlue,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = tr(R.string.voice_assistant_badge),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isDark) Color(0xFF93C5FD) else BrandBlue,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Smart Voice Assistant Headline
+        Text(
+            text = tr(R.string.voice_smart_assistant),
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
+            color = scheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+
+        Spacer(Modifier.height(10.dp))
 
         // Live captions & speech text
         Box(
             modifier = Modifier
                 .widthIn(max = 480.dp)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 24.dp),
             contentAlignment = Alignment.Center,
         ) {
             val caption = if (voice.heard.isNotBlank() && phase != VoicePhase.Paused) {
                 "“${voice.heard}”"
             } else {
                 when (phase) {
-                    VoicePhase.Listening -> tr(R.string.voice_listening)
+                    VoicePhase.Listening -> tr(R.string.voice_assistant_subtitle)
                     VoicePhase.Thinking -> tr(R.string.voice_thinking)
                     VoicePhase.Speaking -> tr(R.string.voice_speaking)
                     else -> tr(R.string.voice_paused)
@@ -547,9 +629,8 @@ fun VoicePanel(
             ) { text ->
                 Text(
                     text = text,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = if (voice.heard.isNotBlank() && phase != VoicePhase.Paused) Color(0xFFF8FAFC) else Color(0xFF94A3B8),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (voice.heard.isNotBlank() && phase != VoicePhase.Paused) scheme.onSurface else scheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -557,74 +638,119 @@ fun VoicePanel(
             }
         }
 
-        Spacer(Modifier.weight(1.2f))
+        Spacer(Modifier.weight(1f))
 
-        // Bottom tactile controls
+        // Bottom Controls: Chat bubble button, Glowing center mic with ripples, End button
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(32.dp))
-                .background(Color(0xFF1E293B).copy(alpha = 0.75f))
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            // Mute / Pause toggle button
-            AppIconButton(
-                icon = if (phase == VoicePhase.Listening) Icons.Default.Pause else Icons.Default.Mic,
-                contentDescription = if (phase == VoicePhase.Listening) tr(R.string.voice_pause) else tr(R.string.voice_talk),
-                onClick = voice::tap,
-                tint = Color(0xFFF1F5F9),
-            )
+            // Bottom-Left Floating Chat Button
+            Box(
+                modifier = Modifier
+                    .size(54.dp)
+                    .shadow(elevation = 3.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(scheme.surface)
+                    .border(1.dp, scheme.outline.copy(alpha = 0.15f), CircleShape)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = ripple(color = BrandBlue),
+                        onClick = { onMinimize?.invoke() ?: voice.end() },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Chat,
+                    contentDescription = tr(R.string.assistant_title),
+                    tint = scheme.onSurface,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
 
-            // Primary contextual button
-            when (phase) {
-                VoicePhase.Thinking -> {
-                    AppButton(
-                        text = tr(R.string.assistant_stop),
-                        onClick = voice::cancel,
-                        variant = ButtonVariant.Tonal,
-                        size = ButtonSize.Medium,
-                        leadingIcon = Icons.Default.Stop,
-                    )
+            // Center Glowing Animated Mic Button
+            Box(
+                modifier = Modifier.size(130.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (animate && (phase == VoicePhase.Listening || phase == VoicePhase.Speaking)) {
+                    val activeEnergy = if (phase == VoicePhase.Listening) voice.level.coerceIn(0f, 1f) else 0.5f
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val baseR = 36.dp.toPx()
+                        // Concentric expanding ripple rings
+                        drawCircle(
+                            color = BrandBlue.copy(alpha = (rippleAlpha * (0.65f + activeEnergy * 0.35f)).coerceIn(0f, 0.4f)),
+                            radius = baseR * rippleScale * (1f + activeEnergy * 0.25f),
+                            center = center,
+                        )
+                        drawCircle(
+                            color = BrandBlue.copy(alpha = (rippleAlpha * 0.5f).coerceIn(0f, 0.2f)),
+                            radius = baseR * (1f + (rippleScale - 1f) * 0.55f),
+                            center = center,
+                        )
+                    }
                 }
-                VoicePhase.Speaking -> {
-                    AppButton(
-                        text = tr(R.string.voice_pause),
-                        onClick = voice::tap,
-                        variant = ButtonVariant.Primary,
-                        size = ButtonSize.Medium,
-                        leadingIcon = Icons.Default.Mic,
-                    )
-                }
-                VoicePhase.Listening -> {
-                    AppButton(
-                        text = tr(R.string.voice_pause),
-                        onClick = voice::tap,
-                        variant = ButtonVariant.Tonal,
-                        size = ButtonSize.Medium,
-                        leadingIcon = Icons.Default.Pause,
-                    )
-                }
-                else -> {
-                    AppButton(
-                        text = tr(R.string.voice_talk),
-                        onClick = voice::tap,
-                        variant = ButtonVariant.Primary,
-                        size = ButtonSize.Medium,
-                        leadingIcon = Icons.Default.Mic,
+
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .shadow(elevation = 6.dp, shape = CircleShape)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF2563EB),
+                                    BrandBlue,
+                                ),
+                            ),
+                        )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = ripple(color = Color.White),
+                            onClick = voice::tap,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = when (phase) {
+                            VoicePhase.Speaking -> Icons.Default.Pause
+                            VoicePhase.Thinking -> Icons.Default.Stop
+                            else -> Icons.Default.Mic
+                        },
+                        contentDescription = tr(R.string.voice_mic),
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp),
                     )
                 }
             }
 
-            // End session button
-            AppIconButton(
-                icon = Icons.Default.Close,
-                contentDescription = tr(R.string.voice_end),
-                onClick = voice::end,
-                tint = Color(0xFFF1F5F9),
-            )
+            // Bottom-Right Floating Close Button
+            Box(
+                modifier = Modifier
+                    .size(54.dp)
+                    .shadow(elevation = 3.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(scheme.surface)
+                    .border(1.dp, scheme.outline.copy(alpha = 0.15f), CircleShape)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = ripple(color = scheme.primary),
+                        onClick = voice::end,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = tr(R.string.voice_end),
+                    tint = scheme.onSurface,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(10.dp))
     }
 }

@@ -844,4 +844,7 @@
     <string name="voice_speed">Sprechtempo</string>
     <string name="voice_keep">Nach einer Antwort weiter zuhören</string>
     <string name="voice_keep_sub">Aus: vor jeder Frage tippen</string>
+    <string name="voice_smart_assistant">Intelligenter Sprachassistent</string>
+    <string name="voice_assistant_badge">Dein Assistent 3.0</string>
+    <string name="voice_assistant_subtitle">Ich bin hier, um dir heute bei allem zu helfen</string>
 </resources>

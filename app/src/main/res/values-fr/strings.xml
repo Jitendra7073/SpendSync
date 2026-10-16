@@ -844,4 +844,7 @@
     <string name="voice_speed">Vitesse de parole</string>
     <string name="voice_keep">Continuer d\'écouter après une réponse</string>
     <string name="voice_keep_sub">Désactivé : touchez avant chaque question</string>
+    <string name="voice_smart_assistant">Assistant vocal intelligent</string>
+    <string name="voice_assistant_badge">Votre Assistant 3.0</string>
+    <string name="voice_assistant_subtitle">Je suis là pour vous aider pour tout aujourd\'hui</string>
 </resources>

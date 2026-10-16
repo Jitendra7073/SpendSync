@@ -271,4 +271,7 @@
     <string name="voice_speed">Speaking speed</string>
     <string name="voice_keep">Keep listening after an answer</string>
     <string name="voice_keep_sub">Off: tap before each question</string>
+    <string name="voice_smart_assistant">Smart Voice Assistant</string>
+    <string name="voice_assistant_badge">Your Assistant 3.0</string>
+    <string name="voice_assistant_subtitle">I\'m Here To Assist You With Anything Today</string>
 </resources>

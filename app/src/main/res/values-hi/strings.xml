@@ -844,4 +844,7 @@
     <string name="voice_speed">बोलने की गति</string>
     <string name="voice_keep">जवाब के बाद सुनते रहें</string>
     <string name="voice_keep_sub">बंद: हर सवाल से पहले टैप करें</string>
+    <string name="voice_smart_assistant">स्मार्ट वॉइस असिस्टेंट</string>
+    <string name="voice_assistant_badge">आपका असिस्टेंट 3.0</string>
+    <string name="voice_assistant_subtitle">मैं आज आपकी किसी भी मदद के लिए यहाँ हूँ</string>
 </resources>
