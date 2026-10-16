@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -171,7 +172,8 @@ fun AssistantScreen(
     }
 
     SettingsBackdrop {
-        Column(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
             TopBar(
                 onBack = onBack,
                 onNewChat = { viewModel.newChat(); input = "" },
@@ -257,32 +259,41 @@ fun AssistantScreen(
                     onQuick = { prompt -> submit(prompt) },
                 )
             }
-            if (voice.active) {
-                VoicePanel(voice)
-            } else {
-                InputBar(
-                    hint = if (replyTo != null) tr(R.string.asst_ref_hint) else tr(R.string.assistant_input_hint),
-                    value = input,
-                    onValueChange = { input = it },
-                    busy = state.busy,
-                    canListen = voice.canListen,
-                    dictating = voice.dictating,
-                    onSend = { submit(input) },
-                    onStop = viewModel::stop,
-                    onDictate = {
-                        micGate {
-                            voice.dictate(input) { input = it }
-                        }
-                    },
-                    onVoiceMode = {
-                        micGate {
-                            voice.open()
-                        }
-                    },
-                )
-            }
+            InputBar(
+                hint = if (replyTo != null) tr(R.string.asst_ref_hint) else tr(R.string.assistant_input_hint),
+                value = input,
+                onValueChange = { input = it },
+                busy = state.busy,
+                canListen = voice.canListen,
+                dictating = voice.dictating,
+                onSend = { submit(input) },
+                onStop = viewModel::stop,
+                onDictate = {
+                    micGate {
+                        voice.dictate(input) { input = it }
+                    }
+                },
+                onVoiceMode = {
+                    micGate {
+                        voice.open()
+                    }
+                },
+            )
+        }
+
+        // Real-Time ChatGPT-Style Voice Mode Overlay
+        AnimatedVisibility(
+            visible = voice.active,
+            enter = fadeIn(animationSpec = tween(300)) + slideInVertically(animationSpec = tween(350)) { it / 6 },
+            exit = fadeOut(animationSpec = tween(250)) + slideOutVertically(animationSpec = tween(250)) { it / 6 },
+        ) {
+            VoicePanel(
+                voice = voice,
+                onMinimize = voice::end,
+            )
         }
     }
+}
 
     if (consent == false) {
         AppDialog(

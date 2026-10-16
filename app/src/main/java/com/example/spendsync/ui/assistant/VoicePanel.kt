@@ -11,22 +11,40 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -59,11 +77,15 @@ import com.example.spendsync.data.assistant.FastReply
 import com.example.spendsync.data.local.SessionDataStore
 import com.example.spendsync.ui.components.AppButton
 import com.example.spendsync.ui.components.AppDialog
+import com.example.spendsync.ui.components.AppIconButton
 import com.example.spendsync.ui.components.ButtonSize
 import com.example.spendsync.ui.components.ButtonVariant
 import com.example.spendsync.ui.components.DialogAction
 import com.example.spendsync.ui.components.Icon
 import com.example.spendsync.ui.components.Text
+import com.example.spendsync.ui.theme.LocalMotion
+import com.example.spendsync.ui.theme.MotionKind
+import com.example.spendsync.ui.theme.motionSpec
 import com.example.spendsync.ui.i18n.LanguageManager
 import com.example.spendsync.ui.i18n.tr
 import com.example.spendsync.ui.shared.AmountVisibilityState
@@ -387,12 +409,27 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-/** Voice mode: takes the input bar's place, the chat (and its cards) stays visible above. */
+/**
+ * Real-time ChatGPT-style voice assistant conversation UI.
+ *
+ * Provides an immersive, fluid voice session featuring:
+ * - Clean top bar with minimize/text-mode button, animated status pill, and close button
+ * - Center stage with the fluid [VoiceVisualizer] reacting organically to microphone volume level and voice phase
+ * - Live speech captions and guidance text with smooth AnimatedContent transitions
+ * - Tactile, ergonomic bottom controls (Pause/Resume, Talk/Interrupt/Stop, End)
+ */
 @Composable
-fun VoicePanel(voice: VoiceController) {
+fun VoicePanel(
+    voice: VoiceController,
+    modifier: Modifier = Modifier,
+    onMinimize: (() -> Unit)? = null,
+) {
     val scheme = MaterialTheme.colorScheme
     val phase = voice.state.phase
-    val status = tr(
+    val motion = LocalMotion.current
+    val animate = motion.enabled(MotionKind.Transitions)
+
+    val statusText = tr(
         when (phase) {
             VoicePhase.Listening -> R.string.voice_listening
             VoicePhase.Thinking -> R.string.voice_thinking
@@ -400,43 +437,179 @@ fun VoicePanel(voice: VoiceController) {
             else -> R.string.voice_paused
         },
     )
-    val pulse by animateFloatAsState(if (phase == VoicePhase.Listening) 1f + voice.level * 0.45f else 1f, label = "level")
+
     Column(
-        Modifier
-            .fillMaxWidth()
-            .background(scheme.surface)
+        modifier = modifier
+            .fillMaxSize()
+            .background(scheme.surface.copy(alpha = 0.98f))
+            .statusBarsPadding()
             .navigationBarsPadding()
-            .clickable(role = Role.Button, onClickLabel = status, onClick = voice::tap)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Top action bar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            if (onMinimize != null) {
+                AppIconButton(
+                    icon = Icons.Default.Keyboard,
+                    contentDescription = tr(R.string.back),
+                    onClick = onMinimize,
+                )
+            } else {
+                Spacer(Modifier.size(48.dp))
+            }
+
+            // Animated status badge
             Box(
-                Modifier.size(40.dp).scale(pulse).clip(CircleShape)
-                    .background(if (phase == VoicePhase.Paused) scheme.surfaceVariant else scheme.primary.copy(alpha = 0.16f)),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(scheme.surfaceVariant.copy(alpha = 0.65f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    if (phase == VoicePhase.Speaking) Icons.Default.GraphicEq else Icons.Default.Mic,
-                    contentDescription = null, tint = scheme.primary, modifier = Modifier.size(22.dp),
-                )
+                AnimatedContent(
+                    targetState = statusText,
+                    transitionSpec = motionSpec(animate) {
+                        (slideInVertically { it / 2 } + fadeIn()) togetherWith (slideOutVertically { -it / 2 } + fadeOut())
+                    },
+                    label = "voice_status_text",
+                ) { target ->
+                    Text(
+                        text = target,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
             }
-            Text(
-                status, fontSize = 15.sp, color = scheme.onSurface,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+
+            AppIconButton(
+                icon = Icons.Default.Close,
+                contentDescription = tr(R.string.voice_end),
+                onClick = voice::end,
             )
         }
-        if (voice.heard.isNotBlank() && phase != VoicePhase.Paused) {
-            Text("“${voice.heard}”", fontSize = 14.sp, color = scheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            when (phase) {
-                VoicePhase.Thinking -> AppButton(tr(R.string.assistant_stop), onClick = voice::cancel, variant = ButtonVariant.Tonal, size = ButtonSize.Small)
-                VoicePhase.Listening -> AppButton(tr(R.string.voice_pause), onClick = voice::tap, variant = ButtonVariant.Tonal, size = ButtonSize.Small)
-                else -> AppButton(tr(R.string.voice_talk), onClick = voice::tap, variant = ButtonVariant.Tonal, size = ButtonSize.Small, leadingIcon = Icons.Default.Mic)
+
+        Spacer(Modifier.weight(1f))
+
+        // Center visualizer with tap-to-interrupt / tap-to-talk
+        VoiceVisualizer(
+            phase = phase,
+            audioLevel = voice.level,
+            onClick = voice::tap,
+            visualizerSize = 230.dp,
+        )
+
+        Spacer(Modifier.height(28.dp))
+
+        // Live captions & speech text
+        Box(
+            modifier = Modifier
+                .widthIn(max = 480.dp)
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            val caption = if (voice.heard.isNotBlank() && phase != VoicePhase.Paused) {
+                "“${voice.heard}”"
+            } else {
+                when (phase) {
+                    VoicePhase.Listening -> tr(R.string.voice_listening)
+                    VoicePhase.Thinking -> tr(R.string.voice_thinking)
+                    VoicePhase.Speaking -> tr(R.string.voice_speaking)
+                    else -> tr(R.string.voice_paused)
+                }
             }
-            AppButton(tr(R.string.voice_end), onClick = voice::end, variant = ButtonVariant.Outline, size = ButtonSize.Small)
+
+            AnimatedContent(
+                targetState = caption,
+                transitionSpec = motionSpec(animate) {
+                    fadeIn() togetherWith fadeOut()
+                },
+                label = "voice_caption_content",
+            ) { text ->
+                Text(
+                    text = text,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = if (voice.heard.isNotBlank() && phase != VoicePhase.Paused) scheme.onSurface else scheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
+
+        Spacer(Modifier.weight(1.2f))
+
+        // Bottom tactile controls
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(32.dp))
+                .background(scheme.surfaceVariant.copy(alpha = 0.55f))
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Mute / Pause toggle button
+            AppIconButton(
+                icon = if (phase == VoicePhase.Listening) Icons.Default.Pause else Icons.Default.Mic,
+                contentDescription = if (phase == VoicePhase.Listening) tr(R.string.voice_pause) else tr(R.string.voice_talk),
+                onClick = voice::tap,
+            )
+
+            // Primary contextual button
+            when (phase) {
+                VoicePhase.Thinking -> {
+                    AppButton(
+                        text = tr(R.string.assistant_stop),
+                        onClick = voice::cancel,
+                        variant = ButtonVariant.Tonal,
+                        size = ButtonSize.Medium,
+                        leadingIcon = Icons.Default.Stop,
+                    )
+                }
+                VoicePhase.Speaking -> {
+                    AppButton(
+                        text = tr(R.string.voice_pause),
+                        onClick = voice::tap,
+                        variant = ButtonVariant.Primary,
+                        size = ButtonSize.Medium,
+                        leadingIcon = Icons.Default.Mic,
+                    )
+                }
+                VoicePhase.Listening -> {
+                    AppButton(
+                        text = tr(R.string.voice_pause),
+                        onClick = voice::tap,
+                        variant = ButtonVariant.Tonal,
+                        size = ButtonSize.Medium,
+                        leadingIcon = Icons.Default.Pause,
+                    )
+                }
+                else -> {
+                    AppButton(
+                        text = tr(R.string.voice_talk),
+                        onClick = voice::tap,
+                        variant = ButtonVariant.Primary,
+                        size = ButtonSize.Medium,
+                        leadingIcon = Icons.Default.Mic,
+                    )
+                }
+            }
+
+            // End session button
+            AppIconButton(
+                icon = Icons.Default.Close,
+                contentDescription = tr(R.string.voice_end),
+                onClick = voice::end,
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
     }
 }
