@@ -727,7 +727,7 @@ private fun InputBar(
     val scheme = MaterialTheme.colorScheme
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val buttonSize = 42.dp
+    val buttonSize = 44.dp
 
     Row(
         Modifier
@@ -739,44 +739,55 @@ private fun InputBar(
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        // Text input capsule: exact 42dp minimum height matching buttonSize
+        // Text input capsule: exact 44dp minimum height matching buttonSize
         Box(
             modifier = Modifier
                 .weight(1f)
                 .defaultMinSize(minHeight = buttonSize)
-                .clip(RoundedCornerShape(21.dp))
+                .clip(RoundedCornerShape(22.dp))
                 .background(scheme.surfaceVariant.copy(alpha = 0.35f))
                 .border(
                     width = 1.dp,
                     color = if (isFocused) scheme.primary else scheme.outlineVariant.copy(alpha = 0.6f),
-                    shape = RoundedCornerShape(21.dp),
+                    shape = RoundedCornerShape(22.dp),
                 )
                 .padding(horizontal = 14.dp, vertical = 11.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
-            if (value.isEmpty()) {
-                Text(
-                    text = hint,
-                    fontSize = 14.sp,
-                    color = scheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
             BasicTextField(
                 value = value,
                 onValueChange = { if (it.length <= 1000) onValueChange(it) },
                 modifier = Modifier.fillMaxWidth(),
                 textStyle = TextStyle(
                     fontSize = 14.sp,
-                    color = scheme.onSurface,
                     lineHeight = 20.sp,
+                    color = scheme.onSurface,
                 ),
                 cursorBrush = SolidColor(scheme.primary),
                 maxLines = 4,
                 interactionSource = interactionSource,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { if (value.isNotBlank() && !busy) onSend() }),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (value.isEmpty()) {
+                            Text(
+                                text = hint,
+                                style = TextStyle(
+                                    fontSize = 14.sp,
+                                    lineHeight = 20.sp,
+                                    color = scheme.onSurfaceVariant,
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        innerTextField()
+                    }
+                },
             )
         }
 
@@ -917,7 +928,7 @@ internal fun RoundAction(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: androidx.compose.ui.unit.Dp = 42.dp,
+    size: androidx.compose.ui.unit.Dp = 44.dp,
 ) {
     val scheme = MaterialTheme.colorScheme
     val bg = when {
